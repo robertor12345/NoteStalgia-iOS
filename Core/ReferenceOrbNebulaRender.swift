@@ -520,21 +520,30 @@ private enum ReferenceOrbNoise {
 }
 
 private enum ReferenceOrbPalette {
+    // This runs per grid cell (~2,000) every frame at 60fps for the persistent orb shell that's
+    // present on every screen — the old `mix()` converted two `Color`s via `UIColor` on every
+    // call (3 calls/cell here), i.e. ~700k `UIColor` conversions/sec running continuously across
+    // the whole app. `nebulaDeep` is the only palette entry that needs a one-time UIColor
+    // extraction (theme colors don't expose their raw components); everything else is already a
+    // literal (r, g, b), so blending works entirely in plain tuples with a `Color` built once at
+    // the end.
+    private static let deepRGB: (r: Double, g: Double, b: Double) = rgbComponents(BrandTheme.nebulaDeep)
+
     static func nebulaSample(nx: Double, ny: Double, density: Double, glowPulse: Double) -> (Color, Double) {
         let lr = smoothstep(0.22, 0.78, (nx + 1) * 0.5 + (density - 0.5) * 0.38)
         let lift = density * (0.82 + 0.32 * glowPulse)
 
-        let cyanMix = Color(red: 0.30 + lift * 0.12, green: 0.78 + lift * 0.10, blue: 0.92)
-        let tealMix = Color(red: 0.24, green: 0.68, blue: 0.82)
-        let lavenderMix = Color(red: 0.62, green: 0.52, blue: 0.90)
-        let peachMix = Color(red: 0.98, green: 0.64 + lift * 0.06, blue: 0.50)
-        let salmonMix = Color(red: 0.92, green: 0.54, blue: 0.58)
-        let deepMix = BrandTheme.nebulaDeep
+        let cyanMix = (r: 0.30 + lift * 0.12, g: 0.78 + lift * 0.10, b: 0.92)
+        let tealMix = (r: 0.24, g: 0.68, b: 0.82)
+        let lavenderMix = (r: 0.62, g: 0.52, b: 0.90)
+        let peachMix = (r: 0.98, g: 0.64 + lift * 0.06, b: 0.50)
+        let salmonMix = (r: 0.92, g: 0.54, b: 0.58)
 
         let leftTone = mix(cyanMix, tealMix, t: density * 0.55)
         let rightTone = mix(peachMix, salmonMix, t: density * 0.48)
-        let bridge = mix(lavenderMix, deepMix, t: 0.35 + density * 0.25)
-        let color = mix(mix(leftTone, bridge, t: lr * 0.42), rightTone, t: lr)
+        let bridge = mix(lavenderMix, deepRGB, t: 0.35 + density * 0.25)
+        let blended = mix(mix(leftTone, bridge, t: lr * 0.42), rightTone, t: lr)
+        let color = Color(red: blended.r, green: blended.g, blue: blended.b)
 
         let rim = 1 - pow(nx * nx + ny * ny, 0.94)
         let alpha = pow(max(0, density - 0.05), 0.98) * rim * (0.50 + 0.62 * glowPulse)
@@ -546,19 +555,23 @@ private enum ReferenceOrbPalette {
         return t * t * (3 - 2 * t)
     }
 
-    private static func mix(_ a: Color, _ b: Color, t: Double) -> Color {
-        let ta = UIColor(a)
-        let tb = UIColor(b)
-        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
-        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
-        ta.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
-        tb.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+    private static func mix(
+        _ a: (r: Double, g: Double, b: Double),
+        _ b: (r: Double, g: Double, b: Double),
+        t: Double
+    ) -> (r: Double, g: Double, b: Double) {
         let u = min(1, max(0, t))
-        return Color(
-            red: Double(ar + (br - ar) * u),
-            green: Double(ag + (bg - ag) * u),
-            blue: Double(ab + (bb - ab) * u)
+        return (
+            a.r + (b.r - a.r) * u,
+            a.g + (b.g - a.g) * u,
+            a.b + (b.b - a.b) * u
         )
+    }
+
+    private static func rgbComponents(_ color: Color) -> (r: Double, g: Double, b: Double) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return (Double(r), Double(g), Double(b))
     }
 }
 

@@ -56,11 +56,26 @@ final class NatureCompilationSession: ObservableObject {
     private(set) var queuePlayer = AVQueuePlayer()
     var player: AVPlayer { queuePlayer }
 
+    /// `true` once the first remote clip is actually rendering frames. Drives the loading poster so
+    /// the user never stares at a black player layer while the 720p clip buffers.
+    @Published private(set) var isReady = false
+
     private let clipURLs: [URL]
     private var endObserver: NSObjectProtocol?
+    private var timeControlObserver: NSKeyValueObservation?
 
     init(clipURLs: [URL]) {
         self.clipURLs = clipURLs.isEmpty ? NatureVideoCompilation.mixkitQuickStartClipURLs : clipURLs
+        observePlaybackStart()
+    }
+
+    private func observePlaybackStart() {
+        timeControlObserver = queuePlayer.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+            guard let self, player.timeControlStatus == .playing else { return }
+            DispatchQueue.main.async {
+                if !self.isReady { self.isReady = true }
+            }
+        }
     }
 
     func prepareAndPlay() {
@@ -115,6 +130,7 @@ final class NatureCompilationSession: ObservableObject {
         if let endObserver = endObserver {
             NotificationCenter.default.removeObserver(endObserver)
         }
+        timeControlObserver?.invalidate()
     }
 }
 
@@ -132,15 +148,51 @@ struct NatureVideoCompilationView: View {
     }
 
     var body: some View {
-        NatureVideoPlayerRepresentable(player: session.player)
+        ZStack {
+            NatureVideoPlayerRepresentable(player: session.player)
+                .ignoresSafeArea()
+
+            if !session.isReady {
+                NatureVideoLoadingPoster()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.6), value: session.isReady)
+        .onAppear {
+            session.prepareAndPlay()
+        }
+        .onDisappear {
+            session.pause()
+        }
+        .id(mediaSessionID)
+    }
+}
+
+/// Calm poster shown over the player until the first video frame renders — a soft nature gradient
+/// with the shared breathing loader, so buffering never reads as a frozen black screen.
+private struct NatureVideoLoadingPoster: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.06, green: 0.16, blue: 0.20),
+                    Color(red: 0.09, green: 0.22, blue: 0.26),
+                    Color(red: 0.05, green: 0.12, blue: 0.18),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
             .ignoresSafeArea()
-            .onAppear {
-                session.prepareAndPlay()
+
+            VStack(spacing: 16) {
+                BreathingCalmProgressView(diameter: 64)
+                Text("Settling the scene…")
+                    .font(BrandTheme.orbLineFont())
+                    .orbOverlayText(muted: true)
             }
-            .onDisappear {
-                session.pause()
-            }
-            .id(mediaSessionID)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Preparing the nature video")
     }
 }
 

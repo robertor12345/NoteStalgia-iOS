@@ -31,16 +31,17 @@ enum DiscoveryFlowPOC {
     static var snippetCount: Int { snippetAudioStreamURLs.count }
     static let snippetDurationSeconds: TimeInterval = 30
 
-    /// One **distinct streamed clip** per discovery snippet (indexed `0 ..< snippetCount`).
+    /// One **distinct clip** per discovery snippet (indexed `0 ..< snippetCount`).
     ///
-    /// **Retro / ~1950s-style instrumentals** via [Kevin MacLeod — incompetech.com](https://incompetech.com). Licensed **Creative Commons BY** (typically 4.0) — attribution required for public builds; credit *Kevin MacLeod (incompetech.com)* in app credits / readme.
+    /// Tracks are bundled with the app (`App/Resources/Music`) so discovery calibration runs
+    /// offline. Each entry falls back to its previous streamed clip if the bundled file is missing.
     static let snippetAudioStreamURLs: [URL] = [
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Sock%20Hop.mp3")!, // diner / sock-hop rock
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Malt%20Shop%20Bop.mp3")!, // malt-shop bop
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Vivacity.mp3")!, // brassy upbeat (late‑50s / early‑60s feel)
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jazz%20Brunch.mp3")!, // combo jazz groove
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Cool%20Blast.mp3")!, // cooler dance jazz
-        URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Americana.mp3")!, // country-western nostalgic
+        BundledAudio.urlOrRemote("Echoes of Yesterday", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Sock%20Hop.mp3")!),
+        BundledAudio.urlOrRemote("Velvet Highway", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Malt%20Shop%20Bop.mp3")!),
+        BundledAudio.urlOrRemote("Velvet Cadenza", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Vivacity.mp3")!),
+        BundledAudio.urlOrRemote("Velvet Afterhours", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jazz%20Brunch.mp3")!),
+        BundledAudio.urlOrRemote("Pine Smoke Drift (1)", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Cool%20Blast.mp3")!),
+        BundledAudio.urlOrRemote("Drift Between Rooms", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Americana.mp3")!),
     ]
 
     static func snippetAudioStreamURL(snippetIndex: Int, order: [Int]? = nil) -> URL {

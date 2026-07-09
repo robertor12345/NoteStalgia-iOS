@@ -1,10 +1,20 @@
 import SwiftUI
+import UIKit
 
 struct FlowRootView: View {
     @StateObject private var state = SessionPOCState()
     @State private var launchComplete = false
     @State private var launchAnchor = Date()
     @State private var launchDidFinish = false
+    /// Set once `LaunchWarmUp.perform()` has run. The title screen will not dismiss (via the timer
+    /// or a tap-to-skip) until this is true, so the user can never land on a cold, unwarmed login.
+    @State private var warmUpComplete = false
+    /// Set when the launch timer fires or the user taps to skip. The actual dismissal is deferred
+    /// until `warmUpComplete` is also true.
+    @State private var launchFinishRequested = false
+    /// While the keyboard is up the user is typing — pause the ambient sparkle + orb nebula draw
+    /// loops so their continuous main-thread rendering doesn't make form fields feel unresponsive.
+    @State private var keyboardVisible = false
 
     private let launchTotalDuration: Double = 5.8
 
@@ -27,18 +37,19 @@ struct FlowRootView: View {
             ZStack {
                 BrandBackground(showSparkles: false)
 
-                GoldAmbientSparklesView(
-                    particleCount: BrandTheme.ambientSparkleParticleCount,
-                    intensity: BrandTheme.ambientSparkleIntensity
+                // Isolated behind an `Equatable` boundary: the sparkles + orb nebula are expensive
+                // 60fps `Canvas` layers, and `FlowRootView` re-renders on every unrelated state
+                // change (including each keystroke in a form field, via the coordinator's forwarded
+                // `objectWillChange`). Gating on `.equatable()` means those keystroke re-renders no
+                // longer re-evaluate — and thus never force a synchronous nebula redraw — as long as
+                // the orb config, anchor, and keyboard state are unchanged.
+                FlowAmbientBackdrop(
+                    shellConfig: shellConfig,
+                    anchor: launchAnchor,
+                    keyboardVisible: keyboardVisible
                 )
-                .ignoresSafeArea()
-                .zIndex(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-                PersistentFlowOrbShell(configuration: shellConfig, anchor: launchAnchor)
-                    .zIndex(1)
-                    .animation(.easeInOut(duration: 0.62), value: shellConfig)
+                .equatable()
+                .zIndex(1)
 
                 phaseLayer(contentInset: contentInset, style: style)
                     .zIndex(2)
@@ -76,9 +87,25 @@ struct FlowRootView: View {
             state.resetAllForFreshAppLaunch()
             StreamAudioCache.prefetchLaunchEssentials()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardVisible = false
+        }
+        .task {
+            // Let the first frame + launch animation start, then warm up the subsystems that
+            // otherwise hitch the main thread on first use (keyboard, audio/chime engine, haptics)
+            // while the title screen still covers the UI — so the sign-in form is responsive the
+            // instant it appears.
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            LaunchWarmUp.perform()
+            warmUpComplete = true
+            finishLaunchIfReady()
+        }
         .task {
             try? await Task.sleep(nanoseconds: UInt64(launchTotalDuration * 1_000_000_000))
-            await MainActor.run { finishLaunch() }
+            await MainActor.run { requestFinishLaunch() }
         }
     }
 
@@ -156,17 +183,93 @@ struct FlowRootView: View {
 
     private func skipLaunchIfNeeded() {
         guard !launchComplete else { return }
-        finishLaunch()
+        requestFinishLaunch()
     }
 
-    private func finishLaunch() {
-        guard !launchDidFinish else { return }
+    /// Requests dismissal of the title screen (from the launch timer or a tap-to-skip). The screen
+    /// only actually dismisses once warm-up has finished, so we never reveal a cold login form.
+    private func requestFinishLaunch() {
+        launchFinishRequested = true
+        finishLaunchIfReady()
+    }
+
+    private func finishLaunchIfReady() {
+        guard launchFinishRequested, warmUpComplete, !launchDidFinish else { return }
         launchDidFinish = true
         withAnimation(.easeInOut(duration: 0.62)) {
             launchComplete = true
         }
     }
 
+}
+
+/// One-time warm-up of subsystems that otherwise stutter the main thread on first use. Run behind
+/// the launch title screen so the sign-in form is fully responsive the moment it appears.
+@MainActor
+enum LaunchWarmUp {
+    private static var didRun = false
+
+    static func perform() {
+        guard !didRun else { return }
+        didRun = true
+
+        // First tap chime would otherwise start an AVAudioEngine + synthesise buffers on main.
+        AppAudioSession.activate()
+        DiscoveryEtherealTapChime.prewarm()
+        // First button press would otherwise pay Taptic engine first-use latency.
+        CalmExperienceFeedback.prewarm()
+        // The very first `becomeFirstResponder` loads the keyboard subsystem (the biggest first-tap
+        // cost). Prime it offscreen while the title screen is up.
+        prewarmKeyboard()
+    }
+
+    private static func prewarmKeyboard() {
+        guard let window = activeWindow else { return }
+        let field = UITextField(frame: .zero)
+        field.isHidden = true
+        window.addSubview(field)
+        field.becomeFirstResponder()
+        field.resignFirstResponder()
+        field.removeFromSuperview()
+    }
+
+    private static var activeWindow: UIWindow? {
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+        return windows.first { $0.isKeyWindow } ?? windows.first
+    }
+}
+
+/// The always-on ambient layers (drifting sparkles + persistent orb nebula shell), extracted so
+/// they can sit behind an `.equatable()` boundary. Their only inputs are value types, so SwiftUI
+/// skips re-evaluating them while a form field's keystrokes churn the rest of the view tree.
+private struct FlowAmbientBackdrop: View, Equatable {
+    let shellConfig: OrbShellConfiguration
+    let anchor: Date
+    let keyboardVisible: Bool
+
+    static func == (lhs: FlowAmbientBackdrop, rhs: FlowAmbientBackdrop) -> Bool {
+        lhs.shellConfig == rhs.shellConfig
+            && lhs.anchor == rhs.anchor
+            && lhs.keyboardVisible == rhs.keyboardVisible
+    }
+
+    var body: some View {
+        ZStack {
+            GoldAmbientSparklesView(
+                particleCount: BrandTheme.ambientSparkleParticleCount,
+                intensity: BrandTheme.ambientSparkleIntensity,
+                externallyPaused: keyboardVisible
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+
+            PersistentFlowOrbShell(configuration: shellConfig, anchor: anchor, externallyPaused: keyboardVisible)
+                .animation(.easeInOut(duration: 0.62), value: shellConfig)
+        }
+    }
 }
 
 struct BrandBackground: View {

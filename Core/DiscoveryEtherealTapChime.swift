@@ -18,6 +18,13 @@ enum DiscoveryEtherealTapChime {
     static func playButton() {
         ChimeEngine.shared.play(.button)
     }
+
+    /// Start the audio engine and pre-render every chime buffer ahead of first use, so the first
+    /// tap doesn't pay for `AVAudioEngine.start()` + synthesis on the main thread.
+    @MainActor
+    static func prewarm() {
+        ChimeEngine.shared.prewarm()
+    }
 }
 
 // MARK: - Engine
@@ -36,6 +43,14 @@ private final class ChimeEngine {
     private var buffers: [Variant: AVAudioPCMBuffer] = [:]
 
     private init() {}
+
+    func prewarm() {
+        guard AppAudioSession.activate() else { return }
+        _ = ensureRunning()
+        for variant in Variant.allCases {
+            _ = buffer(for: variant)
+        }
+    }
 
     func play(_ variant: Variant) {
         guard AppAudioSession.activate() else { return }

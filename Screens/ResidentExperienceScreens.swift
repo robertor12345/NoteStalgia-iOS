@@ -300,7 +300,6 @@ struct ResidentProfileView: View {
     @Environment(\.flowContainerSize) private var flowContainerSize
     @Environment(\.flowOrbShellSize) private var flowOrbShellSize
     @StateObject private var residentAudio = AmbientAudioSession()
-    @ObservedObject private var reactiveBus = MusicReactiveBus.shared
     /// Highlights the glyph whose playlist is sounding; reshapes the floating layout around it.
     @State private var selectedPlayingGenre: ResidentMusicGenre?
     @State private var activePlaylist: CarePlaylistEntry?
@@ -907,7 +906,6 @@ struct ResidentProfileView: View {
                         visibleBarCount: OrbRadialBarEqualizerMotion.defaultBarCount,
                         reactsToMusic: true,
                         liveAudioOnly: true,
-                        bandLevels: reactiveBus.snapshot.bands,
                         liveAudioGain: OrbRadialBarEqualizerView.LiveMusicTuning.liveAudioGain,
                         liveLevelExponent: OrbRadialBarEqualizerView.LiveMusicTuning.liveLevelExponent,
                         barAmplitudeFloor: OrbRadialBarEqualizerView.LiveMusicTuning.barAmplitudeFloor,

@@ -340,15 +340,23 @@ enum CareTenancyMockData {
     ]
 
     static func home(id: UUID) -> CareHome? { homes.first { $0.id == id } }
-    static func supervisor(id: UUID) -> SupervisorAccount? { supervisors.first { $0.id == id } }
+    static func supervisor(id: UUID) -> SupervisorAccount? {
+        guard let account = supervisors.first(where: { $0.id == id }) else { return nil }
+        return SupervisorCredentialStore.accountWithEffectivePIN(account)
+    }
 
-    static func allPatients() -> [CarePatientProfile] {
+    /// Deterministic roster — 37 profiles built with per-resident string formatting. Identical on
+    /// every launch, so compute exactly once and reuse. `insightsDemoRecords()` also reads this,
+    /// so caching here removes that nested re-generation too.
+    static let allPatientsSnapshot: [CarePatientProfile] =
         namedMapleLodgeResidents() + generatedMapleLodgeResidents() + riversideSeedResidents()
-    }
 
-    static func supplementalRecords() -> [CareSessionRecord] {
-        insightsDemoRecords()
-    }
+    static func allPatients() -> [CarePatientProfile] { allPatientsSnapshot }
+
+    /// Demo session history (~90 records). Cached once — see `allPatientsSnapshot`.
+    static let supplementalRecordsSnapshot: [CareSessionRecord] = insightsDemoRecords()
+
+    static func supplementalRecords() -> [CareSessionRecord] { supplementalRecordsSnapshot }
 
     /// Rich 14-day demo history — upward calm / wellbeing trends for admin insights.
     static func insightsDemoRecords(now: Date = Date()) -> [CareSessionRecord] {

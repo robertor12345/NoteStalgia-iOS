@@ -5,8 +5,6 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var state: SessionPOCState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @FocusState private var focusedField: Field?
-    private enum Field: Hashable { case email, pin }
 
     var body: some View {
         ScreenFadeIn {
@@ -26,13 +24,32 @@ struct HomeView: View {
 
             FadeInNoteStalgiaWordmark(magnification: SignInPageLayout.scale, delay: 0)
 
-            if state.isSignedIn {
-                signedInContent
-            } else {
-                supervisorSignInContent
-            }
+            // Observes the `auth` store directly, so typing in the sign-in / PIN fields re-renders
+            // only this panel — not the wordmark above, not `HomeView`, and not `FlowRootView`'s
+            // 60fps orb/sparkle canvases (the coordinator no longer forwards `auth` changes).
+            SupervisorAuthPanel(state: state, auth: state.auth, horizontalSizeClass: horizontalSizeClass)
 
             Spacer(minLength: SignInPageLayout.sectionSpacing)
+        }
+    }
+}
+
+/// The reactive part of the home screen: sign-in form, signed-in shortcuts, and the PIN-reset
+/// entry. Observes `auth` so it (and only it) refreshes as the supervisor types.
+private struct SupervisorAuthPanel: View {
+    @ObservedObject var state: SessionPOCState
+    @ObservedObject var auth: SupervisorAuthStore
+    var horizontalSizeClass: UserInterfaceSizeClass?
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case email, pin }
+
+    var body: some View {
+        if auth.isSignedIn {
+            signedInContent
+        } else if auth.pinResetActive {
+            SupervisorPinResetView(state: state, auth: auth, horizontalSizeClass: horizontalSizeClass)
+        } else {
+            supervisorSignInContent
         }
     }
 
@@ -71,7 +88,7 @@ struct HomeView: View {
                     labeledField(
                         title: "Work email",
                         content: {
-                            TextField("name@sunrise-care.co.uk", text: $state.supervisorEmail)
+                            TextField("name@sunrise-care.co.uk", text: $auth.supervisorEmail)
                                 .textContentType(.emailAddress)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -82,7 +99,7 @@ struct HomeView: View {
                         }
                     )
                     SixDigitPinInput(
-                        pin: $state.supervisorPIN,
+                        pin: $auth.supervisorPIN,
                         isError: supervisorPinShowsError,
                         focus: $focusedField,
                         focusValue: Field.pin,
@@ -92,7 +109,7 @@ struct HomeView: View {
             }
             .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
 
-            if let error = state.supervisorSignInError, !error.isEmpty {
+            if let error = auth.supervisorSignInError, !error.isEmpty {
                 Text(error)
                     .font(SignInPageLayout.captionFont)
                     .foregroundStyle(BrandTheme.nebulaSalmon)
@@ -104,11 +121,23 @@ struct HomeView: View {
 
             PrimaryButton(title: "Continue", action: attemptSignIn)
                 .padding(.horizontal, 24)
+
+            Button {
+                state.beginSupervisorPinReset()
+            } label: {
+                Text("Forgot PIN?")
+                    .font(.system(size: SignInPageLayout.points(4.5), weight: .medium, design: .default))
+                    .foregroundStyle(BrandTheme.gold)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityLabel("Forgot PIN")
+            .accessibilityHint("Reset your supervisor PIN with your work email")
         }
     }
 
     private var supervisorPinShowsError: Bool {
-        guard let error = state.supervisorSignInError, !error.isEmpty else { return false }
+        guard let error = auth.supervisorSignInError, !error.isEmpty else { return false }
         return error.localizedCaseInsensitiveContains("pin")
     }
 
@@ -134,6 +163,231 @@ struct HomeView: View {
     private func attemptSignIn() {
         if state.completeSupervisorSignIn() == nil {
             CalmExperienceFeedback.signInSuccess()
+        }
+    }
+}
+
+// MARK: - Supervisor PIN reset (POC)
+
+private struct SupervisorPinResetView: View {
+    @ObservedObject var state: SessionPOCState
+    @ObservedObject var auth: SupervisorAuthStore
+    var horizontalSizeClass: UserInterfaceSizeClass?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case email, code, newPIN, confirmPIN
+    }
+
+    var body: some View {
+        VStack(spacing: SignInPageLayout.stackSpacing) {
+            FadeInLine(text: stepTitle, delay: 0.06)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+
+            if let hint = stepHint {
+                FadeInLine(text: hint, muted: true, delay: 0.1)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+            }
+
+            BrandCard {
+                stepContent
+            }
+            .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+
+            if let error = auth.pinResetError, !error.isEmpty {
+                Text(error)
+                    .font(SignInPageLayout.captionFont)
+                    .foregroundStyle(BrandTheme.nebulaSalmon)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                    .accessibilityLabel("Reset error")
+                    .accessibilityValue(error)
+            }
+
+            if auth.pinResetStep == .complete {
+                if let message = auth.pinResetSuccessMessage {
+                    Text(message)
+                        .font(SignInPageLayout.captionFont)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+                PrimaryButton(title: "Back to sign in") {
+                    state.finishSupervisorPinReset()
+                }
+                .padding(.horizontal, 24)
+            } else {
+                PrimaryButton(title: primaryActionTitle, action: submitCurrentStep)
+                    .padding(.horizontal, 24)
+
+                Button {
+                    state.cancelSupervisorPinReset()
+                } label: {
+                    Text("Cancel")
+                        .font(SignInPageLayout.captionFont.weight(.medium))
+                        .foregroundStyle(BrandTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+        }
+        .onAppear {
+            focusedField = initialFocus
+        }
+        .onChange(of: auth.pinResetStep) { _, _ in
+            focusedField = initialFocus
+        }
+    }
+
+    private var stepTitle: String {
+        switch auth.pinResetStep {
+        case .email:
+            return "Reset your PIN"
+        case .verificationCode:
+            return "Check your email"
+        case .newPIN:
+            return "Choose a new PIN"
+        case .confirmPIN:
+            return "Confirm your new PIN"
+        case .complete:
+            return "PIN updated"
+        }
+    }
+
+    private var stepHint: String? {
+        switch auth.pinResetStep {
+        case .email:
+            return "Enter the work email on your supervisor account. We’ll send a verification code."
+        case .verificationCode:
+            return "Enter the 6-digit code we sent. Demo code: \(SupervisorCredentialStore.demoResetCode)."
+        case .newPIN, .confirmPIN:
+            return "Pick a new \(SupervisorAuth.pinDigitCount)-digit PIN you’ll use to sign in."
+        case .complete:
+            return nil
+        }
+    }
+
+    private var primaryActionTitle: String {
+        switch auth.pinResetStep {
+        case .email, .verificationCode, .newPIN:
+            return "Continue"
+        case .confirmPIN:
+            return "Update PIN"
+        case .complete:
+            return "Back to sign in"
+        }
+    }
+
+    private var initialFocus: Field? {
+        switch auth.pinResetStep {
+        case .email: return .email
+        case .verificationCode: return .code
+        case .newPIN: return .newPIN
+        case .confirmPIN: return .confirmPIN
+        case .complete: return nil
+        }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch auth.pinResetStep {
+        case .email:
+            labeledField(
+                title: "Work email",
+                content: {
+                    TextField("name@sunrise-care.co.uk", text: $auth.pinResetEmail)
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .email)
+                        .submitLabel(.next)
+                        .onSubmit { submitCurrentStep() }
+                }
+            )
+        case .verificationCode:
+            labeledField(
+                title: "Verification code",
+                content: {
+                    TextField("000000", text: $auth.pinResetCode)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .code)
+                        .onChange(of: auth.pinResetCode) { _, newValue in
+                            let sanitized = String(newValue.filter(\.isWholeNumber).prefix(SupervisorAuth.pinDigitCount))
+                            if sanitized != newValue {
+                                auth.pinResetCode = sanitized
+                            }
+                        }
+                        .onSubmit { submitCurrentStep() }
+                }
+            )
+        case .newPIN:
+            SixDigitPinInput(
+                pin: $auth.pinResetNewPIN,
+                isError: pinResetShowsError,
+                focus: $focusedField,
+                focusValue: Field.newPIN,
+                onComplete: { state.submitSupervisorPinResetNewPIN() }
+            )
+        case .confirmPIN:
+            SixDigitPinInput(
+                pin: $auth.pinResetConfirmPIN,
+                isError: pinResetShowsError,
+                focus: $focusedField,
+                focusValue: Field.confirmPIN,
+                onComplete: { submitCurrentStep() }
+            )
+        case .complete:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(BrandTheme.gold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var pinResetShowsError: Bool {
+        guard let error = auth.pinResetError, !error.isEmpty else { return false }
+        return error.localizedCaseInsensitiveContains("pin")
+    }
+
+    private func submitCurrentStep() {
+        switch auth.pinResetStep {
+        case .email:
+            state.submitSupervisorPinResetEmail()
+        case .verificationCode:
+            state.submitSupervisorPinResetCode()
+        case .newPIN:
+            state.submitSupervisorPinResetNewPIN()
+        case .confirmPIN:
+            state.submitSupervisorPinResetConfirm()
+        case .complete:
+            state.finishSupervisorPinReset()
+        }
+    }
+
+    private func labeledField(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BrandTheme.textSecondary)
+            content()
+                .font(.body)
+                .foregroundStyle(BrandTheme.textPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(BrandTheme.creamMid.opacity(0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                )
         }
     }
 }

@@ -3,6 +3,11 @@ import SwiftUI
 /// Soft ambient particles — light blue, sage green, and peach pastel drift with subtle twinkle.
 struct GoldAmbientSparklesView: View {
     var intensity: CGFloat = 1
+    /// Pause the draw loop from outside (e.g. while the keyboard is up) so continuous particle
+    /// animation doesn't compete with text input for the main thread.
+    var externallyPaused: Bool = false
+
+    @Environment(\.scenePhase) private var scenePhase
 
     private struct Particle: Identifiable {
         let id: Int
@@ -28,10 +33,21 @@ struct GoldAmbientSparklesView: View {
 
     private let particles: [Particle]
 
-    init(particleCount: Int = BrandTheme.ambientSparkleParticleCount, intensity: CGFloat = BrandTheme.ambientSparkleIntensity) {
+    init(particleCount: Int = BrandTheme.ambientSparkleParticleCount, intensity: CGFloat = BrandTheme.ambientSparkleIntensity, externallyPaused: Bool = false) {
         self.intensity = intensity
+        self.externallyPaused = externallyPaused
+        particles = Self.particles(count: particleCount)
+    }
+
+    // Particles are deterministic (fixed seed), so build them once per count and reuse — avoids
+    // regenerating hundreds of particles + colors every time an observing parent view re-renders
+    // (e.g. on every keystroke while a sparkle layer is on screen).
+    private static var particleCache: [Int: [Particle]] = [:]
+
+    private static func particles(count: Int) -> [Particle] {
+        if let cached = particleCache[count] { return cached }
         var gen = SplitMix64(seed: 0xF10C_B0C5)
-        particles = (0..<particleCount).map { i in
+        let built: [Particle] = (0..<count).map { i in
             let mod = i % 3
             let coreTint: Color = mod == 0 ? .white : (mod == 1 ? BrandTheme.nebulaCyan : BrandTheme.nebulaPink)
             let glowInner: Color = mod == 0 ? BrandTheme.nebulaCyan : (mod == 1 ? BrandTheme.nebulaLavender : BrandTheme.nebulaPink)
@@ -56,10 +72,14 @@ struct GoldAmbientSparklesView: View {
                 glowOuter: glowOuter
             )
         }
+        particleCache[count] = built
+        return built
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.sparkleFramesPerSecond, paused: false)) { timeline in
+        // Present behind every screen for the app's whole lifetime — pause the draw loop while
+        // backgrounded/inactive instead of burning CPU/GPU on particles nobody can see.
+        TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.sparkleFramesPerSecond, paused: scenePhase != .active || externallyPaused)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 // No full-screen radial “haze” here — only particles — avoids a dome / semicircle tint on pastel UI.

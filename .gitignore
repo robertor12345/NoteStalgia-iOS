@@ -1,5 +1,7 @@
 xcuserdata/
 DerivedData/
+.derivedData/
+.derivedData-stash/
 *.xcuserstate
 .DS_Store
 .orb-ref-frames/

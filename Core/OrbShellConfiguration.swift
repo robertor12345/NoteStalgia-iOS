@@ -79,12 +79,21 @@ struct OrbShellConfiguration: Equatable {
 struct PersistentFlowOrbShell: View {
     var configuration: OrbShellConfiguration
     var anchor: Date
+    /// Pause the pulse/nebula draw loop from outside (e.g. while the keyboard is up) so the
+    /// per-cell nebula noise doesn't compete with text input for the main thread.
+    var externallyPaused: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var reactiveBus = MusicReactiveBus.shared
+    @Environment(\.scenePhase) private var scenePhase
 
+    // Reading `MusicReactiveBus.shared.snapshot` directly (rather than subscribing via
+    // `@ObservedObject`) avoids a second, faster invalidation source stacking on top of this
+    // shell's own `TimelineView` tick — the shell already redraws every frame, so it picks up
+    // the latest snapshot value each tick without needing its own publish-driven re-render.
     var body: some View {
-        TimelineView(.animation(minimumInterval: OrbRenderBudget.shellFrameInterval(reduceMotion: reduceMotion), paused: configuration.pulseMode == .dormant)) { timeline in
+        // Present on every screen for the app's whole lifetime — pause while backgrounded so the
+        // pulse/glow animation isn't computed and drawn when nothing is on screen.
+        TimelineView(.animation(minimumInterval: OrbRenderBudget.shellFrameInterval(reduceMotion: reduceMotion), paused: configuration.pulseMode == .dormant || scenePhase != .active || externallyPaused)) { timeline in
             let elapsed = timeline.date.timeIntervalSince(anchor) * configuration.panelPulseSpeed
             let baseSample = OrbPulseSample.sample(
                 at: elapsed,
@@ -92,7 +101,7 @@ struct PersistentFlowOrbShell: View {
                 reduceMotion: reduceMotion,
                 speedMultiplier: configuration.panelPulseSpeed
             )
-            let reactive = reactiveBus.snapshot
+            let reactive = MusicReactiveBus.shared.snapshot
             let sample = reactive.isActive && !reduceMotion
                 ? baseSample.blendedWithMusic(pulse: reactive.pulse, glow: reactive.glow)
                 : baseSample

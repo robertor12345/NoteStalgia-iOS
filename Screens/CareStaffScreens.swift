@@ -185,25 +185,31 @@ struct CarePatientListView: View {
         .padding(.horizontal, 4)
     }
 
+    // `LazyVStack` defers building each row until it's about to scroll into view (this still
+    // lives inside `CenteredScrollScreen`'s `ScrollView`, so laziness applies even though the
+    // outer content stack is eager). Matters most in "browse all residents" mode, which can
+    // list every active resident in the home instead of the day's curated ~20.
     @ViewBuilder
     private var rosterSections: some View {
-        ForEach(presentation.sections) { section in
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(section.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textPrimary)
-                    if let subtitle = section.subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
+        LazyVStack(alignment: .leading, spacing: 22) {
+            ForEach(presentation.sections) { section in
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(section.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(BrandTheme.textPrimary)
+                        if let subtitle = section.subtitle {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(BrandTheme.textSecondary)
+                        }
                     }
-                }
-                .padding(.horizontal, 8)
+                    .padding(.horizontal, 8)
 
-                ForEach(section.patientIds, id: \.self) { patientId in
-                    if let patient = state.carePatient(id: patientId) {
-                        rosterRow(for: patient)
+                    ForEach(section.patientIds, id: \.self) { patientId in
+                        if let patient = state.carePatient(id: patientId) {
+                            rosterRow(for: patient)
+                        }
                     }
                 }
             }
@@ -484,7 +490,8 @@ struct CareNewResidentProfileView: View {
                 guard let new else { return }
                 if let data = try? await new.loadTransferable(type: Data.self),
                    let ui = UIImage(data: data) {
-                    await MainActor.run { state.newResidentProfilePhoto = ui }
+                    let resized = ui.downscaledForDisplay(maxDimension: 600)
+                    await MainActor.run { state.newResidentProfilePhoto = resized }
                 }
             }
         }

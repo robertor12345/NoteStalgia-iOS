@@ -15,6 +15,7 @@ final class MusicReactiveBus: ObservableObject {
     private init() {}
 
     func publish(_ snapshot: MusicReactiveSnapshot) {
+        guard self.snapshot != snapshot else { return }
         self.snapshot = snapshot
     }
 

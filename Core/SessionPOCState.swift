@@ -1,56 +1,193 @@
 import SwiftUI
+import Combine
 
 /// In-memory state for the **care-home one-to-one** session POC (corporate sign-in).
+///
+/// Storage for each domain (auth, roster, resident surface, discovery, group sessions, session
+/// vitals, ...) lives in its own small `ObservableObject` — see `Core/*Store.swift`. This class
+/// is the coordinator: it owns those stores, forwards their `objectWillChange` so existing
+/// `@ObservedObject var state: SessionPOCState` views keep working unmodified, and holds the
+/// cross-domain orchestration (phase transitions, resets, and methods that touch more than one
+/// domain at once). Views that only care about one domain (e.g. `ImmersiveSessionView` and
+/// session vitals) can observe that store directly instead, to avoid re-rendering on unrelated
+/// changes — see `vitals`.
 final class SessionPOCState: ObservableObject {
+    let auth = SupervisorAuthStore()
+    let careData = CareDataStore()
+    let rosterUI = CareRosterUIStore()
+    let residentSurface = ResidentSurfaceStore()
+    let newResidentDiscovery = NewResidentDiscoveryStore()
+    let discoveryCalibration = DiscoveryCalibrationStore()
+    let sessionSentiment = SessionSentimentStore()
+    let carePrep = CareSessionPrepStore()
+    let captureMood = CaptureMoodStore()
+    let groupSession = GroupSessionStore()
+    let vitals = ImmersiveSessionVitalsStore()
+
+    private var storeSubscriptions: [AnyCancellable] = []
+
+    init() {
+        // NOTE: `auth` is deliberately NOT forwarded. Its fields change on every sign-in / PIN
+        // keystroke, and forwarding would re-render every view observing this coordinator (including
+        // `FlowRootView` and its expensive orb/sparkle canvases) on each character. The only views
+        // that need live auth updates are the sign-in + PIN-reset UI, which observe `auth` directly.
+        // Navigation still works because it is driven by `phase` (published on this coordinator).
+        forward(careData)
+        forward(rosterUI)
+        forward(residentSurface)
+        forward(newResidentDiscovery)
+        forward(discoveryCalibration)
+        forward(sessionSentiment)
+        forward(carePrep)
+        forward(captureMood)
+        forward(groupSession)
+        forward(vitals)
+    }
+
+    /// Re-publishes a store's `objectWillChange` as this coordinator's own, so existing
+    /// `@ObservedObject var state: SessionPOCState` views keep refreshing exactly as before.
+    private func forward<Store: ObservableObject>(_ store: Store) where Store.ObjectWillChangePublisher == ObservableObjectPublisher {
+        store.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &storeSubscriptions)
+    }
+
     @Published var phase: FlowPhase = .home
     @Published private(set) var phaseContentVisible = true
     private var phaseTransitionTask: Task<Void, Never>?
 
-    @Published var supervisorEmail = ""
-    @Published var supervisorPIN = ""
-    @Published var isSignedIn = false
-    @Published private(set) var pendingCareRosterAfterSignIn = false
-    @Published var supervisorSignInError: String?
-    @Published private(set) var signedInSupervisorId: UUID?
-    @Published var currentHomeId: UUID?
-    @Published var rosterSearchQuery = ""
-    @Published var rosterSelectedWingId: String?
-    @Published var rosterBrowsingAllResidents = false
+    // MARK: - Supervisor auth (passthrough — storage lives in `auth`)
 
+    var supervisorEmail: String {
+        get { auth.supervisorEmail }
+        set { auth.supervisorEmail = newValue }
+    }
+    var supervisorPIN: String {
+        get { auth.supervisorPIN }
+        set { auth.supervisorPIN = newValue }
+    }
+    var isSignedIn: Bool {
+        get { auth.isSignedIn }
+        set { auth.isSignedIn = newValue }
+    }
+    private(set) var pendingCareRosterAfterSignIn: Bool {
+        get { auth.pendingCareRosterAfterSignIn }
+        set { auth.pendingCareRosterAfterSignIn = newValue }
+    }
+    var supervisorSignInError: String? {
+        get { auth.supervisorSignInError }
+        set { auth.supervisorSignInError = newValue }
+    }
+    private(set) var signedInSupervisorId: UUID? {
+        get { auth.signedInSupervisorId }
+        set { auth.signedInSupervisorId = newValue }
+    }
+
+    // MARK: - Supervisor PIN reset (POC, passthrough — storage lives in `auth`)
+
+    var supervisorPinResetActive: Bool {
+        get { auth.pinResetActive }
+        set { auth.pinResetActive = newValue }
+    }
+    var supervisorPinResetStep: SupervisorPinResetStep {
+        get { auth.pinResetStep }
+        set { auth.pinResetStep = newValue }
+    }
+    var supervisorPinResetEmail: String {
+        get { auth.pinResetEmail }
+        set { auth.pinResetEmail = newValue }
+    }
+    var supervisorPinResetCode: String {
+        get { auth.pinResetCode }
+        set { auth.pinResetCode = newValue }
+    }
+    var supervisorPinResetNewPIN: String {
+        get { auth.pinResetNewPIN }
+        set { auth.pinResetNewPIN = newValue }
+    }
+    var supervisorPinResetConfirmPIN: String {
+        get { auth.pinResetConfirmPIN }
+        set { auth.pinResetConfirmPIN = newValue }
+    }
+    var supervisorPinResetError: String? {
+        get { auth.pinResetError }
+        set { auth.pinResetError = newValue }
+    }
+    var supervisorPinResetSuccessMessage: String? {
+        get { auth.pinResetSuccessMessage }
+        set { auth.pinResetSuccessMessage = newValue }
+    }
+
+    // MARK: - Roster UI (passthrough — storage lives in `rosterUI`)
+
+    var currentHomeId: UUID? {
+        get { rosterUI.currentHomeId }
+        set { rosterUI.currentHomeId = newValue }
+    }
+    var rosterSearchQuery: String {
+        get { rosterUI.rosterSearchQuery }
+        set { rosterUI.rosterSearchQuery = newValue }
+    }
+    var rosterSelectedWingId: String? {
+        get { rosterUI.rosterSelectedWingId }
+        set { rosterUI.rosterSelectedWingId = newValue }
+    }
+    var rosterBrowsingAllResidents: Bool {
+        get { rosterUI.rosterBrowsingAllResidents }
+        set { rosterUI.rosterBrowsingAllResidents = newValue }
+    }
     /// When true, admin welcome shows a manual continue control instead of auto-advancing.
-    @Published var careHomeAdminWelcomeIsManual = false
-    @Published var rosterDisplayMode: CareRosterDisplayMode = .cards
-    @Published private(set) var rosterPinnedResidentIds: Set<UUID> = []
-    @Published private(set) var rosterRecentlyViewedIds: [UUID] = []
+    var careHomeAdminWelcomeIsManual: Bool {
+        get { rosterUI.careHomeAdminWelcomeIsManual }
+        set { rosterUI.careHomeAdminWelcomeIsManual = newValue }
+    }
+    var rosterDisplayMode: CareRosterDisplayMode {
+        get { rosterUI.rosterDisplayMode }
+        set { rosterUI.rosterDisplayMode = newValue }
+    }
+    private(set) var rosterPinnedResidentIds: Set<UUID> {
+        get { rosterUI.rosterPinnedResidentIds }
+        set { rosterUI.rosterPinnedResidentIds = newValue }
+    }
+    private(set) var rosterRecentlyViewedIds: [UUID] {
+        get { rosterUI.rosterRecentlyViewedIds }
+        set { rosterUI.rosterRecentlyViewedIds = newValue }
+    }
 
+    // MARK: - Care data (passthrough — storage lives in `careData`)
+
+    var carePatients: [CarePatientProfile] {
+        get { careData.carePatients }
+        set { careData.carePatients = newValue }
+    }
+    var careSessionRecords: [CareSessionRecord] {
+        get { careData.careSessionRecords }
+        set { careData.careSessionRecords = newValue }
+    }
     /// Custom portraits keyed by patient id (captured during profile setup).
-    @Published var carePatientPortraitImages: [UUID: UIImage] = [:]
+    var carePatientPortraitImages: [UUID: UIImage] {
+        get { careData.carePatientPortraitImages }
+        set { careData.carePatientPortraitImages = newValue }
+    }
 
-    @Published var capturedImage: UIImage?
-    @Published private(set) var selectedMoods: Set<String> = []
-
-    // MARK: - Resident iPad (low-text)
-
-    @Published var isResidentSession = false
-    @Published var residentSessionGenre: ResidentMusicGenre?
-    @Published var residentTraffic: ResidentTrafficMood?
-    @Published var residentFace: ResidentFaceMood?
-    @Published var residentVoiceLine: String = ""
-    /// Short “living playlist” segment index (POC: ~10s × 10 loops).
-    @Published var residentLivingLoopIndex: Int = 0
-    @Published var residentLivingTickInSegment: Int = 0
-
-    // MARK: - Care staff (sample data)
-
-    @Published var carePatients: [CarePatientProfile] = CareTenancyMockData.allPatients()
-    @Published var careSessionRecords: [CareSessionRecord] = CareStaffMockData.initialRecords + CareTenancyMockData.supplementalRecords()
     @Published var selectedCarePatientId: UUID?
     @Published var activeCarePatientId: UUID?
     @Published var isCareStaffSession: Bool = false
 
-    @Published var carePlannedDurationMinutes: Int = 15
-    @Published var carePrepVRImmersiveRoute: Bool = false
-    @Published var carePrepRoomDisplayMirroring: Bool = false
+    // MARK: - Care session prep (passthrough — storage lives in `carePrep`)
+
+    var carePlannedDurationMinutes: Int {
+        get { carePrep.carePlannedDurationMinutes }
+        set { carePrep.carePlannedDurationMinutes = newValue }
+    }
+    var carePrepVRImmersiveRoute: Bool {
+        get { carePrep.carePrepVRImmersiveRoute }
+        set { carePrep.carePrepVRImmersiveRoute = newValue }
+    }
+    var carePrepRoomDisplayMirroring: Bool {
+        get { carePrep.carePrepRoomDisplayMirroring }
+        set { carePrep.carePrepRoomDisplayMirroring = newValue }
+    }
 
     /// Where `leaveResidentProfileToStaff()` returns after a resident session.
     @Published var residentStaffReturnPhase: FlowPhase = .carePatientList
@@ -58,44 +195,156 @@ final class SessionPOCState: ObservableObject {
     /// Staff handoff veil before resident calm surface opens.
     @Published var residentHandoffActive = false
 
-    /// New-resident discovery: provisional profile id, age input, snippet order, profile prompt.
-    @Published private(set) var newResidentDiscoveryPatientId: UUID?
-    @Published var newResidentAgeDraft: String = ""
-    @Published private(set) var discoverySnippetOrder: [Int] = []
-    @Published var newResidentProfileNameDraft: String = ""
-    @Published var newResidentProfileAgeDraft: String = ""
-    @Published var newResidentProfilePhoto: UIImage?
+    // MARK: - New-resident discovery (passthrough — storage lives in `newResidentDiscovery`)
 
-    /// Sequential post-session sentiment capture (existing residents).
-    @Published var sessionSentimentStep: Int = 0
-    @Published var sessionSentimentDraft = SessionSentimentDraft()
-    @Published var sessionContextDraft = SessionContextDraft()
-    @Published private(set) var pendingSessionInsight: CareSessionInsightPack?
+    private(set) var newResidentDiscoveryPatientId: UUID? {
+        get { newResidentDiscovery.newResidentDiscoveryPatientId }
+        set { newResidentDiscovery.newResidentDiscoveryPatientId = newValue }
+    }
+    var newResidentAgeDraft: String {
+        get { newResidentDiscovery.newResidentAgeDraft }
+        set { newResidentDiscovery.newResidentAgeDraft = newValue }
+    }
+    private(set) var discoverySnippetOrder: [Int] {
+        get { newResidentDiscovery.discoverySnippetOrder }
+        set { newResidentDiscovery.discoverySnippetOrder = newValue }
+    }
+    var newResidentProfileNameDraft: String {
+        get { newResidentDiscovery.newResidentProfileNameDraft }
+        set { newResidentDiscovery.newResidentProfileNameDraft = newValue }
+    }
+    var newResidentProfileAgeDraft: String {
+        get { newResidentDiscovery.newResidentProfileAgeDraft }
+        set { newResidentDiscovery.newResidentProfileAgeDraft = newValue }
+    }
+    var newResidentProfilePhoto: UIImage? {
+        get { newResidentDiscovery.newResidentProfilePhoto }
+        set { newResidentDiscovery.newResidentProfilePhoto = newValue }
+    }
+
+    // MARK: - Sequential post-session sentiment capture (passthrough — storage lives in `sessionSentiment`)
+
+    var sessionSentimentStep: Int {
+        get { sessionSentiment.sessionSentimentStep }
+        set { sessionSentiment.sessionSentimentStep = newValue }
+    }
+    var sessionSentimentDraft: SessionSentimentDraft {
+        get { sessionSentiment.sessionSentimentDraft }
+        set { sessionSentiment.sessionSentimentDraft = newValue }
+    }
+    var sessionContextDraft: SessionContextDraft {
+        get { sessionSentiment.sessionContextDraft }
+        set { sessionSentiment.sessionContextDraft = newValue }
+    }
+    private(set) var pendingSessionInsight: CareSessionInsightPack? {
+        get { sessionSentiment.pendingSessionInsight }
+        set { sessionSentiment.pendingSessionInsight = newValue }
+    }
+
+    // MARK: - Resident calm surface (passthrough — storage lives in `residentSurface`)
+
+    var isResidentSession: Bool {
+        get { residentSurface.isResidentSession }
+        set { residentSurface.isResidentSession = newValue }
+    }
+    var residentSessionGenre: ResidentMusicGenre? {
+        get { residentSurface.residentSessionGenre }
+        set { residentSurface.residentSessionGenre = newValue }
+    }
+    var residentTraffic: ResidentTrafficMood? {
+        get { residentSurface.residentTraffic }
+        set { residentSurface.residentTraffic = newValue }
+    }
+    var residentFace: ResidentFaceMood? {
+        get { residentSurface.residentFace }
+        set { residentSurface.residentFace = newValue }
+    }
+    var residentVoiceLine: String {
+        get { residentSurface.residentVoiceLine }
+        set { residentSurface.residentVoiceLine = newValue }
+    }
+    /// Short “living playlist” segment index (POC: ~10s × 10 loops).
+    var residentLivingLoopIndex: Int {
+        get { residentSurface.residentLivingLoopIndex }
+        set { residentSurface.residentLivingLoopIndex = newValue }
+    }
+    var residentLivingTickInSegment: Int {
+        get { residentSurface.residentLivingTickInSegment }
+        set { residentSurface.residentLivingTickInSegment = newValue }
+    }
+
+    /// Custom portraits + captured image stay near the top for readability of intent.
+    var capturedImage: UIImage? {
+        get { captureMood.capturedImage }
+        set { captureMood.capturedImage = newValue }
+    }
+    private(set) var selectedMoods: Set<String> {
+        get { captureMood.selectedMoods }
+        set { captureMood.selectedMoods = newValue }
+    }
 
     /// Telemetry while the resident uses the instrument surface (until supervisor handoff).
-    @Published private(set) var residentSurfaceMetrics = ResidentSurfaceSessionMetrics()
-    @Published private(set) var residentSurfaceFeedbackPending = false
+    private(set) var residentSurfaceMetrics: ResidentSurfaceSessionMetrics {
+        get { residentSurface.residentSurfaceMetrics }
+        set { residentSurface.residentSurfaceMetrics = newValue }
+    }
+    private(set) var residentSurfaceFeedbackPending: Bool {
+        get { residentSurface.residentSurfaceFeedbackPending }
+        set { residentSurface.residentSurfaceFeedbackPending = newValue }
+    }
 
     // Live audio-reactive levels are published on `MusicReactiveBus` (isolated from navigation
     // state) so the orb + equalizer rings can react at ~24fps without re-rendering the whole flow.
 
-    // MARK: - Group session (supervisor-led, roster compiled playlist)
+    // MARK: - Group session (passthrough — storage lives in `groupSession`)
 
-    @Published var groupSessionTracks: [GroupSessionTrack] = []
-    @Published var groupSessionTrackIndex: Int = 0
-    @Published private(set) var groupSessionStartedAt: Date?
-    @Published private(set) var groupSessionTracksPlayed: Int = 0
-    @Published var groupSessionRecords: [GroupSessionRecord] = []
-    @Published var groupSessionFeedbackStep: Int = 0
-    @Published var groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
-    @Published private(set) var isGroupSessionActive = false
-    private var groupSessionPlayedTrackIDs: Set<UUID> = []
+    var groupSessionTracks: [GroupSessionTrack] {
+        get { groupSession.groupSessionTracks }
+        set { groupSession.groupSessionTracks = newValue }
+    }
+    var groupSessionTrackIndex: Int {
+        get { groupSession.groupSessionTrackIndex }
+        set { groupSession.groupSessionTrackIndex = newValue }
+    }
+    private(set) var groupSessionStartedAt: Date? {
+        get { groupSession.groupSessionStartedAt }
+        set { groupSession.groupSessionStartedAt = newValue }
+    }
+    private(set) var groupSessionTracksPlayed: Int {
+        get { groupSession.groupSessionTracksPlayed }
+        set { groupSession.groupSessionTracksPlayed = newValue }
+    }
+    var groupSessionRecords: [GroupSessionRecord] {
+        get { groupSession.groupSessionRecords }
+        set { groupSession.groupSessionRecords = newValue }
+    }
+    var groupSessionFeedbackStep: Int {
+        get { groupSession.groupSessionFeedbackStep }
+        set { groupSession.groupSessionFeedbackStep = newValue }
+    }
+    var groupSessionFeedbackDraft: GroupSessionFeedbackDraft {
+        get { groupSession.groupSessionFeedbackDraft }
+        set { groupSession.groupSessionFeedbackDraft = newValue }
+    }
+    private(set) var isGroupSessionActive: Bool {
+        get { groupSession.isGroupSessionActive }
+        set { groupSession.isGroupSessionActive = newValue }
+    }
 
-    // MARK: - Discovery calibration (traffic-light smiles + timed snippets)
+    // MARK: - Discovery calibration (passthrough — storage lives in `discoveryCalibration`)
 
-    @Published private(set) var discoverySnippetIndex: Int = 0
-    @Published private(set) var discoveryResults: [DiscoverySnippetResult] = []
-    @Published var discoveryPendingPick: DiscoveryTrafficSentiment?
+    private(set) var discoverySnippetIndex: Int {
+        get { discoveryCalibration.discoverySnippetIndex }
+        set { discoveryCalibration.discoverySnippetIndex = newValue }
+    }
+    private(set) var discoveryResults: [DiscoverySnippetResult] {
+        get { discoveryCalibration.discoveryResults }
+        set { discoveryCalibration.discoveryResults = newValue }
+    }
+    var discoveryPendingPick: DiscoveryTrafficSentiment? {
+        get { discoveryCalibration.discoveryPendingPick }
+        set { discoveryCalibration.discoveryPendingPick = newValue }
+    }
 
     func portraitImage(for patientId: UUID) -> UIImage? {
         carePatientPortraitImages[patientId]
@@ -313,7 +562,7 @@ final class SessionPOCState: ObservableObject {
     }
 
     func recordsForPatient(_ patientId: UUID) -> [CareSessionRecord] {
-        careSessionRecords.filter { $0.patientId == patientId }.sorted { $0.date > $1.date }
+        careData.records(for: patientId)
     }
 
     func enterOneToOneCalmFlow() {
@@ -356,6 +605,94 @@ final class SessionPOCState: ObservableObject {
         return nil
     }
 
+    func beginSupervisorPinReset() {
+        supervisorSignInError = nil
+        supervisorPinResetActive = true
+        supervisorPinResetStep = .email
+        supervisorPinResetEmail = supervisorEmail
+        supervisorPinResetCode = ""
+        supervisorPinResetNewPIN = ""
+        supervisorPinResetConfirmPIN = ""
+        supervisorPinResetError = nil
+        supervisorPinResetSuccessMessage = nil
+        auth.pinResetAccountId = nil
+    }
+
+    func cancelSupervisorPinReset() {
+        supervisorPinResetActive = false
+        supervisorPinResetStep = .email
+        supervisorPinResetCode = ""
+        supervisorPinResetNewPIN = ""
+        supervisorPinResetConfirmPIN = ""
+        supervisorPinResetError = nil
+        supervisorPinResetSuccessMessage = nil
+        auth.pinResetAccountId = nil
+    }
+
+    func submitSupervisorPinResetEmail() {
+        let result = SupervisorAuth.beginPinReset(email: supervisorPinResetEmail)
+        if let error = result.error {
+            supervisorPinResetError = error
+            return
+        }
+        guard let accountId = result.accountId else {
+            supervisorPinResetError = "No account found for that email."
+            return
+        }
+        supervisorPinResetError = nil
+        auth.pinResetAccountId = accountId
+        supervisorPinResetStep = .verificationCode
+        supervisorPinResetCode = ""
+    }
+
+    func submitSupervisorPinResetCode() {
+        if let error = SupervisorAuth.verifyPinResetCode(supervisorPinResetCode) {
+            supervisorPinResetError = error
+            return
+        }
+        supervisorPinResetError = nil
+        supervisorPinResetStep = .newPIN
+        supervisorPinResetNewPIN = ""
+        supervisorPinResetConfirmPIN = ""
+    }
+
+    func submitSupervisorPinResetNewPIN() {
+        let sanitized = String(supervisorPinResetNewPIN.filter(\.isWholeNumber).prefix(SupervisorAuth.pinDigitCount))
+        supervisorPinResetNewPIN = sanitized
+        guard sanitized.count == SupervisorAuth.pinDigitCount else {
+            supervisorPinResetError = "Choose a new \(SupervisorAuth.pinDigitCount)-digit PIN."
+            return
+        }
+        supervisorPinResetError = nil
+        supervisorPinResetStep = .confirmPIN
+        supervisorPinResetConfirmPIN = ""
+    }
+
+    func submitSupervisorPinResetConfirm() {
+        guard let accountId = auth.pinResetAccountId else {
+            supervisorPinResetError = "Reset session expired. Start again."
+            supervisorPinResetStep = .email
+            return
+        }
+        if let error = SupervisorAuth.completePinReset(
+            accountId: accountId,
+            newPIN: supervisorPinResetNewPIN,
+            confirmPIN: supervisorPinResetConfirmPIN
+        ) {
+            supervisorPinResetError = error
+            return
+        }
+        supervisorPinResetError = nil
+        supervisorEmail = supervisorPinResetEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        supervisorPIN = ""
+        supervisorPinResetSuccessMessage = "PIN updated. Sign in with your new PIN."
+        supervisorPinResetStep = .complete
+    }
+
+    func finishSupervisorPinReset() {
+        cancelSupervisorPinReset()
+    }
+
     func currentSupervisorAccount() -> SupervisorAccount? {
         guard let signedInSupervisorId else { return nil }
         return CareTenancyMockData.supervisor(id: signedInSupervisorId)
@@ -396,12 +733,22 @@ final class SessionPOCState: ObservableObject {
         currentSupervisorAccount()?.role.isHomeAdmin == true
     }
 
+    /// `body` re-evaluates this on every unrelated `@Published` change on this state object —
+    /// cache the result and only rebuild the (filter/aggregate-heavy) dashboard when the
+    /// residents, records, or selected home actually changed.
     func careHomeDashboardPresentation() -> CareHomeDashboardPresentation {
-        CareHomeAnalytics.buildDashboard(
+        let residents = residentsInCurrentHome()
+        let key = CareRosterUIStore.DashboardPresentationCacheKey(homeId: currentHomeId, dataRevision: careData.dataRevision)
+        if let cache = rosterUI.dashboardPresentationCache, cache.key == key {
+            return cache.value
+        }
+        let value = CareHomeAnalytics.buildDashboard(
             home: currentHome(),
-            residents: residentsInCurrentHome(),
+            residents: residents,
             records: careSessionRecords
         )
+        rosterUI.dashboardPresentationCache = (key, value)
+        return value
     }
 
     func switchHome() {
@@ -420,6 +767,7 @@ final class SessionPOCState: ObservableObject {
         supervisorEmail = ""
         supervisorPIN = ""
         supervisorSignInError = nil
+        cancelSupervisorPinReset()
         rosterSearchQuery = ""
         rosterSelectedWingId = nil
         rosterBrowsingAllResidents = false
@@ -438,6 +786,10 @@ final class SessionPOCState: ObservableObject {
         return CareRosterEngine.activeResidents(in: homeId, from: carePatients)
     }
 
+    /// Building this presentation walks every resident against every record (sentiment
+    /// summaries, last-session lookups, section grouping) — expensive to redo on every
+    /// unrelated `@Published` change, including each keystroke elsewhere in the flow. Cache by
+    /// the actual inputs so repeat calls with unchanged roster state are a cheap equality check.
     func rosterPresentation() -> CareRosterPresentation {
         guard let home = currentHome() else {
             return CareRosterPresentation(
@@ -448,7 +800,19 @@ final class SessionPOCState: ObservableObject {
                 isBrowsingAll: false
             )
         }
-        return CareRosterEngine.buildPresentation(
+        let key = CareRosterUIStore.RosterPresentationCacheKey(
+            homeId: home.id,
+            dataRevision: careData.dataRevision,
+            pinnedIds: rosterPinnedResidentIds,
+            recentlyViewedIds: rosterRecentlyViewedIds,
+            wingId: rosterSelectedWingId,
+            searchQuery: rosterSearchQuery,
+            browsingAll: rosterBrowsingAllResidents
+        )
+        if let cache = rosterUI.rosterPresentationCache, cache.key == key {
+            return cache.value
+        }
+        let value = CareRosterEngine.buildPresentation(
             home: home,
             allResidents: carePatients,
             records: careSessionRecords,
@@ -458,6 +822,8 @@ final class SessionPOCState: ObservableObject {
             searchQuery: rosterSearchQuery,
             browsingAll: rosterBrowsingAllResidents
         )
+        rosterUI.rosterPresentationCache = (key, value)
+        return value
     }
 
     func recordResidentRosterView(_ patientId: UUID) {
@@ -507,6 +873,7 @@ final class SessionPOCState: ObservableObject {
 
     func abandonSupervisorSignIn() {
         supervisorSignInError = nil
+        cancelSupervisorPinReset()
         if !isSignedIn {
             supervisorEmail = ""
             supervisorPIN = ""
@@ -900,7 +1267,7 @@ final class SessionPOCState: ObservableObject {
         groupSessionTrackIndex = 0
         groupSessionStartedAt = Date()
         groupSessionTracksPlayed = 0
-        groupSessionPlayedTrackIDs = []
+        groupSession.groupSessionPlayedTrackIDs = []
         groupSessionFeedbackStep = 0
         groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
         isGroupSessionActive = true
@@ -933,8 +1300,8 @@ final class SessionPOCState: ObservableObject {
     func markGroupTrackPlayed() {
         guard groupSessionTracks.indices.contains(groupSessionTrackIndex) else { return }
         let id = groupSessionTracks[groupSessionTrackIndex].id
-        guard !groupSessionPlayedTrackIDs.contains(id) else { return }
-        groupSessionPlayedTrackIDs.insert(id)
+        guard !groupSession.groupSessionPlayedTrackIDs.contains(id) else { return }
+        groupSession.groupSessionPlayedTrackIDs.insert(id)
         groupSessionTracksPlayed += 1
     }
 
@@ -1032,7 +1399,7 @@ final class SessionPOCState: ObservableObject {
         groupSessionTrackIndex = 0
         groupSessionStartedAt = nil
         groupSessionTracksPlayed = 0
-        groupSessionPlayedTrackIDs = []
+        groupSession.groupSessionPlayedTrackIDs = []
         groupSessionFeedbackStep = 0
         groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
         isGroupSessionActive = false
@@ -1107,27 +1474,82 @@ final class SessionPOCState: ObservableObject {
         activeCarePatientId = nil
     }
 
-    @Published var mockHeartRateStart: Double = 78
-    @Published var mockHeartRateCurrent: Double = 72
-    @Published var calmScore: Double = 0.82
+    // MARK: - Immersive session vitals (passthrough — storage lives in `vitals`)
+    //
+    // `ImmersiveSessionView` and `SessionBottomConfigMenu` observe `state.vitals` directly
+    // instead of reading through these passthrough properties, so the 1.2s heart-rate tick
+    // doesn't invalidate the rest of the flow. These accessors remain for the handful of
+    // orchestration methods below (`beginSession`, `endSession`, resets) that touch vitals
+    // alongside other domains.
 
-    @Published var sessionHomeLightsSyncEnabled = false
-
-    @Published var replayExperienceAvailable = false
-    @Published var replayMoodSnapshot: String?
-    @Published var replayCalmPercentSnapshot: Int = 0
-    @Published var replayHeartRateSnapshot: Int = 72
-
-    @Published var iotPhilipsHueEnabled = false
-    @Published var iotHomeKitEnabled = false
-    @Published var iotMatterEnabled = false
-    @Published var iotFollowSessionBreath = true
-    @Published var iotMaxSceneBrightness: Double = 0.88
-
-    @Published var immersiveMediaSessionID = UUID()
-    @Published private(set) var sessionAnchoredWithPhoto = false
-    @Published private(set) var replaySnapshotMediaID: UUID?
-    @Published private(set) var replaySessionPhotoAnchored = false
+    var mockHeartRateStart: Double {
+        get { vitals.mockHeartRateStart }
+        set { vitals.mockHeartRateStart = newValue }
+    }
+    var mockHeartRateCurrent: Double {
+        get { vitals.mockHeartRateCurrent }
+        set { vitals.mockHeartRateCurrent = newValue }
+    }
+    var calmScore: Double {
+        get { vitals.calmScore }
+        set { vitals.calmScore = newValue }
+    }
+    var sessionHomeLightsSyncEnabled: Bool {
+        get { vitals.sessionHomeLightsSyncEnabled }
+        set { vitals.sessionHomeLightsSyncEnabled = newValue }
+    }
+    var replayExperienceAvailable: Bool {
+        get { vitals.replayExperienceAvailable }
+        set { vitals.replayExperienceAvailable = newValue }
+    }
+    var replayMoodSnapshot: String? {
+        get { vitals.replayMoodSnapshot }
+        set { vitals.replayMoodSnapshot = newValue }
+    }
+    var replayCalmPercentSnapshot: Int {
+        get { vitals.replayCalmPercentSnapshot }
+        set { vitals.replayCalmPercentSnapshot = newValue }
+    }
+    var replayHeartRateSnapshot: Int {
+        get { vitals.replayHeartRateSnapshot }
+        set { vitals.replayHeartRateSnapshot = newValue }
+    }
+    var iotPhilipsHueEnabled: Bool {
+        get { vitals.iotPhilipsHueEnabled }
+        set { vitals.iotPhilipsHueEnabled = newValue }
+    }
+    var iotHomeKitEnabled: Bool {
+        get { vitals.iotHomeKitEnabled }
+        set { vitals.iotHomeKitEnabled = newValue }
+    }
+    var iotMatterEnabled: Bool {
+        get { vitals.iotMatterEnabled }
+        set { vitals.iotMatterEnabled = newValue }
+    }
+    var iotFollowSessionBreath: Bool {
+        get { vitals.iotFollowSessionBreath }
+        set { vitals.iotFollowSessionBreath = newValue }
+    }
+    var iotMaxSceneBrightness: Double {
+        get { vitals.iotMaxSceneBrightness }
+        set { vitals.iotMaxSceneBrightness = newValue }
+    }
+    var immersiveMediaSessionID: UUID {
+        get { vitals.immersiveMediaSessionID }
+        set { vitals.immersiveMediaSessionID = newValue }
+    }
+    private(set) var sessionAnchoredWithPhoto: Bool {
+        get { vitals.sessionAnchoredWithPhoto }
+        set { vitals.sessionAnchoredWithPhoto = newValue }
+    }
+    private(set) var replaySnapshotMediaID: UUID? {
+        get { vitals.replaySnapshotMediaID }
+        set { vitals.replaySnapshotMediaID = newValue }
+    }
+    private(set) var replaySessionPhotoAnchored: Bool {
+        get { vitals.replaySessionPhotoAnchored }
+        set { vitals.replaySessionPhotoAnchored = newValue }
+    }
 
     let moodOptions = ["Stressed", "Anxious", "Down", "Overwhelmed", "Tired", "Calm"]
 
@@ -1187,6 +1609,7 @@ final class SessionPOCState: ObservableObject {
         supervisorEmail = ""
         supervisorPIN = ""
         supervisorSignInError = nil
+        cancelSupervisorPinReset()
         isSignedIn = false
         signedInSupervisorId = nil
         currentHomeId = nil
@@ -1210,8 +1633,7 @@ final class SessionPOCState: ObservableObject {
         replaySessionPhotoAnchored = false
         immersiveMediaSessionID = UUID()
         sessionAnchoredWithPhoto = false
-        carePatients = CareTenancyMockData.allPatients()
-        careSessionRecords = CareStaffMockData.initialRecords + CareTenancyMockData.supplementalRecords()
+        seedCareDataOffMain()
         selectedCarePatientId = nil
         resetCareSessionFlags()
         clearResidentSessionSurfaceState()
@@ -1220,6 +1642,22 @@ final class SessionPOCState: ObservableObject {
         resetGroupSessionState()
         resetCarePrepForNewSession()
         resetIoTDefaults()
+    }
+
+    /// Builds the deterministic roster + demo history on a background thread and publishes it on the
+    /// main actor. Costs are paid once (cached snapshots in `CareTenancyMockData`) and off the main
+    /// thread; the launch overlay covers the brief window before the roster is populated, and the
+    /// roster itself isn't reachable until after sign-in.
+    private func seedCareDataOffMain() {
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let patients = CareTenancyMockData.allPatients()
+            let records = CareStaffMockData.initialRecords + CareTenancyMockData.supplementalRecords()
+            await MainActor.run {
+                guard let self else { return }
+                self.careData.carePatients = patients
+                self.careData.careSessionRecords = records
+            }
+        }
     }
 
     private func resetIoTDefaults() {

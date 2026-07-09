@@ -7,10 +7,17 @@ import Combine
 /// network failures actually trigger the fallback chain instead of failing silently.
 @MainActor
 final class AmbientAudioSession: ObservableObject {
-    static let quickStartStreamURL = URL(string: "https://opengameart.org/sites/default/files/song_2.mp3")!
+    /// Primary looping calm track (bundled). Also used for resident genre playback.
+    static let quickStartStreamURL = BundledAudio.urlOrRemote(
+        "Drift Between Rooms",
+        fallback: URL(string: "https://opengameart.org/sites/default/files/song_2.mp3")!
+    )
 
-    static let photoAnchorStreamURL =
-        URL(string: "https://opengameart.org/sites/default/files/lvl_5_the_oasis_or_resting_place.mp3")!
+    /// Photo-anchored session loop (bundled).
+    static let photoAnchorStreamURL = BundledAudio.urlOrRemote(
+        "Pine Smoke Drift",
+        fallback: URL(string: "https://opengameart.org/sites/default/files/lvl_5_the_oasis_or_resting_place.mp3")!
+    )
 
     private static let streamVolume: Float = 0.38
 

@@ -8,6 +8,15 @@ settings:
     SWIFT_VERSION: "5.10"
     PRODUCT_BUNDLE_IDENTIFIER: com.melloria.flowpoc
     INFOPLIST_FILE: App/Info.plist
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      SWIFT_COMPILATION_MODE: singlefile
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      SWIFT_COMPILATION_MODE: wholemodule
+      GCC_OPTIMIZATION_LEVEL: "3"
+      DEAD_CODE_STRIPPING: true
 targets:
   MellorityFlowPOC:
     type: application

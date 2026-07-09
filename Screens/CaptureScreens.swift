@@ -60,7 +60,8 @@ struct CapturePhotoView: View {
                     guard let new else { return }
                     if let data = try? await new.loadTransferable(type: Data.self),
                        let ui = UIImage(data: data) {
-                        await MainActor.run { state.capturedImage = ui }
+                        let resized = ui.downscaledForDisplay()
+                        await MainActor.run { state.capturedImage = resized }
                     }
                 }
             }
@@ -144,7 +145,7 @@ struct CameraPicker: UIViewControllerRepresentable {
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             if let ui = info[.originalImage] as? UIImage {
-                parent.image = ui
+                parent.image = ui.downscaledForDisplay()
             }
             parent.dismiss()
         }

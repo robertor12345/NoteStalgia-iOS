@@ -217,31 +217,41 @@ enum OrbRadialBarEqualizerMotion {
         BrandTheme.nebulaSalmon,
     ]
 
-    private static func nebulaColor(at position: CGFloat) -> Color {
-        let palette = nebulaRingPalette
-        guard palette.count > 1 else { return palette.first ?? BrandTheme.nebulaCyan }
+    // RGB components extracted once at startup instead of converting each `Color` via `UIColor`
+    // on every bar, every frame (up to 120 bars × several conversions × 60fps). All blending
+    // below works in plain (r, g, b) tuples and only builds a `Color` for the final result.
+    private static let nebulaRingPaletteRGB: [(r: CGFloat, g: CGFloat, b: CGFloat)] =
+        nebulaRingPalette.map(rgbaComponents)
+    private static let whiteRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (1, 1, 1)
+
+    private static func nebulaColorRGB(at position: CGFloat) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
+        let palette = nebulaRingPaletteRGB
+        guard palette.count > 1 else { return palette.first ?? (0, 0, 0) }
 
         let scaled = position * CGFloat(palette.count)
         let index = Int(floor(scaled)) % palette.count
         let next = (index + 1) % palette.count
         let frac = scaled - floor(scaled)
-        return lerpColor(palette[index], palette[next], t: frac)
+        return lerpRGB(palette[index], palette[next], t: frac)
     }
 
     static func spectrumColor(angle: Double, amplitude: CGFloat) -> Color {
-        let base = nebulaColor(at: angularPosition(forAngle: angle))
-        let bright = lerpColor(base, .white, t: 0.08 + amplitude * 0.14)
-        return lerpColor(base, bright, t: 0.55 + amplitude * 0.45)
+        let base = nebulaColorRGB(at: angularPosition(forAngle: angle))
+        let bright = lerpRGB(base, whiteRGB, t: 0.08 + amplitude * 0.14)
+        let final = lerpRGB(base, bright, t: 0.55 + amplitude * 0.45)
+        return Color(red: Double(final.r), green: Double(final.g), blue: Double(final.b))
     }
 
-    private static func lerpColor(_ a: Color, _ b: Color, t: CGFloat) -> Color {
-        let ta = rgbaComponents(a)
-        let tb = rgbaComponents(b)
+    private static func lerpRGB(
+        _ a: (r: CGFloat, g: CGFloat, b: CGFloat),
+        _ b: (r: CGFloat, g: CGFloat, b: CGFloat),
+        t: CGFloat
+    ) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
         let u = min(1, max(0, t))
-        return Color(
-            red: Double(ta.r + (tb.r - ta.r) * u),
-            green: Double(ta.g + (tb.g - ta.g) * u),
-            blue: Double(ta.b + (tb.b - ta.b) * u)
+        return (
+            a.r + (b.r - a.r) * u,
+            a.g + (b.g - a.g) * u,
+            a.b + (b.b - a.b) * u
         )
     }
 
@@ -277,24 +287,19 @@ struct OrbRadialBarEqualizerView: View {
     /// Lower = sharper per-bar variation (less cross-band smoothing).
     var neighbourMix: CGFloat = 0.32
 
-    @ObservedObject private var reactiveBus = MusicReactiveBus.shared
-
+    // A single `TimelineView` drives every redraw — live and synthetic — instead of relying on
+    // an `@ObservedObject` subscription to `MusicReactiveBus` to trigger extra invalidations on
+    // top of the timeline's own tick. The bus is read directly inside the tick, matching
+    // `OrbRingEqualizerView`'s pattern, so audio updates never re-render the parent view.
     var body: some View {
-        let liveBands = resolvedBandLevels
-        let usesLiveAudio = (liveBands?.count ?? 0) >= OrbEqualizerMotion.barCount
-
-        Group {
-            if usesLiveAudio || liveAudioOnly {
-                spectrumCanvas(phase: 0, liveBands: liveBands, usesLiveAudio: usesLiveAudio)
-            } else {
-                TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
-                    spectrumCanvas(
-                        phase: timeline.date.timeIntervalSinceReferenceDate,
-                        liveBands: nil,
-                        usesLiveAudio: false
-                    )
-                }
-            }
+        TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
+            let liveBands = resolvedBandLevels
+            let usesLiveAudio = (liveBands?.count ?? 0) >= OrbEqualizerMotion.barCount
+            spectrumCanvas(
+                phase: usesLiveAudio ? 0 : timeline.date.timeIntervalSinceReferenceDate,
+                liveBands: liveBands,
+                usesLiveAudio: usesLiveAudio
+            )
         }
         .frame(width: canvasDiameter, height: canvasDiameter)
     }
@@ -377,8 +382,10 @@ struct OrbRadialBarEqualizerView: View {
         if let bandLevels, bandLevels.count >= OrbEqualizerMotion.barCount {
             return bandLevels
         }
-        guard reactsToMusic, reactiveBus.snapshot.isActive else { return nil }
-        return reactiveBus.snapshot.bands
+        guard reactsToMusic else { return nil }
+        let snapshot = MusicReactiveBus.shared.snapshot
+        guard snapshot.isActive else { return nil }
+        return snapshot.bands
     }
 }
 

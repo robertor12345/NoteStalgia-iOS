@@ -291,6 +291,12 @@ private struct DiscoveryEraListeningOrb: View {
 
             ZStack {
                 ZStack {
+                    if !eraMediaReady {
+                        DiscoveryMediaLoadingFill(diameter: coreDiameter)
+                            .frame(width: coreDiameter, height: coreDiameter)
+                            .transition(.opacity)
+                    }
+
                     DiscoverySnippetMediaFill(
                             visual: visual,
                             player: videoLooper.player,
@@ -311,6 +317,7 @@ private struct DiscoveryEraListeningOrb: View {
                     .allowsHitTesting(false)
                 }
                 .clipShape(Circle())
+                .animation(.easeInOut(duration: 0.5), value: eraMediaReady)
 
                 Circle()
                     .fill(Color.black.opacity(0.32))
@@ -385,6 +392,36 @@ private struct DiscoveryEraListeningOrb: View {
             return
         }
         videoLooper.play(urls: urls)
+    }
+}
+
+/// Warm placeholder inside the listening orb while the streamed era poster/clip buffers, so the
+/// interior reads as "warming up" rather than an empty black disc. Kept subtle so it doesn't
+/// compete with the smiley faces layered on top.
+private struct DiscoveryMediaLoadingFill: View {
+    let diameter: CGFloat
+    @State private var shimmer = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        RadialGradient(
+            colors: [
+                BrandTheme.gold.opacity(0.16),
+                BrandTheme.goldDeep.opacity(0.12),
+                Color(red: 0.10, green: 0.09, blue: 0.14).opacity(0.55),
+            ],
+            center: .center,
+            startRadius: diameter * 0.04,
+            endRadius: diameter * 0.62
+        )
+        .opacity(shimmer ? 0.9 : 0.62)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                shimmer = true
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

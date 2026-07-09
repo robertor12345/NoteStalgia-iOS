@@ -70,11 +70,36 @@ private struct IntroStaggeredWords: View {
     var muted: Bool = false
     var legibilityIntensity: CGFloat = 1
 
+    /// Once every word has fully faded in, the string stops changing — cache it instead of
+    /// rebuilding an `AttributedString` (with per-word `UIFont`/`UIColor` conversions) on every
+    /// 60fps tick for the rest of the launch animation.
+    @State private var settledString: AttributedString?
+
     var body: some View {
-        Text(staggeredAttributedString)
+        Text(currentAttributedString)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .orbOverlayTextStyle(intensity: legibilityIntensity)
+    }
+
+    private var wordCount: Int {
+        text.split(separator: " ", omittingEmptySubsequences: true).count
+    }
+
+    private var isFullySettled: Bool {
+        let lastWordStart = startAt + Double(max(0, wordCount - 1)) * wordStagger
+        return elapsed >= lastWordStart + fadeDuration
+    }
+
+    private var currentAttributedString: AttributedString {
+        if isFullySettled, let settledString {
+            return settledString
+        }
+        let built = staggeredAttributedString
+        if isFullySettled {
+            settledString = built
+        }
+        return built
     }
 
     private var staggeredAttributedString: AttributedString {

@@ -26,12 +26,17 @@ enum OrbRenderBudget {
     }
 
     static func nebulaGridColumns(for diameter: CGFloat) -> Int {
-        min(50, max(34, Int(diameter / 6.5)))
+        // Cell count grows with the square of this, and each cell runs two domain-warped noise
+        // samples per frame — the dominant cost of the always-on orb shell. The post-blur below
+        // hides the coarser grid, so a lower density is visually near-identical but ~35% cheaper
+        // (e.g. a ~300pt orb drops from ~46² ≈ 2,100 cells to ~37² ≈ 1,370).
+        min(40, max(28, Int(diameter / 8.0)))
     }
 
     /// Post-blur on the volumetric nebula canvas — hides grid splats without extra samples.
+    /// Nudged up slightly to keep the coarser grid looking smooth.
     static func nebulaVolumeBlurRadius(for diameter: CGFloat) -> CGFloat {
-        max(0.85, diameter * 0.0135)
+        max(0.85, diameter * 0.016)
     }
 
     static var usesLiteNebulaInterior: (CGFloat, CGFloat) -> Bool {

@@ -124,44 +124,11 @@ struct ImmersiveSessionView: View {
                 Spacer()
 
                 if !state.isResidentSession {
-                    VStack(spacing: 12) {
-                        Text("Music · nature video · heart rate")
-                            .font(.caption2)
-                            .foregroundStyle(BrandTheme.textSecondary)
-                            .multilineTextAlignment(.center)
-
-                        HStack(spacing: 24) {
-                            VStack(spacing: 4) {
-                                Text("HR")
-                                    .font(.caption2)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("\(Int(state.mockHeartRateCurrent))")
-                                    .font(.title2.monospacedDigit())
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                            }
-                            VStack(spacing: 4) {
-                                Text("Calm")
-                                    .font(.caption2)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("\(Int(state.calmScore * 100))%")
-                                    .font(.title2.monospacedDigit())
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                            }
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(BrandTheme.cream.opacity(0.92))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
-                        )
-                    }
-                    .frame(maxWidth: BrandLayout.isRegularWidth(horizontalSizeClass) ? BrandLayout.menuColumnMaxWidth : .infinity)
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+                    ImmersiveVitalsReadout(vitals: state.vitals)
+                        .frame(maxWidth: BrandLayout.isRegularWidth(horizontalSizeClass) ? BrandLayout.menuColumnMaxWidth : .infinity)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
 
                     SessionBottomConfigMenu(state: state)
                         .padding(.horizontal, BrandTheme.contentGutter)
@@ -194,7 +161,11 @@ struct ImmersiveSessionView: View {
                 ambientAudio.startFresh(photoAnchored: state.sessionAnchoredWithPhoto)
                 hrTimer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { _ in
                     withAnimation(.easeInOut(duration: 1.0)) {
-                        state.mockHeartRateCurrent = max(58, state.mockHeartRateCurrent - Double.random(in: 0.2 ... 0.8))
+                        // Mutate the vitals store directly — `ImmersiveVitalsReadout` observes it
+                        // alone, so this 1.2s tick only invalidates that small readout, not the
+                        // rest of this screen (video backdrop, config menu chrome, etc.).
+                        let vitals = state.vitals
+                        vitals.mockHeartRateCurrent = max(58, vitals.mockHeartRateCurrent - Double.random(in: 0.2 ... 0.8))
                     }
                 }
             }
@@ -203,6 +174,49 @@ struct ImmersiveSessionView: View {
             hrTimer?.invalidate()
             hrTimer = nil
             ambientAudio.stop()
+        }
+    }
+}
+
+/// HR/Calm readout — observes only `ImmersiveSessionVitalsStore`, not the full `SessionPOCState`,
+/// so the 1.2s heart-rate tick only re-renders this small card instead of all of `ImmersiveSessionView`.
+private struct ImmersiveVitalsReadout: View {
+    @ObservedObject var vitals: ImmersiveSessionVitalsStore
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Music · nature video · heart rate")
+                .font(.caption2)
+                .foregroundStyle(BrandTheme.textSecondary)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 24) {
+                VStack(spacing: 4) {
+                    Text("HR")
+                        .font(.caption2)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    Text("\(Int(vitals.mockHeartRateCurrent))")
+                        .font(.title2.monospacedDigit())
+                        .foregroundStyle(BrandTheme.textPrimary)
+                }
+                VStack(spacing: 4) {
+                    Text("Calm")
+                        .font(.caption2)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    Text("\(Int(vitals.calmScore * 100))%")
+                        .font(.title2.monospacedDigit())
+                        .foregroundStyle(BrandTheme.textPrimary)
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(BrandTheme.cream.opacity(0.92))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+            )
         }
     }
 }

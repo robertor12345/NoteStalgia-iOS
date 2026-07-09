@@ -2,10 +2,21 @@ import SwiftUI
 import UIKit
 
 /// Unobtrusive collapsed bar at the bottom of the immersive session; expands for home lighting + share.
+///
+/// Observes only `ImmersiveSessionVitalsStore` (the home-lighting toggle lives there) rather than
+/// the full `SessionPOCState`, so unrelated flow changes don't re-render this menu. `state` is
+/// kept as a plain, unobserved reference purely to read the mood snapshot when the share sheet
+/// is presented — a one-off read, not something that needs live reactivity here.
 struct SessionBottomConfigMenu: View {
-    @ObservedObject var state: SessionPOCState
+    let state: SessionPOCState
+    @ObservedObject var vitals: ImmersiveSessionVitalsStore
     @State private var expanded = false
     @State private var showShareSheet = false
+
+    init(state: SessionPOCState) {
+        self.state = state
+        self.vitals = state.vitals
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +36,7 @@ struct SessionBottomConfigMenu: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: 14) {
-                    Toggle(isOn: $state.sessionHomeLightsSyncEnabled) {
+                    Toggle(isOn: $vitals.sessionHomeLightsSyncEnabled) {
                         VStack(alignment: .leading, spacing: 3) {
                             Label("Home lighting", systemImage: "lightbulb.led.fill")
                                 .font(.subheadline.weight(.semibold))
