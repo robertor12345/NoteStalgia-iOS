@@ -40,6 +40,12 @@ struct CarePatientProfile: Identifiable, Equatable {
     var wingId: String = CareTenancyMockData.wingResidential
     var roomLabel: String = ""
     var isActive: Bool = true
+
+    /// Name-appropriate photograph of a genuinely elderly person (Wikimedia Commons). Deterministic
+    /// per resident; a captured photo or the bundled asset are used as fallbacks.
+    var remotePortraitURL: URL? {
+        ResidentPortraitCatalog.portraitURL(displayName: displayName)
+    }
 }
 
 /// Saved playlist linked to a genre for resident calm sessions (POC stubs).

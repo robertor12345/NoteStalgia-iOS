@@ -157,7 +157,7 @@ private struct MorphingOrbShellBackdrop: View, Animatable {
     var body: some View {
         switch kind {
         case .organicBubble, .roundedPanel:
-            MellorityOrbEnvelopeBackdrop(
+            NoteStalgiaOrbEnvelopeBackdrop(
                 width: max(0, width),
                 height: max(0, height),
                 pulse: pulse,

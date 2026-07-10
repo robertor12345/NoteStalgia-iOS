@@ -304,6 +304,7 @@ struct ResidentProfileView: View {
     @State private var selectedPlayingGenre: ResidentMusicGenre?
     @State private var activePlaylist: CarePlaylistEntry?
     @State private var activeTrackIndex: Int = 0
+    @State private var activeAudioKey: String?
     @State private var comfortInvitePhase: PlaylistComfortInvitePhase = .hidden
     @State private var playbackAnchor: Date?
     @State private var lastPromptedPlaybackKey: String?
@@ -318,10 +319,10 @@ struct ResidentProfileView: View {
 
     private var comfortInviteActive: Bool { comfortInvitePhase == .visible }
 
-    /// Diameter when playlist retro visuals fill the screen (slight bleed past edges).
+    /// Size when playlist retro visuals fill the screen — a full-bleed rectangle (covers the page
+    /// corners), with slight overscan so the subtle pulse never reveals an edge gap.
     private func expandedMediaSize(in container: CGSize) -> CGSize {
-        let d = max(container.width, container.height) * 1.14
-        return CGSize(width: d, height: d)
+        CGSize(width: container.width * 1.12, height: container.height * 1.12)
     }
 
     private func displayMediaSize(in container: CGSize) -> CGSize {
@@ -369,17 +370,22 @@ struct ResidentProfileView: View {
             let playbackHub = GlyphFloatLayout.musicGlyphHub(in: geo.size)
             let mediaSize = displayMediaSize(in: geo.size)
             let mediaAnchor = mediaCenter(hub: playbackHub, in: geo.size)
+            let phoneScale = BrandLayout.compactPhoneScale(for: geo.size)
 
             ZStack {
                 if let genre = selectedPlayingGenre,
-                   let playlist = activePlaylist,
-                   let trackTitle = currentTrackTitle(in: playlist) {
+                   activePlaylist != nil {
+                    let audibleTrack = ResidentPlaybackTrackCatalog.track(
+                        for: genre,
+                        trackIndex: activeTrackIndex
+                    )
                     ResidentPlaylistPanelBackdropView(
                         genre: genre,
-                        trackTitle: trackTitle,
+                        trackTitle: audibleTrack.title,
                         trackIndex: activeTrackIndex,
                         orbSize: mediaSize,
-                        mediaFillScale: displayMediaFillScale()
+                        mediaFillScale: displayMediaFillScale(),
+                        pageExpansion: mediaExpansion
                     )
                     .position(x: mediaAnchor.x, y: mediaAnchor.y)
                     .transition(.opacity.animation(.easeInOut(duration: 0.45)))
@@ -418,7 +424,7 @@ struct ResidentProfileView: View {
                         ResidentLuminousFloatingButton(
                             systemImage: "person.badge.key",
                             accent: BrandTheme.logoCyan,
-                            diameter: 48
+                            diameter: 48 * phoneScale
                         )
                     }
                     .buttonStyle(ChimingPlainButtonStyle())
@@ -427,36 +433,36 @@ struct ResidentProfileView: View {
                 .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
                 .padding(.top, 10)
             }
-            .overlay(alignment: .bottom) {
-                VStack(spacing: 14) {
-                    if comfortInviteActive, selectedPlayingGenre != nil {
-                        PlaylistComfortDock(
-                            affirmationChoice: comfortAffirmationChoice,
-                            affirmationTick: comfortAffirmationTick,
-                            onFeelsGood: { handleComfortChoice(.feelsGood) },
-                            onTryElse: { handleComfortChoice(.trySomethingElse) }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-
-                    if let sg = selectedPlayingGenre {
-                        Button {
-                            stopResidentAudio()
-                            state.prepareResidentImmersiveFromPlaylist(genre: sg)
-                            stopPlayback()
-                        } label: {
-                            ResidentLuminousFloatingButton(
-                                systemImage: "leaf.fill",
-                                accent: BrandTheme.logoPink,
-                                diameter: 56
-                            )
-                        }
-                        .buttonStyle(SoftPressButtonStyle())
-                        .accessibilityLabel("Calm room visuals")
-                    }
+            .overlay(alignment: .center) {
+                if comfortInviteActive, selectedPlayingGenre != nil {
+                    PlaylistComfortDock(
+                        affirmationChoice: comfortAffirmationChoice,
+                        affirmationTick: comfortAffirmationTick,
+                        onFeelsGood: { handleComfortChoice(.feelsGood) },
+                        onTryElse: { handleComfortChoice(.trySomethingElse) }
+                    )
+                    .transition(.scale(scale: 0.82).combined(with: .opacity))
+                    .animation(CalmMotion.gentle, value: comfortInvitePhase)
                 }
-                .padding(.bottom, 42)
-                .animation(CalmMotion.gentle, value: comfortInvitePhase)
+            }
+            .overlay(alignment: .bottom) {
+                if let sg = selectedPlayingGenre {
+                    Button {
+                        stopResidentAudio()
+                        state.prepareResidentImmersiveFromPlaylist(genre: sg)
+                        stopPlayback()
+                    } label: {
+                        ResidentLuminousFloatingButton(
+                            systemImage: "leaf.fill",
+                            accent: BrandTheme.logoPink,
+                            diameter: 56 * phoneScale
+                        )
+                    }
+                    .buttonStyle(SoftPressButtonStyle())
+                    .accessibilityLabel("Calm room visuals")
+                    .padding(.bottom, max(42, geo.safeAreaInsets.bottom + 16))
+                    .animation(CalmMotion.gentle, value: comfortInvitePhase)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -473,14 +479,17 @@ struct ResidentProfileView: View {
             } else if let old, old != new {
                 cyclePlaybackMediaForGenreChange()
                 markPlaybackAnchor()
+                playCurrentTrack()
             } else {
                 expandPlaybackMedia(afterBriefPause: true)
                 markPlaybackAnchor()
+                playCurrentTrack()
             }
         }
         .onChange(of: activeTrackIndex) { _, _ in
             if selectedPlayingGenre != nil {
                 markPlaybackAnchor()
+                playCurrentTrack()
             }
         }
         .onAppear {
@@ -575,10 +584,15 @@ struct ResidentProfileView: View {
             }
     }
 
-    private func currentTrackTitle(in playlist: CarePlaylistEntry) -> String? {
-        guard playlist.trackTitles.isEmpty == false else { return nil }
-        let idx = min(max(0, activeTrackIndex), playlist.trackTitles.count - 1)
-        return playlist.trackTitles[idx]
+    private func playCurrentTrack() {
+        guard let genre = selectedPlayingGenre, activePlaylist != nil else { return }
+        let track = ResidentPlaybackTrackCatalog.track(for: genre, trackIndex: activeTrackIndex)
+        let key = "\(genre.rawValue)|\(activeTrackIndex)|\(track.title)"
+        guard activeAudioKey != key else { return }
+        activeAudioKey = key
+        stopResidentAudio()
+        residentAudio.musicReactiveProfile = .discovery
+        residentAudio.startFresh(streamURL: track.audioURL)
     }
 
     private func stopResidentAudio() {
@@ -588,6 +602,7 @@ struct ResidentProfileView: View {
 
     private func stopPlayback() {
         stopResidentAudio()
+        activeAudioKey = nil
         selectedPlayingGenre = nil
         activePlaylist = nil
         activeTrackIndex = 0
@@ -624,22 +639,23 @@ struct ResidentProfileView: View {
         }
     }
 
-    /// Soft partial dip while the new clip loads — avoids a full shrink that felt abrupt between genres.
+    /// Switching to another playlist shrinks the visuals fully back to the orb, then blooms the new
+    /// genre's media out to full-page — so a genre change reads as "collapse → new orb → expand".
     private func cyclePlaybackMediaForGenreChange() {
         genreMediaCycleToken += 1
         let token = genreMediaCycleToken
-        let dip: CGFloat = 0.91
 
         if reduceMotion {
+            mediaExpansion = 1
             return
         }
 
-        withAnimation(.easeIn(duration: 0.52)) {
-            mediaExpansion = dip
+        withAnimation(CalmMotion.playlistOrbCollapse) {
+            mediaExpansion = 0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.52) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard token == genreMediaCycleToken, selectedPlayingGenre != nil else { return }
-            withAnimation(.easeOut(duration: 0.78)) {
+            withAnimation(CalmMotion.playlistOrbMorph) {
                 mediaExpansion = 1
             }
         }
@@ -804,9 +820,6 @@ struct ResidentProfileView: View {
         }
         CalmExperienceFeedback.playlistStart()
         state.recordResidentGenrePlay(genre)
-        stopResidentAudio()
-        residentAudio.musicReactiveProfile = .discovery
-        residentAudio.startFresh(photoAnchored: false)
         markPlaybackAnchor()
     }
 
@@ -1031,23 +1044,22 @@ private struct PlaylistComfortDock: View {
     let affirmationTick: UInt
     var onFeelsGood: () -> Void
     var onTryElse: () -> Void
+    @Environment(\.flowContainerSize) private var flowContainerSize
 
     var body: some View {
-        HStack(spacing: 28) {
+        HStack(spacing: 52 * BrandLayout.compactPhoneScale(for: flowContainerSize)) {
             PlaylistComfortChoiceButton(
                 choice: .feelsGood,
-                systemImage: "sun.max.fill",
-                accent: BrandTheme.goldDeep,
-                secondary: BrandTheme.goldSoft,
+                systemImage: SFCompat.resolve("sun.max.fill", "sun.max"),
+                palette: .sun,
                 affirmationChoice: affirmationChoice,
                 affirmationTick: affirmationTick,
                 action: onFeelsGood
             )
             PlaylistComfortChoiceButton(
                 choice: .trySomethingElse,
-                systemImage: "cloud.fill",
-                accent: BrandTheme.logoCyan,
-                secondary: BrandTheme.creamMid,
+                systemImage: SFCompat.resolve("cloud.fill", "cloud"),
+                palette: .cloud,
                 affirmationChoice: affirmationChoice,
                 affirmationTick: affirmationTick,
                 action: onTryElse
@@ -1058,22 +1070,65 @@ private struct PlaylistComfortDock: View {
     }
 }
 
+/// Vivid, high-contrast colour identity for the two comfort choices — a warm **yellow sun** for
+/// "feels good" and a cool **grey cloud** for "not for me".
+private enum ComfortChoicePalette {
+    case sun
+    case cloud
+
+    /// Face of the puck (center → rim).
+    var diskColors: [Color] {
+        switch self {
+        case .sun:
+            return [Color(red: 1.0, green: 0.97, blue: 0.74), Color(red: 1.0, green: 0.84, blue: 0.24), Color(red: 1.0, green: 0.68, blue: 0.06)]
+        case .cloud:
+            return [Color(red: 0.96, green: 0.97, blue: 0.99), Color(red: 0.75, green: 0.79, blue: 0.84), Color(red: 0.49, green: 0.55, blue: 0.62)]
+        }
+    }
+
+    var glow: Color {
+        switch self {
+        case .sun: return Color(red: 1.0, green: 0.80, blue: 0.12)
+        case .cloud: return Color(red: 0.58, green: 0.63, blue: 0.70)
+        }
+    }
+
+    var stroke: Color {
+        switch self {
+        case .sun: return Color(red: 1.0, green: 0.90, blue: 0.48)
+        case .cloud: return Color(red: 0.86, green: 0.89, blue: 0.93)
+        }
+    }
+
+    var icon: Color { .white }
+
+    var iconShadow: Color {
+        switch self {
+        case .sun: return Color(red: 0.78, green: 0.45, blue: 0.0).opacity(0.55)
+        case .cloud: return Color(red: 0.30, green: 0.36, blue: 0.44).opacity(0.55)
+        }
+    }
+}
+
 private struct PlaylistComfortChoiceButton: View {
     let choice: ResidentPlaylistComfortChoice
     let systemImage: String
-    let accent: Color
-    let secondary: Color
+    let palette: ComfortChoicePalette
     let affirmationChoice: ResidentPlaylistComfortChoice?
     let affirmationTick: UInt
     var action: () -> Void
 
-    private let diameter: CGFloat = 92
-
     @State private var pressPopScale: CGFloat = 1
     @State private var glowBurst: CGFloat = 0
+    @Environment(\.flowContainerSize) private var flowContainerSize
+
+    /// Larger on Pro Max-class phones; unchanged on standard phones and iPad.
+    private var diameter: CGFloat {
+        132 * BrandLayout.compactPhoneScale(for: flowContainerSize)
+    }
 
     private var luminousLevel: CGFloat {
-        glowBurst > 0.01 ? glowBurst : 0.38
+        glowBurst > 0.01 ? glowBurst : 0.44
     }
 
     var body: some View {
@@ -1086,52 +1141,49 @@ private struct PlaylistComfortChoiceButton: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                accent.opacity(0.34 * luminousLevel + 0.1),
-                                secondary.opacity(0.22 * luminousLevel),
+                                palette.glow.opacity(0.5 * luminousLevel + 0.16),
+                                palette.glow.opacity(0.26 * luminousLevel),
                                 .clear,
                             ],
                             center: .center,
                             startRadius: 2,
-                            endRadius: diameter * 0.62
+                            endRadius: diameter * 0.66
                         )
                     )
-                    .frame(width: diameter * (1.1 + luminousLevel * 0.14), height: diameter * (1.1 + luminousLevel * 0.14))
-                    .blur(radius: 5 + luminousLevel * 14)
+                    .frame(width: diameter * (1.18 + luminousLevel * 0.18), height: diameter * (1.18 + luminousLevel * 0.18))
+                    .blur(radius: 7 + luminousLevel * 16)
 
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [
-                                .white.opacity(0.94),
-                                secondary.opacity(0.88),
-                                accent.opacity(0.72),
-                            ],
-                            center: .center,
+                            colors: palette.diskColors,
+                            center: UnitPoint(x: 0.42, y: 0.36),
                             startRadius: 4,
-                            endRadius: diameter * 0.52
+                            endRadius: diameter * 0.58
                         )
                     )
-                    .frame(width: diameter * 0.88, height: diameter * 0.88)
+                    .frame(width: diameter * 0.9, height: diameter * 0.9)
                     .overlay(
                         Circle()
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        .white.opacity(0.9),
-                                        accent.opacity(0.65 + luminousLevel * 0.25),
+                                        .white.opacity(0.95),
+                                        palette.stroke.opacity(0.7 + luminousLevel * 0.25),
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ),
-                                lineWidth: 2 + luminousLevel * 2
+                                lineWidth: 2.5 + luminousLevel * 2
                             )
                     )
-                    .shadow(color: accent.opacity(0.35 + luminousLevel * 0.45), radius: 10 + luminousLevel * 18)
+                    .shadow(color: palette.glow.opacity(0.4 + luminousLevel * 0.5), radius: 14 + luminousLevel * 20)
 
                 Image(systemName: systemImage)
-                    .font(.system(size: diameter * 0.34, weight: .medium))
-                    .foregroundStyle(accent.opacity(0.92))
-                    .shadow(color: .white.opacity(0.6), radius: 1, y: -1)
+                    .font(.system(size: diameter * 0.4, weight: .bold))
+                    .foregroundStyle(palette.icon)
+                    .shadow(color: palette.iconShadow, radius: 3, y: 1.5)
+                    .shadow(color: .white.opacity(0.5), radius: 0.5, y: -0.5)
             }
             .frame(width: diameter, height: diameter)
             .scaleEffect(pressPopScale)

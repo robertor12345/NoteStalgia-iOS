@@ -3,7 +3,7 @@ import Security
 
 /// Persists which care profile is tied to device Face ID / Touch ID on this iPad.
 enum PatientFaceIDLinkStore {
-    private static let service = "com.melloria.flowpoc.faceid.patient"
+    private static let service = "com.notestalgia.ios.faceid.patient"
     private static let account = "linkedPatientId"
 
     static func linkedPatientId() -> UUID? {

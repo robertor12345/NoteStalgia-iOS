@@ -229,7 +229,7 @@ private struct GroupTransportButton: View {
             VStack(spacing: 6) {
                 ZStack {
                     if prominent {
-                        MellorityOrbBackdrop(diameter: diameter + 8, pulse: 0.5, glowPulse: 0.62)
+                        NoteStalgiaOrbBackdrop(diameter: diameter + 8, pulse: 0.5, glowPulse: 0.62)
                     }
                     Circle()
                         .fill(prominent ? BrandTheme.goldSoft.opacity(0.55) : BrandTheme.cream.opacity(0.94))

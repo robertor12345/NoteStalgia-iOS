@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3933836E9D2CA4B288A1AA2B"
-               BuildableName = "MellorityFlowPOC.app"
-               BlueprintName = "MellorityFlowPOC"
-               ReferencedContainer = "container:MellorityFlowPOC.xcodeproj">
+               BlueprintIdentifier = "C73F9EAA29C63CBBC2627FAA"
+               BuildableName = "NoteStalgia-iOS.app"
+               BlueprintName = "NoteStalgia-iOS"
+               ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3933836E9D2CA4B288A1AA2B"
-            BuildableName = "MellorityFlowPOC.app"
-            BlueprintName = "MellorityFlowPOC"
-            ReferencedContainer = "container:MellorityFlowPOC.xcodeproj">
+            BlueprintIdentifier = "C73F9EAA29C63CBBC2627FAA"
+            BuildableName = "NoteStalgia-iOS.app"
+            BlueprintName = "NoteStalgia-iOS"
+            ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -55,10 +55,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3933836E9D2CA4B288A1AA2B"
-            BuildableName = "MellorityFlowPOC.app"
-            BlueprintName = "MellorityFlowPOC"
-            ReferencedContainer = "container:MellorityFlowPOC.xcodeproj">
+            BlueprintIdentifier = "C73F9EAA29C63CBBC2627FAA"
+            BuildableName = "NoteStalgia-iOS.app"
+            BlueprintName = "NoteStalgia-iOS"
+            ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -74,10 +74,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3933836E9D2CA4B288A1AA2B"
-            BuildableName = "MellorityFlowPOC.app"
-            BlueprintName = "MellorityFlowPOC"
-            ReferencedContainer = "container:MellorityFlowPOC.xcodeproj">
+            BlueprintIdentifier = "C73F9EAA29C63CBBC2627FAA"
+            BuildableName = "NoteStalgia-iOS.app"
+            BlueprintName = "NoteStalgia-iOS"
+            ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

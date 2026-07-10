@@ -637,6 +637,7 @@ struct CareHomeAdminWelcomeView: View {
     @ObservedObject var state: SessionPOCState
     @State private var greetingVisible = false
     @State private var loaderVisible = false
+    @State private var didAnimateEntrance = false
     @State private var didScheduleExit = false
 
     private var displayName: String {
@@ -680,11 +681,14 @@ struct CareHomeAdminWelcomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel("Welcome \(displayName). Loading home insights.")
         .onAppear {
-            withAnimation(CalmMotion.softFade.delay(0.12)) {
-                loaderVisible = true
-            }
-            withAnimation(CalmMotion.gentle.delay(0.28)) {
-                greetingVisible = true
+            if !didAnimateEntrance {
+                didAnimateEntrance = true
+                withAnimation(CalmMotion.softFade.delay(0.12)) {
+                    loaderVisible = true
+                }
+                withAnimation(CalmMotion.gentle.delay(0.28)) {
+                    greetingVisible = true
+                }
             }
             guard !isManualReturn else { return }
             guard !didScheduleExit else { return }

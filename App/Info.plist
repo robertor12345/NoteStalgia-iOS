@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mellority Flow</string>
+	<string>NoteStalgia</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,7 +21,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Mellority captures your environment to tailor visuals and sound to the moment.</string>
+	<string>NoteStalgia captures your environment to tailor visuals and sound to the moment.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Reserved for a future release; supervisor PIN is used for staff access in this build.</string>
 	<key>NSHealthShareUsageDescription</key>

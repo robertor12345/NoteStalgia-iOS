@@ -120,7 +120,7 @@ struct OrbPulseSample {
 }
 
 /// Pulsating sky-blue envelope that wraps menu content (soft blob, not a fixed circle).
-struct MellorityOrbEnvelopeView: View {
+struct NoteStalgiaOrbEnvelopeView: View {
     var size: CGSize
     var pulseMode: OrbPulseMode = .idle
     var anchor: Date = Date()
@@ -138,7 +138,7 @@ struct MellorityOrbEnvelopeView: View {
                 mode: pulseMode,
                 reduceMotion: reduceMotion
             )
-            MellorityOrbEnvelopeBackdrop(
+            NoteStalgiaOrbEnvelopeBackdrop(
                 width: max(120, (size.width - horizontalPadding * 2) * envelopeScale),
                 height: max(160, (size.height - verticalPadding * 2) * envelopeScale),
                 pulse: sample.pulse,
@@ -350,7 +350,7 @@ struct GlowingBubbleShape: Shape {
     }
 }
 
-struct MellorityOrbEnvelopeBackdrop: View {
+struct NoteStalgiaOrbEnvelopeBackdrop: View {
     var width: CGFloat
     var height: CGFloat
     var pulse: Double
@@ -400,7 +400,7 @@ struct FlowRoundedEnvelopeBackdrop: View {
 }
 
 /// Compact circular orb for buttons and icons.
-struct MellorityOrbView: View {
+struct NoteStalgiaOrbView: View {
     var diameter: CGFloat
     var pulseMode: OrbPulseMode = .idle
     var anchor: Date = Date()
@@ -416,7 +416,7 @@ struct MellorityOrbView: View {
                 reduceMotion: reduceMotion
             )
 
-            MellorityOrbBackdrop(
+            NoteStalgiaOrbBackdrop(
                 diameter: diameter,
                 pulse: sample.pulse,
                 glowPulse: sample.glowPulse
@@ -426,7 +426,7 @@ struct MellorityOrbView: View {
     }
 }
 
-struct MellorityOrbBackdrop: View {
+struct NoteStalgiaOrbBackdrop: View {
     var diameter: CGFloat
     var pulse: Double
     var glowPulse: Double

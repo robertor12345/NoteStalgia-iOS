@@ -1,8 +1,8 @@
-# NoteStalgia / Mellority Flow — Production Implementation Plan
+# NoteStalgia — Production Implementation Plan
 
 > Execution target: a later date, by another engineer/agent. This document plus a per-repo `README.md` and a central `docs/decisions/` (ADR) log are living artifacts — update the decision log on every major change.
 >
-> Code references below are paths within the `MellorityFlowPOC` repository root (this file lives in `docs/`).
+> Code references below are paths within the `NoteStalgia-iOS` repository root (this file lives in `docs/`).
 
 ## 1. Context (what exists today)
 

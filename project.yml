@@ -1,12 +1,12 @@
-name: MellorityFlowPOC
+name: NoteStalgia-iOS
 options:
-  bundleIdPrefix: com.melloria
+  bundleIdPrefix: com.notestalgia
   deploymentTarget:
     iOS: "17.0"
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    PRODUCT_BUNDLE_IDENTIFIER: com.melloria.flowpoc
+    PRODUCT_BUNDLE_IDENTIFIER: com.notestalgia.ios
     INFOPLIST_FILE: App/Info.plist
   configs:
     Debug:
@@ -18,7 +18,7 @@ settings:
       GCC_OPTIMIZATION_LEVEL: "3"
       DEAD_CODE_STRIPPING: true
 targets:
-  MellorityFlowPOC:
+  NoteStalgia-iOS:
     type: application
     platform: iOS
     sources:
@@ -38,12 +38,12 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Mellority Flow
+        CFBundleDisplayName: NoteStalgia
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSFaceIDUsageDescription: Reserved for a future release; supervisor PIN is used for staff access in this build.
-        NSCameraUsageDescription: Mellority captures your environment to tailor visuals and sound to the moment.
+        NSCameraUsageDescription: NoteStalgia captures your environment to tailor visuals and sound to the moment.
         NSPhotoLibraryUsageDescription: Choose a photo to analyse colour and mood for your session.
         NSMicrophoneUsageDescription: Spatial audio and session capture may use the microphone when you enable those features.
         NSHealthShareUsageDescription: Optional heart rate and mindfulness data help adapt your session when you connect Health.
@@ -51,9 +51,9 @@ targets:
     dependencies: []
 
 schemes:
-  MellorityFlowPOC:
+  NoteStalgia-iOS:
     build:
       targets:
-        MellorityFlowPOC: all
+        NoteStalgia-iOS: all
     run:
       config: Debug

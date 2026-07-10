@@ -101,7 +101,7 @@ struct SessionBottomConfigMenu: View {
         let mood = state.selectedMoodsOrdered.isEmpty
             ? "Calm"
             : state.selectedMoodsOrdered.joined(separator: ", ")
-        let text = "Quiet moment with Mellority — feeling: \(mood)."
+        let text = "Quiet moment with NoteStalgia — feeling: \(mood)."
         return [text]
     }
 }

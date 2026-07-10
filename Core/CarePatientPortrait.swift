@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Roster / detail portrait — custom photo when captured, otherwise stock asset.
+/// Roster / detail portrait — custom photo when captured, otherwise a name-matched elderly portrait
+/// pulled from the internet, with the bundled stock asset as the offline fallback.
 struct CarePatientPortraitView: View {
     var assetName: String
     var customImage: UIImage?
+    var remoteURL: URL? = nil
     var size: CGFloat
     var showOrbFrame: Bool = false
 
@@ -11,7 +13,7 @@ struct CarePatientPortraitView: View {
         Group {
             if showOrbFrame {
                 ZStack {
-                    MellorityOrbBackdrop(diameter: size + 12, pulse: 0.5, glowPulse: 0.62)
+                    NoteStalgiaOrbBackdrop(diameter: size + 12, pulse: 0.5, glowPulse: 0.62)
                     portraitContent
                         .frame(width: size, height: size)
                 }
@@ -25,18 +27,9 @@ struct CarePatientPortraitView: View {
 
     @ViewBuilder
     private var portraitContent: some View {
-        if let customImage {
-            Image(uiImage: customImage)
-                .resizable()
-                .scaledToFill()
-                .clipShape(Circle())
-                .overlay(Circle().stroke(BrandTheme.gold.opacity(0.42), lineWidth: 2))
-        } else {
-            Image(assetName)
-                .resizable()
-                .scaledToFill()
-                .clipShape(Circle())
-                .overlay(Circle().stroke(BrandTheme.gold.opacity(0.42), lineWidth: 2))
-        }
+        ResidentPortraitFill(remoteURL: remoteURL, assetName: assetName, customImage: customImage)
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(BrandTheme.gold.opacity(0.42), lineWidth: 2))
     }
 }

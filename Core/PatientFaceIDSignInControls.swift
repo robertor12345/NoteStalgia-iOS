@@ -75,9 +75,11 @@ struct PatientFaceIDSignInPanel: View {
     var body: some View {
         BrandCard {
             VStack(spacing: SignInPageLayout.sectionSpacing) {
-                Image(patient.stockPortraitAssetName)
-                    .resizable()
-                    .scaledToFill()
+                ResidentPortraitFill(
+                    remoteURL: patient.remotePortraitURL,
+                    assetName: patient.stockPortraitAssetName,
+                    customImage: nil
+                )
                     .frame(width: portraitSize, height: portraitSize)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(BrandTheme.gold.opacity(0.45), lineWidth: 2))

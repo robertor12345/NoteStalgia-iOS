@@ -13,6 +13,19 @@ struct LaunchIntroOverlay: View {
     private let wordStagger: TimeInterval = 0.38
     private let wordFadeDuration: TimeInterval = 0.62
 
+    /// Keep the approved 60 pt iPad wordmark; use a phone-specific size so it clears the orb edges.
+    private var titlePointSize: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 60 : 44
+    }
+
+    private var titleTracking: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 6 : 4.5
+    }
+
+    private var subtitlePointSize: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 40 : 10
+    }
+
     var body: some View {
         TimelineView(.animation(minimumInterval: OrbRenderBudget.contentFrameInterval(reduceMotion: reduceMotion), paused: false)) { timeline in
             let elapsed = timeline.date.timeIntervalSince(anchor)
@@ -28,9 +41,9 @@ struct LaunchIntroOverlay: View {
 
             VStack(spacing: 22) {
                 NoteStalgiaWordmark(
-                    font: .system(size: 60, weight: .semibold, design: .rounded),
-                    tracking: 6,
-                    pointSize: 60
+                    font: .system(size: titlePointSize, weight: .semibold, design: .rounded),
+                    tracking: titleTracking,
+                    pointSize: titlePointSize
                 )
                 .opacity(titleOpacity)
                 .offset(y: reduceMotion ? 0 : (1 - titleOpacity) * 14)
@@ -41,7 +54,7 @@ struct LaunchIntroOverlay: View {
                     startAt: reduceMotion ? 0.3 : subtitleStart,
                     wordStagger: reduceMotion ? 0 : wordStagger,
                     fadeDuration: reduceMotion ? 0.35 : wordFadeDuration,
-                    pointSize: 40,
+                    pointSize: subtitlePointSize,
                     weight: .semibold,
                     legibilityIntensity: 1.08
                 )

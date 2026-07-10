@@ -1,97 +1,70 @@
 import AVFoundation
 import SwiftUI
 
+// MARK: - Audible track selection
+
+struct ResidentPlaybackTrack {
+    let title: String
+    let audioURL: URL
+}
+
+/// The resident playlist previously changed its on-screen title and visual while continuing to play
+/// the same ambient file. This catalog is now the single source of truth for both the audible track
+/// and its visual, so genre changes and swipes cannot drift out of sync.
+enum ResidentPlaybackTrackCatalog {
+    static func track(
+        for genre: ResidentMusicGenre,
+        trackIndex: Int
+    ) -> ResidentPlaybackTrack {
+        let titles: [String]
+        switch genre {
+        case .jazz:
+            titles = ["Velvet Afterhours", "Echoes of Yesterday"]
+        case .classical:
+            titles = ["Velvet Cadenza", "Drift Between Rooms"]
+        case .pop:
+            titles = ["Velvet Highway", "Echoes of Yesterday"]
+        case .rock:
+            titles = ["Velvet Highway", "Pine Smoke Drift"]
+        case .gospel:
+            titles = ["Echoes of Yesterday", "Velvet Cadenza"]
+        case .country:
+            titles = ["Pine Smoke Drift", "Velvet Highway"]
+        case .soul:
+            titles = ["Velvet Afterhours", "Drift Between Rooms"]
+        }
+
+        let title = titles[trackIndex % titles.count]
+        return ResidentPlaybackTrack(
+            title: title,
+            audioURL: BundledAudio.urlOrRemote(
+                title,
+                fallback: AmbientAudioSession.quickStartStreamURL
+            )
+        )
+    }
+}
+
 // MARK: - Track / genre backdrop (full MP4 clips inside the resident panel)
 
 enum ResidentPlaylistVisualCatalog {
-    private static let jazz: [ArchiveEraClip] = [
-        .rumbaMamba,
-        .partyJohnnieRay,
-        .royalWedding,
-        ArchiveEraClip(
-            archiveItemID: ArchiveEraClipLibrary.partyJohnnieRay.archiveItemID,
-            videoFileNames: ["ArthurMurrayPartyJohnnieRay.mp4"],
-            posterFileName: "ArthurMurrayPartyJohnnieRay.gif"
-        ),
-        .bowlingFull,
-    ]
+    /// Mood that best fits the track — title keywords win, genre is the fallback.
+    static func mood(for genre: ResidentMusicGenre, trackTitle: String) -> MusicVisualMood {
+        MusicVisualMood.resolve(title: trackTitle, genre: genre)
+    }
 
-    private static let classical: [ArchiveEraClip] = [
-        .royalWedding,
-        .partyJohnnieRay,
-        .rumbaMamba,
-        .bowlingFull,
-    ]
-
-    private static let pop: [ArchiveEraClip] = [
-        .bowlingFull,
-        .partyJohnnieRay,
-        ArchiveEraClip(
-            archiveItemID: ArchiveEraClipLibrary.bowlingFull.archiveItemID,
-            videoFileNames: ["LetsGoBo1955_edit.mp4", "LetsGoBo1955.mp4"],
-            posterFileName: "LetsGoBo1955.gif"
-        ),
-        .royalWedding,
-    ]
-
-    private static let rock: [ArchiveEraClip] = [
-        ArchiveEraClip(
-            archiveItemID: ArchiveEraClipLibrary.bowlingFull.archiveItemID,
-            videoFileNames: ["LetsGoBo1955_edit.mp4", "LetsGoBo1955.mp4", "LetsGoBo1955_512kb.mp4"],
-            posterFileName: "LetsGoBo1955.gif"
-        ),
-        .partyJohnnieRay,
-        .rumbaMamba,
-    ]
-
-    private static let gospel: [ArchiveEraClip] = [
-        .partyJohnnieRay,
-        .royalWedding,
-        .bowlingFull,
-        .rumbaMamba,
-    ]
-
-    private static let country: [ArchiveEraClip] = [
-        .bowlingFull,
-        ArchiveEraClip(
-            archiveItemID: ArchiveEraClipLibrary.bowlingFull.archiveItemID,
-            videoFileNames: ["LetsGoBo1955.mp4", "LetsGoBo1955_edit.mp4"],
-            posterFileName: "LetsGoBo1955.gif"
-        ),
-        .partyJohnnieRay,
-    ]
-
-    private static let soul: [ArchiveEraClip] = [
-        .partyJohnnieRay,
-        .rumbaMamba,
-        .royalWedding,
-        .bowlingFull,
-    ]
-
+    /// Clip that best matches the track's mood, rotated deterministically across the mood's pool so
+    /// different tracks in the same mood still get some variety — but the same track always resolves
+    /// to the same clip (stable hash, not the launch-randomized `String.hashValue`).
     static func clip(
         for genre: ResidentMusicGenre,
         trackTitle: String,
         trackIndex: Int
     ) -> ArchiveEraClip {
-        let pool = pool(for: genre)
-        guard pool.isEmpty == false else {
-            return .partyJohnnieRay
-        }
-        let titleHash = abs(trackTitle.hashValue)
-        let idx = (trackIndex + titleHash) % pool.count
+        let pool = mood(for: genre, trackTitle: trackTitle).clipPool
+        guard pool.isEmpty == false else { return .partyJohnnieRay }
+        let idx = (trackIndex + StableHash.of(trackTitle)) % pool.count
         return pool[idx]
-    }
-
-    private static func pool(for genre: ResidentMusicGenre) -> [ArchiveEraClip] {
-        switch genre {
-        case .jazz: jazz
-        case .classical: classical
-        case .pop: pop
-        case .rock: rock
-        case .gospel: gospel
-        case .country: country
-        case .soul: soul
-        }
     }
 }
 
@@ -108,6 +81,10 @@ struct ResidentPlaylistBackdropView: View {
         ResidentPlaylistVisualCatalog.clip(for: genre, trackTitle: trackTitle, trackIndex: trackIndex)
     }
 
+    private var mood: MusicVisualMood {
+        ResidentPlaylistVisualCatalog.mood(for: genre, trackTitle: trackTitle)
+    }
+
     var body: some View {
         ZStack {
             DiscoverySnippetMediaFill(
@@ -118,11 +95,20 @@ struct ResidentPlaylistBackdropView: View {
                 .scaleEffect(1.02)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            // Mood colour grade — makes each song/genre read distinctly while keeping footage visible.
+            LinearGradient(
+                colors: mood.tintColors.map { $0.opacity(0.30) },
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .blendMode(.softLight)
+            .opacity(playlistMediaReady ? 1 : 0)
+
             LinearGradient(
                 colors: [
-                    BrandTheme.skyBackgroundTop.opacity(0.18),
-                    Color.black.opacity(0.06),
-                    BrandTheme.skyBackgroundDeep.opacity(0.24),
+                    BrandTheme.skyBackgroundTop.opacity(0.14),
+                    Color.black.opacity(0.05),
+                    BrandTheme.skyBackgroundDeep.opacity(0.20),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -145,17 +131,23 @@ struct ResidentPlaylistBackdropView: View {
         .onDisappear { videoLooper.stop() }
     }
 
+    private var sceneImageURL: URL? {
+        mood.sceneImageURL(variant: trackIndex + StableHash.of(trackTitle))
+    }
+
     private var discoveryVisualAdapter: DiscoverySnippetEraVisual {
         DiscoverySnippetEraVisual(
             snippetIndex: trackIndex,
             eraYear: 1955,
             eraEvent: trackTitle,
-            clip: clip
+            clip: clip,
+            imagePosterOverride: sceneImageURL,
+            suppressVideo: sceneImageURL != nil
         )
     }
 
     private func restartVideo() {
-        let urls = clip.videoURLs
+        let urls = discoveryVisualAdapter.videoURLs
         guard urls.isEmpty == false else {
             videoLooper.stop()
             return
@@ -171,9 +163,16 @@ struct ResidentPlaylistPanelBackdropView: View {
     let trackIndex: Int
     let orbSize: CGSize
     var mediaFillScale: CGFloat = 0.90
+    /// 0 = compact orb; 1 = full-page. Drives the circle→page shape morph.
+    var pageExpansion: CGFloat = 0
 
     var body: some View {
-        OrbInteriorMediaPanel(orbSize: orbSize, mediaFillScale: mediaFillScale, showArcFrame: false) {
+        OrbInteriorMediaPanel(
+            orbSize: orbSize,
+            mediaFillScale: mediaFillScale,
+            showArcFrame: false,
+            pageExpansion: pageExpansion
+        ) {
             ResidentPlaylistBackdropView(
                 genre: genre,
                 trackTitle: trackTitle,

@@ -6,6 +6,10 @@ struct OrbInteriorMediaPanel<Media: View>: View {
     /// Slightly inset so the persistent nebula shell + arc frame remain visible around the clip.
     var mediaFillScale: CGFloat = 0.90
     var showArcFrame: Bool = true
+    /// 0 = circular orb; 1 = full rectangular page. Morphs the clip shape from a perfect circle to a
+    /// lightly-rounded rectangle so the media can grow to cover the entire screen (corners included)
+    /// as a playlist expands, then shrink back to the orb.
+    var pageExpansion: CGFloat = 0
     @ViewBuilder var media: () -> Media
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,8 +21,16 @@ struct OrbInteriorMediaPanel<Media: View>: View {
     }
 
     var body: some View {
-        let diameter = min(orbSize.width, orbSize.height)
-        let mediaDiameter = diameter * mediaFillScale
+        let expansion = min(max(pageExpansion, 0), 1)
+        let boxW = orbSize.width
+        let boxH = orbSize.height
+        let mediaW = boxW * mediaFillScale
+        let mediaH = boxH * mediaFillScale
+        let minSide = min(mediaW, mediaH)
+        // Circle (radius = half the short side) → gentle page corner as it expands.
+        let cornerRadius = minSide / 2 * (1 - expansion * 0.9)
+        // Ease the tiny pulse breathing out as it fills the page so edges never reveal a gap.
+        let pulseDamping = 1 - expansion
 
         TimelineView(.animation(minimumInterval: OrbRenderBudget.contentFrameInterval(reduceMotion: reduceMotion), paused: false)) { timeline in
             let elapsed = timeline.date.timeIntervalSince(pulseAnchor) * flowPanelPulseSpeed
@@ -27,26 +39,27 @@ struct OrbInteriorMediaPanel<Media: View>: View {
                 mode: .calm,
                 reduceMotion: reduceMotion
             )
-            let contentScale = sample.shellScale
+            let contentScale = 1 + (sample.shellScale - 1) * pulseDamping
+            let shortDiameter = min(boxW, boxH)
 
             ZStack {
                 media()
-                    .frame(width: mediaDiameter, height: mediaDiameter)
-                    .clipShape(Circle())
+                    .frame(width: mediaW, height: mediaH)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .scaleEffect(contentScale)
 
-                if showArcFrame {
-                    if diameter >= 96 {
+                if showArcFrame, expansion < 0.02 {
+                    if shortDiameter >= 96 {
                         NoteStalgiaOrbRippleRings(
-                            diameter: diameter,
+                            diameter: shortDiameter,
                             phase: sample.pulse,
                             glowPulse: sample.glowPulse,
                             ringExpansion: OrbReferenceMotion.ringExpansion(at: elapsed)
                         )
                     } else {
                         NoteStalgiaOrbAnimatedArcFrame(
-                            diameter: diameter * 1.02,
-                            lineWidth: max(1.5, diameter * 0.004),
+                            diameter: shortDiameter * 1.02,
+                            lineWidth: max(1.5, shortDiameter * 0.004),
                             swirlPhase: elapsed,
                             glowPulse: sample.glowPulse,
                             breathe: contentScale
@@ -54,9 +67,9 @@ struct OrbInteriorMediaPanel<Media: View>: View {
                     }
                 }
             }
-            .frame(width: diameter, height: diameter)
+            .frame(width: boxW, height: boxH)
         }
-        .frame(width: diameter, height: diameter)
+        .frame(width: boxW, height: boxH)
         .accessibilityHidden(true)
         .allowsHitTesting(false)
     }

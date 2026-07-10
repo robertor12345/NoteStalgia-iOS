@@ -8,8 +8,12 @@ enum CalmMotion {
     static let ethereal: Animation = .easeInOut(duration: 0.8)
     /// In-place content changes (cards, step swaps) — soft settle, no bounce.
     static let gentle: Animation = .spring(response: 0.66, dampingFraction: 0.92, blendDuration: 0.2)
-    /// Resident playlist orb — slow ease so genre swaps feel like one continuous breath.
-    static let playlistOrbMorph: Animation = .easeInOut(duration: 0.88)
+    /// Resident playlist orb bloom — smooth, decelerating grow so the orb→full-page fill feels like
+    /// one continuous, unhurried breath (no abrupt snap at the edges).
+    static let playlistOrbMorph: Animation = .timingCurve(0.2, 0.85, 0.25, 1, duration: 1.05)
+    /// Resident playlist orb collapse — settles the media back down to the compact orb before a
+    /// genre swap re-blooms.
+    static let playlistOrbCollapse: Animation = .timingCurve(0.4, 0, 0.2, 1, duration: 0.5)
     /// Screen content fading in after a transition.
     static let softFade: Animation = .easeOut(duration: 0.6)
     /// Small state tweaks (button enable, progress fill) — quick but smooth.
@@ -75,41 +79,41 @@ extension View {
 
 struct CalmCircularLoader: View {
     var diameter: CGFloat = 72
-    @State private var rotation: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.42), lineWidth: 2.5)
-                .frame(width: diameter, height: diameter)
-            Circle()
-                .trim(from: 0.08, to: 0.72)
-                .stroke(
-                    AngularGradient(
-                        colors: [
-                            Color.white.opacity(0.55),
-                            BrandTheme.logoCyan.opacity(0.95),
-                            BrandTheme.gold.opacity(0.98),
-                            BrandTheme.goldDeep.opacity(0.92),
-                            Color.white.opacity(0.5),
-                        ],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
-                )
-                .frame(width: diameter, height: diameter)
-                .rotationEffect(.degrees(rotation))
-                .shadow(color: BrandTheme.logoCyan.opacity(0.55), radius: 10)
-                .shadow(color: BrandTheme.gold.opacity(0.45), radius: 6)
-        }
-        .accessibilityLabel("Loading")
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 0.95).repeatForever(autoreverses: false)) {
-                rotation = 360
+        TimelineView(.animation(paused: reduceMotion)) { context in
+            let rotation = reduceMotion
+                ? 0
+                : context.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: 0.95) / 0.95 * 360
+
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.42), lineWidth: 2.5)
+                    .frame(width: diameter, height: diameter)
+                Circle()
+                    .trim(from: 0.08, to: 0.72)
+                    .stroke(
+                        AngularGradient(
+                            colors: [
+                                Color.white.opacity(0.55),
+                                BrandTheme.logoCyan.opacity(0.95),
+                                BrandTheme.gold.opacity(0.98),
+                                BrandTheme.goldDeep.opacity(0.92),
+                                Color.white.opacity(0.5),
+                            ],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
+                    )
+                    .frame(width: diameter, height: diameter)
+                    .rotationEffect(.degrees(rotation))
+                    .shadow(color: BrandTheme.logoCyan.opacity(0.55), radius: 10)
+                    .shadow(color: BrandTheme.gold.opacity(0.45), radius: 6)
             }
         }
+        .accessibilityLabel("Loading")
     }
 }
 

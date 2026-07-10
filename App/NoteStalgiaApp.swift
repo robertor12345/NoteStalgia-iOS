@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct MellorityFlowPOCApp: App {
+struct NoteStalgiaApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView()

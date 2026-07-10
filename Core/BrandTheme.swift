@@ -137,7 +137,15 @@ enum BrandTheme {
 // MARK: - Sign-in surfaces (home Face ID — large type for resident / staff iPads)
 
 enum SignInPageLayout {
-    static let scale: CGFloat = 3.0
+    /// The original 3× treatment is retained exactly on iPad. On iPhone it is reduced according to
+    /// screen height so a Pro Max keeps the same hierarchy without inheriting iPad-sized controls.
+    static var scale: CGFloat {
+        guard UIDevice.current.userInterfaceIdiom != .pad else { return 3.0 }
+        let height = max(UIScreen.main.bounds.width, UIScreen.main.bounds.height)
+        if height >= 850 { return 1.65 }
+        if height >= 740 { return 1.35 }
+        return 1.15
+    }
 
     static func points(_ base: CGFloat) -> CGFloat { base * scale }
 
@@ -198,7 +206,9 @@ enum BrandLayout {
     static let scrollEdgeFadeComfortPadding: CGFloat = 12
 
     static func contentGutter(for horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        horizontalSizeClass == .regular ? 32 : BrandTheme.contentGutter
+        horizontalSizeClass == .regular
+            ? 32
+            : BrandTheme.contentGutter * currentCompactPhoneScale
     }
 
     static func isRegularWidth(_ horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
@@ -206,15 +216,35 @@ enum BrandLayout {
     }
 
     static func orbScale(for horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        isRegularWidth(horizontalSizeClass) ? 1.18 : 1.0
+        isRegularWidth(horizontalSizeClass) ? 1.18 : currentCompactPhoneScale
     }
 
     static func hullScale(for size: CGSize) -> CGFloat {
-        min(1.38, max(1.0, min(size.width, size.height) / 560))
+        let minimumDimension = min(size.width, size.height)
+        if minimumDimension >= 560 {
+            // Preserve the existing iPad curve exactly (13-inch iPad remains capped at 1.38).
+            return min(1.38, max(1.0, minimumDimension / 560))
+        }
+        return compactPhoneScale(for: size)
+    }
+
+    /// A restrained uplift for Plus / Pro Max portrait widths. Standard phones remain at 1× and
+    /// iPads deliberately return 1× here because their existing regular-width scaling is separate.
+    static func compactPhoneScale(for size: CGSize) -> CGFloat {
+        let minimumDimension = min(size.width, size.height)
+        guard minimumDimension >= 414, minimumDimension < 560 else { return 1 }
+        return min(1.12, 1 + (minimumDimension - 390) / 360)
+    }
+
+    /// For reusable controls which do not receive the flow container size. iPad always returns 1 so
+    /// its existing regular-width constants remain pixel-for-pixel unchanged.
+    static var currentCompactPhoneScale: CGFloat {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return 1 }
+        return compactPhoneScale(for: UIScreen.main.bounds.size)
     }
 
     static func scaled(_ compact: CGFloat, regular: CGFloat, horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        isRegularWidth(horizontalSizeClass) ? regular : compact
+        isRegularWidth(horizontalSizeClass) ? regular : compact * currentCompactPhoneScale
     }
 
     static func discoveryEqualizerHeight(for width: CGFloat) -> CGFloat {

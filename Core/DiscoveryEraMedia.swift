@@ -83,69 +83,67 @@ struct DiscoverySnippetEraVisual: Equatable {
     let eraYear: Int
     let eraEvent: String
     let clip: ArchiveEraClip
+    /// Mood-matched still pulled from the internet. When set it becomes the on-screen picture.
+    let imagePosterOverride: URL?
+    /// When true the archival video is not played — the still image (with Ken Burns) is the visual.
+    let suppressVideo: Bool
 
     var archiveItemID: String { clip.archiveItemID }
-    var videoFileName: String? { clip.videoFileNames.first }
-    var videoURL: URL? { clip.primaryVideoURL }
-    var videoURLs: [URL] { clip.videoURLs }
-    var posterImageURL: URL { clip.posterImageURL }
+    var videoFileName: String? { suppressVideo ? nil : clip.videoFileNames.first }
+    var videoURL: URL? { suppressVideo ? nil : clip.primaryVideoURL }
+    var videoURLs: [URL] { suppressVideo ? [] : clip.videoURLs }
+    var posterImageURL: URL { imagePosterOverride ?? clip.posterImageURL }
 
     init(
         snippetIndex: Int,
         eraYear: Int,
         eraEvent: String,
-        clip: ArchiveEraClip
+        clip: ArchiveEraClip,
+        imagePosterOverride: URL? = nil,
+        suppressVideo: Bool = false
     ) {
         self.snippetIndex = snippetIndex
         self.eraYear = eraYear
         self.eraEvent = eraEvent
         self.clip = clip
+        self.imagePosterOverride = imagePosterOverride
+        self.suppressVideo = suppressVideo
     }
 }
 
 enum DiscoveryEraMediaCatalog {
-    static let visuals: [DiscoverySnippetEraVisual] = [
-        DiscoverySnippetEraVisual(
-            snippetIndex: 0,
-            eraYear: 1956,
-            eraEvent: "Sock-hop nights and teen dances fill diners and school gyms.",
-            clip: .partyJohnnieRay
-        ),
-        DiscoverySnippetEraVisual(
-            snippetIndex: 1,
-            eraYear: 1955,
-            eraEvent: "Malt shops and bowling alleys — mid‑50s leisure after work.",
-            clip: .bowlingFull
-        ),
-        DiscoverySnippetEraVisual(
-            snippetIndex: 2,
-            eraYear: 1959,
-            eraEvent: "Late‑50s ballroom glamour — Fred Astaire on film as the decade turns.",
-            clip: .royalWedding
-        ),
-        DiscoverySnippetEraVisual(
-            snippetIndex: 3,
-            eraYear: 1957,
-            eraEvent: "Latin dance clubs and combo jazz — the year Sputnik launched.",
-            clip: .rumbaMamba
-        ),
-        DiscoverySnippetEraVisual(
-            snippetIndex: 4,
-            eraYear: 1958,
-            eraEvent: "Cooler dance floors and NASA’s founding — 1958 on the air.",
-            clip: .partyJohnnieRay
-        ),
-        DiscoverySnippetEraVisual(
-            snippetIndex: 5,
-            eraYear: 1954,
-            eraEvent: "Country-western nostalgia and early television variety.",
-            clip: ArchiveEraClip(
-                archiveItemID: ArchiveEraClipLibrary.bowlingFull.archiveItemID,
-                videoFileNames: ["LetsGoBo1955_edit.mp4", "LetsGoBo1955.mp4"],
-                posterFileName: "LetsGoBo1955.gif"
-            )
-        ),
+    /// Mood per **physical** discovery snippet, aligned 1:1 with `DiscoveryFlowPOC.snippetAudioStreamURLs`
+    /// so the on-screen footage + colour grade fit the song actually being auditioned:
+    ///   0 Echoes of Yesterday → nostalgic
+    ///   1 Velvet Highway      → open road
+    ///   2 Velvet Cadenza      → classical ballroom
+    ///   3 Velvet Afterhours   → jazz nightclub
+    ///   4 Pine Smoke Drift    → country / Americana
+    ///   5 Drift Between Rooms → ambient calm
+    static let snippetMoods: [MusicVisualMood] = [
+        .nostalgic,
+        .openRoad,
+        .classicalBallroom,
+        .jazzNightclub,
+        .countryAmericana,
+        .ambientCalm,
     ]
+
+    static let visuals: [DiscoverySnippetEraVisual] = snippetMoods.enumerated().map { index, mood in
+        DiscoverySnippetEraVisual(
+            snippetIndex: index,
+            eraYear: mood.eraYear,
+            eraEvent: mood.eraEvent,
+            clip: mood.primaryClip,
+            imagePosterOverride: mood.sceneImageURL(variant: index),
+            suppressVideo: mood.sceneImageURL(variant: index) != nil
+        )
+    }
+
+    static func mood(for snippetIndex: Int) -> MusicVisualMood {
+        guard snippetMoods.isEmpty == false else { return .nostalgic }
+        return snippetMoods[snippetIndex % snippetMoods.count]
+    }
 
     static func visual(for snippetIndex: Int) -> DiscoverySnippetEraVisual {
         let bounded = snippetIndex % visuals.count

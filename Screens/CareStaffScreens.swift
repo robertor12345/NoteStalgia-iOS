@@ -230,6 +230,7 @@ struct CarePatientListView: View {
                         CarePatientPortraitView(
                             assetName: patient.stockPortraitAssetName,
                             customImage: state.portraitImage(for: patient.id),
+                            remoteURL: patient.remotePortraitURL,
                             size: 44
                         )
                         VStack(alignment: .leading, spacing: 2) {
@@ -270,6 +271,7 @@ struct CarePatientListView: View {
                 OrbPortraitNavButton(
                     portraitAssetName: patient.stockPortraitAssetName,
                     customPortraitImage: state.portraitImage(for: patient.id),
+                    remotePortraitURL: patient.remotePortraitURL,
                     title: patient.displayName,
                     subtitle: subtitle
                 ) {
@@ -510,7 +512,7 @@ struct CareNewResidentProfileView: View {
                     .shadow(color: BrandTheme.brown.opacity(0.12), radius: 10, y: 4)
             } else {
                 ZStack {
-                    MellorityOrbBackdrop(diameter: 132, pulse: 0.5, glowPulse: 0.62)
+                    NoteStalgiaOrbBackdrop(diameter: 132, pulse: 0.5, glowPulse: 0.62)
                     Image(systemName: "person.crop.circle.badge.plus")
                         .font(.system(size: 44))
                         .foregroundStyle(BrandTheme.goldDeep)
@@ -578,7 +580,7 @@ struct CareSessionPrepView: View {
             ) {
                 VStack(alignment: .leading, spacing: 20) {
                     FadeInLine(
-                        text: "If you use smart lights, a headset, or a TV in the room, set that up here so the session matches the space. None of this is required — it’s just so Mellority knows what you have.",
+                        text: "If you use smart lights, a headset, or a TV in the room, set that up here so the session matches the space. None of this is required — it’s just so NoteStalgia knows what you have.",
                         font: BrandTheme.orbHintFont(),
                         muted: true,
                         delay: 0.06
@@ -746,6 +748,7 @@ struct CarePatientDetailView: View {
                         CarePatientPortraitView(
                             assetName: patient.stockPortraitAssetName,
                             customImage: state.portraitImage(for: patient.id),
+                            remoteURL: patient.remotePortraitURL,
                             size: portraitSize
                         )
                         .shadow(color: BrandTheme.brown.opacity(0.12), radius: 10, y: 4)

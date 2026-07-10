@@ -331,7 +331,7 @@ struct OrbNavTile: View {
         Button(action: action) {
             HStack(spacing: 16) {
                 ZStack {
-                    MellorityOrbBackdrop(diameter: iconOrbDiameter, pulse: 0.52, glowPulse: 0.68)
+                    NoteStalgiaOrbBackdrop(diameter: iconOrbDiameter, pulse: 0.52, glowPulse: 0.68)
                     Image(systemName: systemImage)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(BrandTheme.textOnOrb)
@@ -373,16 +373,20 @@ struct OrbIconNavButton: View {
     var diameter: CGFloat = 58
     var action: () -> Void
 
+    private var resolvedDiameter: CGFloat {
+        diameter * BrandLayout.currentCompactPhoneScale
+    }
+
     var body: some View {
         Button(action: action) {
             ZStack {
-                MellorityOrbBackdrop(diameter: diameter, pulse: 0.5, glowPulse: 0.66)
+                NoteStalgiaOrbBackdrop(diameter: resolvedDiameter, pulse: 0.5, glowPulse: 0.66)
                 Image(systemName: systemImage)
-                    .font(.system(size: diameter * 0.38, weight: .medium))
+                    .font(.system(size: resolvedDiameter * 0.38, weight: .medium))
                     .foregroundStyle(BrandTheme.textOnOrb)
                     .shadow(color: Color(red: 0.38, green: 0.58, blue: 0.78).opacity(0.35), radius: 4, y: 1)
             }
-            .frame(width: diameter, height: diameter)
+            .frame(width: resolvedDiameter, height: resolvedDiameter)
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(accessibilityLabel)
@@ -392,6 +396,7 @@ struct OrbIconNavButton: View {
 struct OrbPortraitNavButton: View {
     let portraitAssetName: String
     var customPortraitImage: UIImage?
+    var remotePortraitURL: URL? = nil
     let title: String
     let subtitle: String
     var portraitSize: CGFloat?
@@ -409,18 +414,12 @@ struct OrbPortraitNavButton: View {
         Button(action: action) {
             HStack(spacing: 14) {
                 ZStack {
-                    MellorityOrbBackdrop(diameter: frameSize, pulse: 0.5, glowPulse: 0.62)
-                    Group {
-                        if let customPortraitImage {
-                            Image(uiImage: customPortraitImage)
-                                .resizable()
-                                .scaledToFill()
-                        } else {
-                            Image(portraitAssetName)
-                                .resizable()
-                                .scaledToFill()
-                        }
-                    }
+                    NoteStalgiaOrbBackdrop(diameter: frameSize, pulse: 0.5, glowPulse: 0.62)
+                    ResidentPortraitFill(
+                        remoteURL: remotePortraitURL,
+                        assetName: portraitAssetName,
+                        customImage: customPortraitImage
+                    )
                     .frame(width: resolvedPortraitSize, height: resolvedPortraitSize)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white.opacity(0.55), lineWidth: 1.5))
@@ -474,7 +473,7 @@ struct OrbFaceLinkedTile: View {
         Button(action: action) {
             VStack(spacing: 10) {
                 ZStack {
-                    MellorityOrbBackdrop(diameter: backdropDiameter, pulse: 0.5, glowPulse: 0.64)
+                    NoteStalgiaOrbBackdrop(diameter: backdropDiameter, pulse: 0.5, glowPulse: 0.64)
                     Image(portraitAssetName)
                         .resizable()
                         .scaledToFill()
@@ -530,7 +529,7 @@ struct OrbMoodNavOrb: View {
     var body: some View {
         Button(action: onSelect) {
             ZStack {
-                MellorityOrbBackdrop(
+                NoteStalgiaOrbBackdrop(
                     diameter: diameter,
                     pulse: isSelected ? 0.72 : 0.5,
                     glowPulse: isSelected ? 0.78 : 0.6
@@ -560,7 +559,7 @@ struct OrbPickerLabel: View {
     var body: some View {
         HStack(spacing: 10) {
             ZStack {
-                MellorityOrbBackdrop(diameter: 36, pulse: 0.5, glowPulse: 0.62)
+                NoteStalgiaOrbBackdrop(diameter: 36, pulse: 0.5, glowPulse: 0.62)
                 Image(systemName: systemImage)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(BrandTheme.textOnOrb)
@@ -586,7 +585,7 @@ struct OrbSessionSettingsChip: View {
     var body: some View {
         HStack(spacing: 8) {
             ZStack {
-                MellorityOrbBackdrop(diameter: 28, pulse: 0.5, glowPulse: 0.6)
+                NoteStalgiaOrbBackdrop(diameter: 28, pulse: 0.5, glowPulse: 0.6)
                 Image(systemName: systemImage)
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BrandTheme.textOnOrb)

@@ -472,6 +472,7 @@ struct SupervisorWelcomeView: View {
     @ObservedObject var state: SessionPOCState
     @State private var greetingVisible = false
     @State private var loaderVisible = false
+    @State private var didAnimateEntrance = false
     @State private var didScheduleExit = false
 
     private var displayName: String {
@@ -505,11 +506,14 @@ struct SupervisorWelcomeView: View {
         .accessibilityLabel(welcomeAccessibilityLabel)
         .onAppear {
             StreamAudioCache.prefetchWarmCatalog()
-            withAnimation(CalmMotion.softFade.delay(0.12)) {
-                loaderVisible = true
-            }
-            withAnimation(CalmMotion.gentle.delay(0.28)) {
-                greetingVisible = true
+            if !didAnimateEntrance {
+                didAnimateEntrance = true
+                withAnimation(CalmMotion.softFade.delay(0.12)) {
+                    loaderVisible = true
+                }
+                withAnimation(CalmMotion.gentle.delay(0.28)) {
+                    greetingVisible = true
+                }
             }
             guard !didScheduleExit else { return }
             didScheduleExit = true
@@ -607,6 +611,7 @@ struct EntryModeView: View {
 struct MoodSelectView: View {
     @ObservedObject var state: SessionPOCState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.flowContainerSize) private var flowContainerSize
 
     var body: some View {
         ScreenFadeIn {
@@ -630,7 +635,8 @@ struct MoodSelectView: View {
                     TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
                         let t = timeline.date.timeIntervalSinceReferenceDate
                         Group {
-                            if BrandLayout.isRegularWidth(horizontalSizeClass) {
+                            if BrandLayout.isRegularWidth(horizontalSizeClass)
+                                || BrandLayout.compactPhoneScale(for: flowContainerSize) > 1 {
                                 LazyVGrid(
                                     columns: [
                                         GridItem(.flexible(), spacing: 20),

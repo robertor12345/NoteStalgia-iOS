@@ -262,6 +262,10 @@ private struct DiscoveryEraListeningOrb: View {
         DiscoveryEraMediaCatalog.visual(for: snippetIndex)
     }
 
+    private var visualMood: MusicVisualMood {
+        DiscoveryEraMediaCatalog.mood(for: snippetIndex)
+    }
+
     private var faceDiameter: CGFloat {
         min(min(orbSize.width, orbSize.height) * 0.18, BrandLayout.discoveryFaceDiameterCap(for: horizontalSizeClass) * 0.92)
     }
@@ -315,6 +319,16 @@ private struct DiscoveryEraListeningOrb: View {
                         )
                     .opacity(eraMediaReady ? 1 : 0)
                     .allowsHitTesting(false)
+
+                        // Mood colour grade so each auditioned clip reads distinctly.
+                        LinearGradient(
+                            colors: visualMood.tintColors.map { $0.opacity(0.30) },
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .blendMode(.softLight)
+                        .opacity(eraMediaReady ? 1 : 0)
+                        .allowsHitTesting(false)
                 }
                 .clipShape(Circle())
                 .animation(.easeInOut(duration: 0.5), value: eraMediaReady)

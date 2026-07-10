@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// NoteStalgia mark from asset catalog — full logo (orb + wordmark).
-struct MellorityLogoImage: View {
+struct NoteStalgiaLogoImage: View {
     var maxHeight: CGFloat = 420
 
     var body: some View {
-        Image("MellorityLogo")
+        Image("NoteStalgiaLogo")
             .renderingMode(.original)
             .resizable()
             .scaledToFit()
