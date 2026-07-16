@@ -9,6 +9,10 @@ struct ResidentSurfaceSessionMetrics: Equatable {
     var comfortFeelsGoodCount: Int = 0
     var comfortTryElseCount: Int = 0
     var comfortImplicitNeutralCount: Int = 0
+    /// How many times the resident sun-liked each track title this session (drives playlist bias).
+    var trackLikeCounts: [String: Int] = [:]
+    /// Track titles the resident cloud-skipped (removed for the rest of the session).
+    var skippedTrackTitles: Set<String> = []
 
     mutating func recordGenrePlay(_ genre: ResidentMusicGenre) {
         let key = genre.accessibilityLabel
@@ -29,6 +33,21 @@ struct ResidentSurfaceSessionMetrics: Equatable {
         case .trySomethingElse: comfortTryElseCount += 1
         case .implicitNeutral: comfortImplicitNeutralCount += 1
         }
+    }
+
+    mutating func recordTrackLike(_ title: String) {
+        trackLikeCounts[title, default: 0] += 1
+        comfortFeelsGoodCount += 1
+    }
+
+    mutating func recordTrackSkip(_ title: String) {
+        skippedTrackTitles.insert(title)
+        comfortTryElseCount += 1
+        trackChangeCount += 1
+    }
+
+    func likeCount(for title: String) -> Int {
+        trackLikeCounts[title, default: 0]
     }
 
     var durationSeconds: Int? {
@@ -75,9 +94,12 @@ struct ResidentSurfaceSessionMetrics: Equatable {
         if immersiveEntryCount > 0 {
             parts.append("\(immersiveEntryCount) calm room visit\(immersiveEntryCount == 1 ? "" : "s")")
         }
-        let comfortTotal = comfortFeelsGoodCount + comfortTryElseCount + comfortImplicitNeutralCount
-        if comfortTotal > 0 {
-            parts.append("\(comfortFeelsGoodCount) comfort · \(comfortTryElseCount) change cue")
+        let likes = trackLikeCounts.values.reduce(0, +)
+        if likes > 0 {
+            parts.append("\(likes) liked track\(likes == 1 ? "" : "s")")
+        }
+        if skippedTrackTitles.isEmpty == false {
+            parts.append("\(skippedTrackTitles.count) skipped")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

@@ -23,8 +23,8 @@ enum PlaylistComfortTiming {
 extension ResidentPlaylistComfortChoice {
     var accessibilityLabel: String {
         switch self {
-        case .feelsGood: return "Feels good"
-        case .trySomethingElse: return "Try something else"
+        case .feelsGood: return "Like this song"
+        case .trySomethingElse: return "Skip and remove this song"
         case .implicitNeutral: return "No response"
         }
     }

@@ -15,6 +15,10 @@ struct FlowRootView: View {
     /// While the keyboard is up the user is typing — pause the ambient sparkle + orb nebula draw
     /// loops so their continuous main-thread rendering doesn't make form fields feel unresponsive.
     @State private var keyboardVisible = false
+    /// While a staff scroll view is interacting / decelerating — freeze ambient loops so the
+    /// scroll compositor gets a clean 60fps budget. Fidelity is unchanged (same particles / nebula;
+    /// motion simply resumes when the scroll settles).
+    @State private var scrollAmbientPaused = false
 
     private let launchTotalDuration: Double = 5.8
 
@@ -46,7 +50,7 @@ struct FlowRootView: View {
                 FlowAmbientBackdrop(
                     shellConfig: shellConfig,
                     anchor: launchAnchor,
-                    keyboardVisible: keyboardVisible
+                    ambientPaused: keyboardVisible || scrollAmbientPaused
                 )
                 .equatable()
                 .zIndex(1)
@@ -92,6 +96,9 @@ struct FlowRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AmbientInteractionPause.didChangeNotification)) { note in
+            scrollAmbientPaused = (note.userInfo?[AmbientInteractionPause.isPausedKey] as? Bool) ?? false
         }
         .task {
             // Let the first frame + launch animation start, then warm up the subsystems that
@@ -247,12 +254,12 @@ enum LaunchWarmUp {
 private struct FlowAmbientBackdrop: View, Equatable {
     let shellConfig: OrbShellConfiguration
     let anchor: Date
-    let keyboardVisible: Bool
+    let ambientPaused: Bool
 
     static func == (lhs: FlowAmbientBackdrop, rhs: FlowAmbientBackdrop) -> Bool {
         lhs.shellConfig == rhs.shellConfig
             && lhs.anchor == rhs.anchor
-            && lhs.keyboardVisible == rhs.keyboardVisible
+            && lhs.ambientPaused == rhs.ambientPaused
     }
 
     var body: some View {
@@ -260,13 +267,13 @@ private struct FlowAmbientBackdrop: View, Equatable {
             GoldAmbientSparklesView(
                 particleCount: BrandTheme.ambientSparkleParticleCount,
                 intensity: BrandTheme.ambientSparkleIntensity,
-                externallyPaused: keyboardVisible
+                externallyPaused: ambientPaused
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)
             .accessibilityHidden(true)
 
-            PersistentFlowOrbShell(configuration: shellConfig, anchor: anchor, externallyPaused: keyboardVisible)
+            PersistentFlowOrbShell(configuration: shellConfig, anchor: anchor, externallyPaused: ambientPaused)
                 .animation(.easeInOut(duration: 0.62), value: shellConfig)
         }
     }

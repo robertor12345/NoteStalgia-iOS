@@ -205,6 +205,10 @@ final class SessionPOCState: ObservableObject {
         get { newResidentDiscovery.newResidentAgeDraft }
         set { newResidentDiscovery.newResidentAgeDraft = newValue }
     }
+    var newResidentNationalityDraft: ResidentNationality {
+        get { newResidentDiscovery.newResidentNationalityDraft }
+        set { newResidentDiscovery.newResidentNationalityDraft = newValue }
+    }
     private(set) var discoverySnippetOrder: [Int] {
         get { newResidentDiscovery.discoverySnippetOrder }
         set { newResidentDiscovery.discoverySnippetOrder = newValue }
@@ -216,6 +220,10 @@ final class SessionPOCState: ObservableObject {
     var newResidentProfileAgeDraft: String {
         get { newResidentDiscovery.newResidentProfileAgeDraft }
         set { newResidentDiscovery.newResidentProfileAgeDraft = newValue }
+    }
+    var newResidentProfileNationalityDraft: ResidentNationality {
+        get { newResidentDiscovery.newResidentProfileNationalityDraft }
+        set { newResidentDiscovery.newResidentProfileNationalityDraft = newValue }
     }
     var newResidentProfilePhoto: UIImage? {
         get { newResidentDiscovery.newResidentProfilePhoto }
@@ -455,6 +463,25 @@ final class SessionPOCState: ObservableObject {
         residentSurfaceMetrics.recordComfortChoice(choice)
     }
 
+    /// Sun tap — keep playing and raise this track's preference weight for future playlist ordering.
+    func recordResidentTrackLike(_ title: String) {
+        residentSurfaceMetrics.recordTrackLike(title)
+    }
+
+    /// Cloud tap — skip and remove the track from the session playlist.
+    func recordResidentTrackSkip(_ title: String) {
+        residentSurfaceMetrics.recordTrackSkip(title)
+    }
+
+    /// Ordered remaining titles for a genre: sun-liked first, session-skipped titles filtered out.
+    func residentPlaylistTitles(for genre: ResidentMusicGenre) -> [String] {
+        let skipped = residentSurfaceMetrics.skippedTrackTitles
+        let likes = residentSurfaceMetrics.trackLikeCounts
+        return ResidentPlaybackTrackCatalog.titles(for: genre)
+            .filter { !skipped.contains($0) }
+            .sorted { (likes[$0, default: 0], $0) > (likes[$1, default: 0], $1) }
+    }
+
     private func resetResidentSurfaceMetrics() {
         residentSurfaceMetrics = ResidentSurfaceSessionMetrics()
         residentSurfaceFeedbackPending = false
@@ -523,6 +550,13 @@ final class SessionPOCState: ObservableObject {
         guard let i = carePatients.firstIndex(where: { $0.id == patientId }) else { return }
         var patients = carePatients
         patients[i].residentAgeYears = age
+        carePatients = patients
+    }
+
+    func setResidentNationality(for patientId: UUID, nationality: ResidentNationality) {
+        guard let i = carePatients.firstIndex(where: { $0.id == patientId }) else { return }
+        var patients = carePatients
+        patients[i].nationality = nationality
         carePatients = patients
     }
 
@@ -893,6 +927,7 @@ final class SessionPOCState: ObservableObject {
         }
         selectedCarePatientId = nil
         newResidentAgeDraft = ""
+        newResidentNationalityDraft = .default
         newResidentDiscoveryPatientId = nil
         StreamAudioCache.prefetch(DiscoveryFlowPOC.snippetAudioStreamURLs)
         transitionToPhase(.careDiscoveryAgeInput)
@@ -903,6 +938,8 @@ final class SessionPOCState: ObservableObject {
         guard let age = Int(trimmed), (55 ... 105).contains(age) else {
             return "Enter an age between 55 and 105."
         }
+        let nationality = newResidentNationalityDraft
+        let seedGenre = nationality.preferredGenres.first ?? .classical
         let patientId = UUID()
         let homeId = currentHomeId ?? CareTenancyMockData.mapleLodgeId
         let provisional = CarePatientProfile(
@@ -920,7 +957,8 @@ final class SessionPOCState: ObservableObject {
             natureVsAbstract: 0.3,
             voiceVsInstrumental: 0.4,
             residentAgeYears: age,
-            favouriteMusicGenre: .classical,
+            nationality: nationality,
+            favouriteMusicGenre: seedGenre,
             stockPortraitAssetName: "StockPortraitSam",
             isProvisional: true,
             genrePlaylistGroups: [],
@@ -933,7 +971,10 @@ final class SessionPOCState: ObservableObject {
         newResidentDiscoveryPatientId = patientId
         selectedCarePatientId = patientId
         activeCarePatientId = patientId
-        discoverySnippetOrder = DiscoveryFlowPOC.orderedSnippetIndices(forResidentAge: age)
+        discoverySnippetOrder = DiscoveryFlowPOC.orderedSnippetIndices(
+            forResidentAge: age,
+            nationality: nationality
+        )
         discoverySnippetIndex = 0
         discoveryResults = []
         discoveryPendingPick = nil
@@ -944,6 +985,7 @@ final class SessionPOCState: ObservableObject {
 
     func abandonNewResidentAgeInput() {
         newResidentAgeDraft = ""
+        newResidentNationalityDraft = .default
         transitionToPhase(.carePatientList)
     }
 
@@ -952,6 +994,7 @@ final class SessionPOCState: ObservableObject {
               let patient = carePatient(id: pid) else { return }
         newResidentProfileNameDraft = ""
         newResidentProfileAgeDraft = String(patient.residentAgeYears)
+        newResidentProfileNationalityDraft = patient.nationality
         newResidentProfilePhoto = carePatientPortraitImages[pid]
     }
 
@@ -973,6 +1016,7 @@ final class SessionPOCState: ObservableObject {
         var patients = carePatients
         patients[idx].displayName = name
         patients[idx].residentAgeYears = age
+        patients[idx].nationality = newResidentProfileNationalityDraft
         patients[idx].careContextLabel = "New on roster"
         patients[idx].isProvisional = false
         if patients[idx].genrePlaylistGroups.isEmpty {
@@ -992,6 +1036,7 @@ final class SessionPOCState: ObservableObject {
         newResidentDiscoveryPatientId = nil
         newResidentProfileNameDraft = ""
         newResidentProfileAgeDraft = ""
+        newResidentProfileNationalityDraft = .default
         newResidentProfilePhoto = nil
         selectedCarePatientId = pid
         resetResidentSurfaceMetrics()
@@ -1007,6 +1052,7 @@ final class SessionPOCState: ObservableObject {
         newResidentDiscoveryPatientId = nil
         newResidentProfileNameDraft = ""
         newResidentProfileAgeDraft = ""
+        newResidentProfileNationalityDraft = .default
         newResidentProfilePhoto = nil
         selectedCarePatientId = nil
         phase = .carePatientList
@@ -1676,7 +1722,10 @@ final class SessionPOCState: ObservableObject {
         selectedCarePatientId = patientId
         activeCarePatientId = patientId
         if let patient = carePatient(id: patientId) {
-            discoverySnippetOrder = DiscoveryFlowPOC.orderedSnippetIndices(forResidentAge: patient.residentAgeYears)
+            discoverySnippetOrder = DiscoveryFlowPOC.orderedSnippetIndices(
+                forResidentAge: patient.residentAgeYears,
+                nationality: patient.nationality
+            )
         } else {
             discoverySnippetOrder = Array(0..<DiscoveryFlowPOC.snippetCount)
         }
@@ -1727,8 +1776,10 @@ final class SessionPOCState: ObservableObject {
     private func resetNewResidentFlowState() {
         newResidentDiscoveryPatientId = nil
         newResidentAgeDraft = ""
+        newResidentNationalityDraft = .default
         newResidentProfileNameDraft = ""
         newResidentProfileAgeDraft = ""
+        newResidentProfileNationalityDraft = .default
         newResidentProfilePhoto = nil
         resetResidentSurfaceMetrics()
     }

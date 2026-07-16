@@ -377,32 +377,40 @@ struct CareDiscoveryAgeInputView: View {
                 VStack(spacing: 24) {
                     FadeInTitle(text: "About this resident", delay: 0)
                     FadeInLine(
-                        text: "Their approximate age helps us pick music from the right era for the listening pass.",
+                        text: "Age and nationality help us order the listening pass — era first, with a soft cultural music bias.",
                         delay: 0.08
                     )
 
                     BrandCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Age")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(BrandTheme.textSecondary)
-                            TextField("e.g. 82", text: $state.newResidentAgeDraft)
-                                .keyboardType(.numberPad)
-                                .focused($ageFocused)
-                                .font(.title2.weight(.medium))
-                                .foregroundStyle(BrandTheme.textPrimary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                                .background(BrandTheme.creamMid.opacity(0.95))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
-                                )
-                            Text("We use peak listening years (roughly teens through twenties) to order calm clips.")
-                                .font(.caption)
-                                .foregroundStyle(BrandTheme.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Age")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BrandTheme.textSecondary)
+                                TextField("e.g. 82", text: $state.newResidentAgeDraft)
+                                    .keyboardType(.numberPad)
+                                    .focused($ageFocused)
+                                    .font(.title2.weight(.medium))
+                                    .foregroundStyle(BrandTheme.textPrimary)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                                    .background(BrandTheme.creamMid.opacity(0.95))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                                    )
+                                Text("Peak listening years (roughly teens through twenties) order calm clips by era.")
+                                    .font(.caption)
+                                    .foregroundStyle(BrandTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            ResidentNationalityMenuField(
+                                title: "Nationality",
+                                selection: $state.newResidentNationalityDraft,
+                                caption: "Gently weights familiar genres and moods — never overrides their live reactions."
+                            )
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -459,6 +467,11 @@ struct CareNewResidentProfileView: View {
                             profileField(title: "Name", text: $state.newResidentProfileNameDraft, prompt: "Full name or preferred name")
 
                             profileField(title: "Age", text: $state.newResidentProfileAgeDraft, prompt: "Age", keyboard: .numberPad)
+
+                            ResidentNationalityMenuField(
+                                title: "Nationality",
+                                selection: $state.newResidentProfileNationalityDraft
+                            )
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -555,6 +568,62 @@ struct CareNewResidentProfileView: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
                 )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Native `Menu` dropdown styled like the cream staff form fields — flag + country name.
+struct ResidentNationalityMenuField: View {
+    let title: String
+    @Binding var selection: ResidentNationality
+    var caption: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BrandTheme.textSecondary)
+
+            Menu {
+                Picker(title, selection: $selection) {
+                    ForEach(ResidentNationality.menuOrder) { nationality in
+                        Text(nationality.menuLabel).tag(nationality)
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Text(selection.flagEmoji)
+                        .font(.title2)
+                        .accessibilityHidden(true)
+                    Text(selection.displayName)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BrandTheme.goldDeep.opacity(0.85))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BrandTheme.creamMid.opacity(0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                )
+            }
+            .accessibilityLabel("\(title), \(selection.displayName)")
+            .accessibilityHint("Opens a list of nationalities")
+
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(BrandTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -782,6 +851,14 @@ struct CarePatientDetailView: View {
                                         .font(DetailTypography.body)
                                         .foregroundStyle(BrandTheme.textPrimary)
                                 }
+                                ResidentNationalityMenuField(
+                                    title: "Nationality",
+                                    selection: Binding(
+                                        get: { patient.nationality },
+                                        set: { state.setResidentNationality(for: patient.id, nationality: $0) }
+                                    ),
+                                    caption: "Used with age when discovery reorders clips and genres."
+                                )
                                 Text("Music and playlists are chosen on the resident surface — not edited here.")
                                     .font(DetailTypography.secondary)
                                     .foregroundStyle(BrandTheme.textSecondary)

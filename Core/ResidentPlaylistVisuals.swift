@@ -12,30 +12,44 @@ struct ResidentPlaybackTrack {
 /// the same ambient file. This catalog is now the single source of truth for both the audible track
 /// and its visual, so genre changes and swipes cannot drift out of sync.
 enum ResidentPlaybackTrackCatalog {
+    /// Ordered audible track titles for a genre — the single source of truth the resident surface
+    /// uses for playback, "like", and "skip / remove from playlist".
+    static func titles(for genre: ResidentMusicGenre) -> [String] {
+        switch genre {
+        case .jazz:
+            return ["Velvet Afterhours", "Echoes of Yesterday"]
+        case .classical:
+            return ["Velvet Cadenza", "Drift Between Rooms"]
+        case .pop:
+            return ["Velvet Highway", "Echoes of Yesterday"]
+        case .rock:
+            return ["Velvet Highway", "Pine Smoke Drift"]
+        case .gospel:
+            return ["Echoes of Yesterday", "Velvet Cadenza"]
+        case .country:
+            return ["Pine Smoke Drift", "Velvet Highway"]
+        case .soul:
+            return ["Velvet Afterhours", "Drift Between Rooms"]
+        }
+    }
+
+    /// Number of distinct audible tracks available for a genre.
+    static func count(for genre: ResidentMusicGenre) -> Int {
+        titles(for: genre).count
+    }
+
     static func track(
         for genre: ResidentMusicGenre,
         trackIndex: Int
     ) -> ResidentPlaybackTrack {
-        let titles: [String]
-        switch genre {
-        case .jazz:
-            titles = ["Velvet Afterhours", "Echoes of Yesterday"]
-        case .classical:
-            titles = ["Velvet Cadenza", "Drift Between Rooms"]
-        case .pop:
-            titles = ["Velvet Highway", "Echoes of Yesterday"]
-        case .rock:
-            titles = ["Velvet Highway", "Pine Smoke Drift"]
-        case .gospel:
-            titles = ["Echoes of Yesterday", "Velvet Cadenza"]
-        case .country:
-            titles = ["Pine Smoke Drift", "Velvet Highway"]
-        case .soul:
-            titles = ["Velvet Afterhours", "Drift Between Rooms"]
-        }
+        let titles = titles(for: genre)
+        let title = titles[((trackIndex % titles.count) + titles.count) % titles.count]
+        return track(titled: title, genre: genre)
+    }
 
-        let title = titles[trackIndex % titles.count]
-        return ResidentPlaybackTrack(
+    /// Resolve an audible track by title (used when the session queue is reordered by likes / skips).
+    static func track(titled title: String, genre: ResidentMusicGenre) -> ResidentPlaybackTrack {
+        ResidentPlaybackTrack(
             title: title,
             audioURL: BundledAudio.urlOrRemote(
                 title,

@@ -8,20 +8,27 @@ enum DiscoveryPlaylistTuning {
     private static let maxNewGenresPerPass = 3
 
     /// Mutates `patient.genrePlaylistGroups` (and sometimes `favouriteMusicGenre`) in place.
+    /// Sentiment chooses the broad lane; nationality re-ranks and pads genre candidates.
     static func applyDiscoveryResults(_ results: [DiscoverySnippetResult], to patient: inout CarePatientProfile) {
         guard results.count >= DiscoveryFlowPOC.snippetCount else { return }
 
         let unpleasant = results.filter { $0.sentiment == .unpleasant }.count
         let pleasant = results.filter { $0.sentiment == .pleasant }.count
 
-        let candidates: [ResidentMusicGenre]
+        let sentimentCandidates: [ResidentMusicGenre]
         if unpleasant > pleasant && unpleasant >= 2 {
-            candidates = [.classical, .gospel, .soul, .country]
+            sentimentCandidates = [.classical, .gospel, .soul, .country]
         } else if pleasant > unpleasant && pleasant >= 2 {
-            candidates = [.jazz, .pop, .rock, .soul]
+            sentimentCandidates = [.jazz, .pop, .rock, .soul]
         } else {
-            candidates = [.classical, .pop, .jazz]
+            sentimentCandidates = [.classical, .pop, .jazz]
         }
+
+        let candidates = ResidentNationalityMusicBias.rankedGenreCandidates(
+            sentimentCandidates: sentimentCandidates,
+            nationality: patient.nationality,
+            limit: maxNewGenresPerPass + 2
+        )
 
         var groups = patient.genrePlaylistGroups
         let owned = Set(groups.map(\.genre))
@@ -32,17 +39,39 @@ enum DiscoveryPlaylistTuning {
         }
 
         if newGenres.isEmpty {
-            encoreOncePreferring(groups: &groups, primary: patient.favouriteMusicGenre, fallbackGenre: candidates.first(where: { owned.contains($0) }))
+            encoreOncePreferring(
+                groups: &groups,
+                primary: patient.favouriteMusicGenre,
+                fallbackGenre: candidates.first(where: { owned.contains($0) })
+            )
         }
 
         patient.genrePlaylistGroups = groups
 
         if unpleasant >= max(pleasant, unpleasant) && unpleasant >= 4 {
-            patient.favouriteMusicGenre = .classical
+            let calmPick = patient.nationality.preferredGenres.first(where: {
+                [.classical, .gospel, .soul].contains($0)
+            }) ?? .classical
+            patient.favouriteMusicGenre = calmPick
         } else if pleasant >= max(pleasant, unpleasant) && pleasant >= 4 {
             if patient.favouriteMusicGenre == .classical || patient.favouriteMusicGenre == .gospel {
-                let hasPop = groups.contains(where: { $0.genre == .pop })
-                patient.favouriteMusicGenre = hasPop ? .pop : .jazz
+                let preferredUpbeat = patient.nationality.preferredGenres.first(where: {
+                    [.pop, .jazz, .soul, .rock].contains($0)
+                })
+                let hasPreferred = preferredUpbeat.map { genre in groups.contains(where: { $0.genre == genre }) } ?? false
+                if let preferredUpbeat, hasPreferred {
+                    patient.favouriteMusicGenre = preferredUpbeat
+                } else {
+                    let hasPop = groups.contains(where: { $0.genre == .pop })
+                    patient.favouriteMusicGenre = hasPop ? .pop : .jazz
+                }
+            }
+        } else if let topNational = patient.nationality.preferredGenres.first,
+                  groups.contains(where: { $0.genre == topNational }) {
+            // Light confirm — keep favourite aligned with nationality when discovery was mixed.
+            if patient.favouriteMusicGenre != topNational,
+               patient.nationality.genreAffinity(for: patient.favouriteMusicGenre) < 0.45 {
+                patient.favouriteMusicGenre = topNational
             }
         }
     }

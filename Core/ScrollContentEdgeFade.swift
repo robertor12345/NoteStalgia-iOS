@@ -86,20 +86,22 @@ struct ScrollViewportEdgeFade<Content: View>: View {
     var fadeBottom: Bool = true
     @ViewBuilder var content: () -> Content
 
-    @State private var metrics = ScrollViewportMetrics()
-
-    private var showTopFade: Bool {
-        metrics.contentMinY < -6
-    }
+    /// Only the boolean that changes the mask — never store per-frame content offset in `@State`.
+    @State private var showTopFade = false
+    /// iOS 17 fallback: preference-driven scroll activity with idle settle.
+    @State private var lastContentMinY: CGFloat = 0
+    @State private var hasSampledOffset = false
+    @State private var scrollIdleResetTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
             content()
-                .overlay {
+                .background {
                     ScrollViewportMetricsReader(coordinateSpace: coordinateSpace)
                 }
         }
         .coordinateSpace(name: coordinateSpace)
+        .scrollBounceBehavior(.basedOnSize)
         .mask {
             GeometryReader { geo in
                 ScrollViewportEdgeMask(
@@ -110,8 +112,55 @@ struct ScrollViewportEdgeFade<Content: View>: View {
                 )
             }
         }
-        .onPreferenceChange(ScrollViewportMetricsKey.self) { metrics = $0 }
+        // Prefer the system scroll-phase API (iOS 18+) — fires only on phase edges, not every frame.
+        .modifier(ScrollAmbientPauseModifier())
+        .onPreferenceChange(ScrollViewportMetricsKey.self) { metrics in
+            let nextShowTop = metrics.contentMinY < -6
+            if nextShowTop != showTopFade {
+                // Disable implicit animation so the mask swap doesn't hitch the scroll compositor.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    showTopFade = nextShowTop
+                }
+            }
+            // iOS 17: infer scroll activity from offset deltas (iOS 18 path uses phase changes).
+            if #unavailable(iOS 18.0) {
+                noteLegacyScrollActivity(contentMinY: metrics.contentMinY)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDisappear {
+            scrollIdleResetTask?.cancel()
+            AmbientInteractionPause.setScrollActive(false)
+        }
+    }
+
+    private func noteLegacyScrollActivity(contentMinY: CGFloat) {
+        if hasSampledOffset, abs(contentMinY - lastContentMinY) > 0.5 {
+            AmbientInteractionPause.setScrollActive(true)
+            scrollIdleResetTask?.cancel()
+            scrollIdleResetTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 140_000_000)
+                guard !Task.isCancelled else { return }
+                AmbientInteractionPause.setScrollActive(false)
+            }
+        }
+        lastContentMinY = contentMinY
+        hasSampledOffset = true
+    }
+}
+
+/// Pauses ambient TimelineViews while a ScrollView is interacting / decelerating (iOS 18+).
+private struct ScrollAmbientPauseModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollPhaseChange { _, newPhase in
+                AmbientInteractionPause.setScrollActive(newPhase.isScrolling)
+            }
+        } else {
+            content
+        }
     }
 }
 

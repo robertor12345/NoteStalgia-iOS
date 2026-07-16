@@ -28,6 +28,8 @@ struct CarePatientProfile: Identifiable, Equatable {
     var voiceVsInstrumental: Double
     /// Approximate age for era-biased snippet algorithm (peak years ~15–30 from birth year implied).
     var residentAgeYears: Int
+    /// Cultural / national background — soft-biases discovery clip order and genre playlist tuning.
+    var nationality: ResidentNationality
     /// Preferred genre for resident iPad playlists.
     var favouriteMusicGenre: ResidentMusicGenre
     /// Asset name in `Assets.xcassets` (stock portrait fallback).
@@ -124,6 +126,7 @@ enum CareStaffMockData {
             natureVsAbstract: 0.22,
             voiceVsInstrumental: 0.4,
             residentAgeYears: 82,
+            nationality: .italy,
             favouriteMusicGenre: .classical,
             stockPortraitAssetName: "StockPortraitElena",
             isProvisional: false,
@@ -176,6 +179,7 @@ enum CareStaffMockData {
             natureVsAbstract: 0.55,
             voiceVsInstrumental: 0.15,
             residentAgeYears: 76,
+            nationality: .unitedKingdom,
             favouriteMusicGenre: .jazz,
             stockPortraitAssetName: "StockPortraitJames",
             isProvisional: false,
@@ -228,6 +232,7 @@ enum CareStaffMockData {
             natureVsAbstract: 0.3,
             voiceVsInstrumental: 0.65,
             residentAgeYears: 71,
+            nationality: .jamaica,
             favouriteMusicGenre: .classical,
             stockPortraitAssetName: "StockPortraitSam",
             isProvisional: false,

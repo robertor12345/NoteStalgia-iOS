@@ -5,9 +5,11 @@ import UIKit
 final class NewResidentDiscoveryStore: ObservableObject {
     @Published var newResidentDiscoveryPatientId: UUID?
     @Published var newResidentAgeDraft: String = ""
+    @Published var newResidentNationalityDraft: ResidentNationality = .default
     @Published var discoverySnippetOrder: [Int] = []
     @Published var newResidentProfileNameDraft: String = ""
     @Published var newResidentProfileAgeDraft: String = ""
+    @Published var newResidentProfileNationalityDraft: ResidentNationality = .default
     @Published var newResidentProfilePhoto: UIImage?
 }
 

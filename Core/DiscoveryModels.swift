@@ -57,22 +57,33 @@ enum DiscoveryFlowPOC {
         return urls[bounded]
     }
 
-    /// Reorders snippets so clips whose era sits closest to the resident’s peak listening years (15–30) play first.
-    static func orderedSnippetIndices(forResidentAge age: Int) -> [Int] {
+    /// Reorders snippets so clips whose era sits closest to the resident’s peak listening years (15–30)
+    /// play first, with a soft nationality affinity boost for culturally familiar moods.
+    static func orderedSnippetIndices(
+        forResidentAge age: Int,
+        nationality: ResidentNationality = .default
+    ) -> [Int] {
         let count = snippetCount
         guard count > 0 else { return [] }
         let currentYear = Calendar.current.component(.year, from: Date())
         let birthYear = currentYear - max(1, age)
         let peakMidYear = birthYear + 22
 
-        let eraYears: [Int] = (0..<count).map { idx in
-            DiscoveryEraMediaCatalog.visual(for: idx).eraYear
+        /// Years of era distance equivalent to a full nationality affinity swing (soft secondary signal).
+        let nationalityYearWeight: Double = 6
+
+        func sortKey(for physicalIndex: Int) -> Double {
+            let visual = DiscoveryEraMediaCatalog.visual(for: physicalIndex)
+            let mood = DiscoveryEraMediaCatalog.mood(for: physicalIndex)
+            let eraDistance = Double(abs(visual.eraYear - peakMidYear))
+            let affinity = nationality.moodAffinity(for: mood)
+            return eraDistance - (affinity * nationalityYearWeight)
         }
 
         return Array(0..<count).sorted { a, b in
-            let distA = abs(eraYears[a] - peakMidYear)
-            let distB = abs(eraYears[b] - peakMidYear)
-            if distA != distB { return distA < distB }
+            let keyA = sortKey(for: a)
+            let keyB = sortKey(for: b)
+            if keyA != keyB { return keyA < keyB }
             return a < b
         }
     }

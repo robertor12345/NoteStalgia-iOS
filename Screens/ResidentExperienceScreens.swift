@@ -303,13 +303,10 @@ struct ResidentProfileView: View {
     /// Highlights the glyph whose playlist is sounding; reshapes the floating layout around it.
     @State private var selectedPlayingGenre: ResidentMusicGenre?
     @State private var activePlaylist: CarePlaylistEntry?
+    /// Working queue for the active genre — sun-liked titles float to the front; cloud-skipped titles are removed.
+    @State private var remainingTrackTitles: [String] = []
     @State private var activeTrackIndex: Int = 0
     @State private var activeAudioKey: String?
-    @State private var comfortInvitePhase: PlaylistComfortInvitePhase = .hidden
-    @State private var playbackAnchor: Date?
-    @State private var lastPromptedPlaybackKey: String?
-    @State private var comfortPromptCount = 0
-    @State private var comfortDismissGeneration = 0
     @State private var comfortAffirmationChoice: ResidentPlaylistComfortChoice?
     @State private var comfortAffirmationTick: UInt = 0
     @State private var mediaExpansion: CGFloat = 0
@@ -317,7 +314,10 @@ struct ResidentProfileView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var comfortInviteActive: Bool { comfortInvitePhase == .visible }
+    private var currentTrackTitle: String? {
+        guard remainingTrackTitles.indices.contains(activeTrackIndex) else { return nil }
+        return remainingTrackTitles[activeTrackIndex]
+    }
 
     /// Size when playlist retro visuals fill the screen — a full-bleed rectangle (covers the page
     /// corners), with slight overscan so the subtle pulse never reveals an edge gap.
@@ -374,14 +374,11 @@ struct ResidentProfileView: View {
 
             ZStack {
                 if let genre = selectedPlayingGenre,
+                   let title = currentTrackTitle,
                    activePlaylist != nil {
-                    let audibleTrack = ResidentPlaybackTrackCatalog.track(
-                        for: genre,
-                        trackIndex: activeTrackIndex
-                    )
                     ResidentPlaylistPanelBackdropView(
                         genre: genre,
-                        trackTitle: audibleTrack.title,
+                        trackTitle: title,
                         trackIndex: activeTrackIndex,
                         orbSize: mediaSize,
                         mediaFillScale: displayMediaFillScale(),
@@ -406,14 +403,6 @@ struct ResidentProfileView: View {
             .overlay {
                 residentGlyphCanvas
             }
-            .overlay {
-                if comfortInviteActive {
-                    Color.black.opacity(0.07)
-                        .ignoresSafeArea()
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
-            }
             .overlay(alignment: .top) {
                 HStack {
                     Spacer()
@@ -433,62 +422,37 @@ struct ResidentProfileView: View {
                 .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
                 .padding(.top, 10)
             }
-            .overlay(alignment: .center) {
-                if comfortInviteActive, selectedPlayingGenre != nil {
+            .overlay(alignment: .bottom) {
+                if selectedPlayingGenre != nil, remainingTrackTitles.isEmpty == false {
                     PlaylistComfortDock(
                         affirmationChoice: comfortAffirmationChoice,
                         affirmationTick: comfortAffirmationTick,
-                        onFeelsGood: { handleComfortChoice(.feelsGood) },
-                        onTryElse: { handleComfortChoice(.trySomethingElse) }
+                        onFeelsGood: { handleSunLike() },
+                        onTryElse: { handleCloudSkip() }
                     )
-                    .transition(.scale(scale: 0.82).combined(with: .opacity))
-                    .animation(CalmMotion.gentle, value: comfortInvitePhase)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if let sg = selectedPlayingGenre {
-                    Button {
-                        stopResidentAudio()
-                        state.prepareResidentImmersiveFromPlaylist(genre: sg)
-                        stopPlayback()
-                    } label: {
-                        ResidentLuminousFloatingButton(
-                            systemImage: "leaf.fill",
-                            accent: BrandTheme.logoPink,
-                            diameter: 56 * phoneScale
-                        )
-                    }
-                    .buttonStyle(SoftPressButtonStyle())
-                    .accessibilityLabel("Calm room visuals")
-                    .padding(.bottom, max(42, geo.safeAreaInsets.bottom + 16))
-                    .animation(CalmMotion.gentle, value: comfortInvitePhase)
+                    .padding(.bottom, max(28, geo.safeAreaInsets.bottom + 12))
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            evaluateComfortInviteSchedule()
-        }
         .onChange(of: state.selectedCarePatientId) { _, _ in
             stopPlayback()
         }
         .onChange(of: selectedPlayingGenre) { old, new in
             if new == nil {
                 collapsePlaybackMedia()
-                resetComfortInvite()
+                clearComfortAffirmation()
             } else if let old, old != new {
                 cyclePlaybackMediaForGenreChange()
-                markPlaybackAnchor()
                 playCurrentTrack()
             } else {
                 expandPlaybackMedia(afterBriefPause: true)
-                markPlaybackAnchor()
                 playCurrentTrack()
             }
         }
         .onChange(of: activeTrackIndex) { _, _ in
             if selectedPlayingGenre != nil {
-                markPlaybackAnchor()
                 playCurrentTrack()
             }
         }
@@ -499,7 +463,7 @@ struct ResidentProfileView: View {
         .onDisappear {
             stopResidentAudio()
             collapsePlaybackMedia()
-            resetComfortInvite()
+            clearComfortAffirmation()
         }
     }
 
@@ -549,7 +513,6 @@ struct ResidentProfileView: View {
                             diskDiameter: disk,
                             iconSize: icon,
                             emphasis: emphasis,
-                            showComfortBreathingRing: emphasis == .hero && comfortInviteActive,
                             action: { playGenreImmediately(genre) }
                         )
                         .zIndex(emphasis == .hero ? 50 : CGFloat(index))
@@ -559,35 +522,36 @@ struct ResidentProfileView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(!comfortInviteActive)
         .animation(CalmMotion.playlistOrbMorph, value: mediaExpansion)
     }
 
     private var playlistSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 36, coordinateSpace: .local)
             .onEnded { value in
-                guard let playlist = activePlaylist else { return }
-                let count = max(1, playlist.trackTitles.count)
+                let count = remainingTrackTitles.count
+                guard count > 1 else { return }
                 if value.translation.width <= -50 {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         activeTrackIndex = (activeTrackIndex + 1) % count
                     }
                     state.recordResidentTrackChange()
-                    resetComfortInviteForNewPlayback()
+                    clearComfortAffirmation()
                 } else if value.translation.width >= 50 {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         activeTrackIndex = (activeTrackIndex - 1 + count) % count
                     }
                     state.recordResidentTrackChange()
-                    resetComfortInviteForNewPlayback()
+                    clearComfortAffirmation()
                 }
             }
     }
 
     private func playCurrentTrack() {
-        guard let genre = selectedPlayingGenre, activePlaylist != nil else { return }
-        let track = ResidentPlaybackTrackCatalog.track(for: genre, trackIndex: activeTrackIndex)
-        let key = "\(genre.rawValue)|\(activeTrackIndex)|\(track.title)"
+        guard let genre = selectedPlayingGenre,
+              let title = currentTrackTitle
+        else { return }
+        let track = ResidentPlaybackTrackCatalog.track(titled: title, genre: genre)
+        let key = "\(genre.rawValue)|\(title)"
         guard activeAudioKey != key else { return }
         activeAudioKey = key
         stopResidentAudio()
@@ -605,9 +569,10 @@ struct ResidentProfileView: View {
         activeAudioKey = nil
         selectedPlayingGenre = nil
         activePlaylist = nil
+        remainingTrackTitles = []
         activeTrackIndex = 0
         collapsePlaybackMedia()
-        resetComfortInvite()
+        clearComfortAffirmation()
     }
 
     private func expandPlaybackMedia(afterBriefPause: Bool = false) {
@@ -661,101 +626,52 @@ struct ResidentProfileView: View {
         }
     }
 
-    private func playbackKey() -> String? {
-        guard let genre = selectedPlayingGenre else { return nil }
-        return "\(genre.rawValue)-\(activeTrackIndex)"
-    }
-
-    private func markPlaybackAnchor() {
-        playbackAnchor = Date()
-        comfortDismissGeneration += 1
-        withAnimation(CalmMotion.gentle) {
-            comfortInvitePhase = .hidden
-        }
+    private func clearComfortAffirmation() {
         comfortAffirmationChoice = nil
     }
 
-    private func resetComfortInviteForNewPlayback() {
-        playbackAnchor = Date()
-        comfortDismissGeneration += 1
-        withAnimation(CalmMotion.gentle) {
-            comfortInvitePhase = .hidden
-        }
-        comfortAffirmationChoice = nil
-    }
-
-    private func resetComfortInvite() {
-        playbackAnchor = nil
-        lastPromptedPlaybackKey = nil
-        comfortPromptCount = 0
-        comfortDismissGeneration += 1
-        comfortInvitePhase = .hidden
-        comfortAffirmationChoice = nil
-    }
-
-    private func evaluateComfortInviteSchedule() {
-        guard comfortInvitePhase == .hidden else { return }
-        guard selectedPlayingGenre != nil, activePlaylist != nil else { return }
-        guard comfortPromptCount < PlaylistComfortTiming.maxPromptsPerSession else { return }
-        guard let anchor = playbackAnchor else { return }
-        guard Date().timeIntervalSince(anchor) >= PlaylistComfortTiming.settleSeconds else { return }
-        guard let key = playbackKey(), key != lastPromptedPlaybackKey else { return }
-        presentComfortInvite(for: key)
-    }
-
-    private func presentComfortInvite(for key: String) {
-        lastPromptedPlaybackKey = key
-        comfortDismissGeneration += 1
-        let generation = comfortDismissGeneration
-        withAnimation(CalmMotion.gentle) {
-            comfortInvitePhase = .visible
-        }
-        CalmExperienceFeedback.sessionSettle()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + PlaylistComfortTiming.inviteVisibleSeconds) {
-            guard generation == comfortDismissGeneration, comfortInvitePhase == .visible else { return }
-            dismissComfortInvite(recording: .implicitNeutral)
-        }
-    }
-
-    private func handleComfortChoice(_ choice: ResidentPlaylistComfortChoice) {
-        guard comfortInvitePhase == .visible else { return }
-        comfortDismissGeneration += 1
-        comfortAffirmationChoice = choice
+    /// Sun — keep playing; raise this track's weight so it returns earlier next time.
+    private func handleSunLike() {
+        guard let title = currentTrackTitle else { return }
+        comfortAffirmationChoice = .feelsGood
         comfortAffirmationTick &+= 1
-        state.recordResidentPlaylistComfort(choice)
-        comfortPromptCount += 1
+        state.recordResidentTrackLike(title)
+        CalmExperienceFeedback.discoveryPick()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            if comfortAffirmationChoice == .feelsGood {
+                comfortAffirmationChoice = nil
+            }
+        }
+    }
+
+    /// Cloud — skip the current song and remove it from this session's playlist queue.
+    private func handleCloudSkip() {
+        guard let title = currentTrackTitle else { return }
+        comfortAffirmationChoice = .trySomethingElse
+        comfortAffirmationTick &+= 1
+        state.recordResidentTrackSkip(title)
         CalmExperienceFeedback.discoveryPick()
 
-        if choice == .trySomethingElse, let current = selectedPlayingGenre {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                playAdjacentGenre(from: current)
+        var next = remainingTrackTitles
+        next.removeAll { $0 == title }
+        remainingTrackTitles = next
+
+        if next.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                stopPlayback()
             }
+            return
         }
 
+        // Stay on the same index so the next title slides into place; wrap if we removed the last item.
+        activeTrackIndex = min(activeTrackIndex, next.count - 1)
+        activeAudioKey = nil
+        playCurrentTrack()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-            withAnimation(CalmMotion.gentle) {
-                comfortInvitePhase = .hidden
+            if comfortAffirmationChoice == .trySomethingElse {
+                comfortAffirmationChoice = nil
             }
-            comfortAffirmationChoice = nil
         }
-    }
-
-    private func dismissComfortInvite(recording choice: ResidentPlaylistComfortChoice) {
-        comfortDismissGeneration += 1
-        state.recordResidentPlaylistComfort(choice)
-        comfortPromptCount += 1
-        withAnimation(CalmMotion.gentle) {
-            comfortInvitePhase = .hidden
-        }
-        comfortAffirmationChoice = nil
-    }
-
-    private func playAdjacentGenre(from current: ResidentMusicGenre) {
-        let ordered = genresOnFile
-        guard ordered.count > 1, let idx = ordered.firstIndex(of: current) else { return }
-        let next = ordered[(idx + 1) % ordered.count]
-        playGenreImmediately(next)
     }
 
     private func glyphRole(for genre: ResidentMusicGenre) -> ResidentGlyphEmphasis {
@@ -812,15 +728,19 @@ struct ResidentProfileView: View {
             return
         }
         let playlist = group.playlists.first(where: { !$0.trackTitles.isEmpty }) ?? group.playlists[0]
+        let titles = state.residentPlaylistTitles(for: genre)
+        guard titles.isEmpty == false else { return }
 
         withAnimation(.spring(response: 0.62, dampingFraction: 0.86)) {
             selectedPlayingGenre = genre
             activePlaylist = playlist
+            remainingTrackTitles = titles
             activeTrackIndex = 0
+            activeAudioKey = nil
         }
+        clearComfortAffirmation()
         CalmExperienceFeedback.playlistStart()
         state.recordResidentGenrePlay(genre)
-        markPlaybackAnchor()
     }
 
     private func floatingGlyphButton(
@@ -833,7 +753,6 @@ struct ResidentProfileView: View {
         diskDiameter: CGFloat,
         iconSize: CGFloat,
         emphasis: ResidentGlyphEmphasis,
-        showComfortBreathingRing: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         let rawΔ = GlyphFloatLayout.animatedDelta(
@@ -860,10 +779,6 @@ struct ResidentProfileView: View {
 
         return Button(action: action) {
             ZStack {
-                if showComfortBreathingRing {
-                    PlaylistComfortBreathingRing(diameter: diskDiameter, phase: phase)
-                }
-
                 Circle()
                     .fill(genre.accent.opacity(emphasis == .hero ? 0.38 : 0.24))
                     .blur(radius: emphasis == .hero ? 22 : 12)
@@ -1122,9 +1037,9 @@ private struct PlaylistComfortChoiceButton: View {
     @State private var glowBurst: CGFloat = 0
     @Environment(\.flowContainerSize) private var flowContainerSize
 
-    /// Larger on Pro Max-class phones; unchanged on standard phones and iPad.
+    /// Always-on bottom dock — large enough for dementia-friendly taps, modest so it stays clear of glyphs.
     private var diameter: CGFloat {
-        132 * BrandLayout.compactPhoneScale(for: flowContainerSize)
+        96 * BrandLayout.compactPhoneScale(for: flowContainerSize)
     }
 
     private var luminousLevel: CGFloat {
@@ -1206,21 +1121,6 @@ private struct PlaylistComfortChoiceButton: View {
         guard !UIAccessibility.isReduceMotionEnabled else { return }
         glowBurst = 1
         withAnimation(.easeOut(duration: 0.55)) { glowBurst = 0 }
-    }
-}
-
-private struct PlaylistComfortBreathingRing: View {
-    let diameter: CGFloat
-    let phase: TimeInterval
-
-    var body: some View {
-        let pulse = 0.5 + 0.5 * sin(phase * 1.15)
-        Circle()
-            .strokeBorder(BrandTheme.gold.opacity(0.28 + pulse * 0.32), lineWidth: 2 + pulse * 3)
-            .frame(width: diameter * (1.18 + pulse * 0.06), height: diameter * (1.18 + pulse * 0.06))
-            .blur(radius: 0.5 + pulse * 1.5)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 }
 
