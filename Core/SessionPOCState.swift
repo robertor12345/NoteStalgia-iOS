@@ -427,7 +427,11 @@ final class SessionPOCState: ObservableObject {
     }
 
     func leaveResidentProfileToStaff() {
-        let metricsSnapshot = residentSurfaceMetrics
+        var metricsSnapshot = residentSurfaceMetrics
+        metricsSnapshot.recordStaffHandoff()
+        if let pid = selectedCarePatientId ?? activeCarePatientId {
+            applyResidentSessionPreferences(from: metricsSnapshot, patientId: pid)
+        }
         clearResidentSessionSurfaceState()
 
         if newResidentDiscoveryPatientId != nil {
@@ -451,8 +455,8 @@ final class SessionPOCState: ObservableObject {
         residentSurfaceMetrics.recordGenrePlay(genre)
     }
 
-    func recordResidentTrackChange() {
-        residentSurfaceMetrics.recordTrackChange()
+    func recordResidentTrackChange(direction: String? = nil) {
+        residentSurfaceMetrics.recordTrackChange(direction: direction)
     }
 
     func recordResidentImmersiveEntry() {
@@ -473,13 +477,90 @@ final class SessionPOCState: ObservableObject {
         residentSurfaceMetrics.recordTrackSkip(title)
     }
 
-    /// Ordered remaining titles for a genre: sun-liked first, session-skipped titles filtered out.
+    /// Begin dwell timing for the audible track (ends the previous track's listen window).
+    func noteResidentTrackStarted(_ title: String) {
+        residentSurfaceMetrics.beginTrackListen(title: title)
+    }
+
+    func noteResidentTrackEnded() {
+        residentSurfaceMetrics.endTrackListen()
+    }
+
+    /// Ordered remaining titles for a genre: intentional sun-likes, listen dwell, and supervisor
+    /// suggested likes float first; session-skipped titles are filtered out.
+    ///
+    /// When every catalog title for the genre was cloud-skipped this session, those skips are
+    /// cleared so re-tapping the glyph can start a fresh queue (not a silent dead end).
     func residentPlaylistTitles(for genre: ResidentMusicGenre) -> [String] {
+        let catalog = ResidentPlaybackTrackCatalog.titles(for: genre)
+        if !catalog.isEmpty,
+           catalog.allSatisfy({ residentSurfaceMetrics.skippedTrackTitles.contains($0) }) {
+            residentSurfaceMetrics.clearSkippedTracks(matching: catalog)
+        }
+
         let skipped = residentSurfaceMetrics.skippedTrackTitles
-        let likes = residentSurfaceMetrics.trackLikeCounts
-        return ResidentPlaybackTrackCatalog.titles(for: genre)
+        let suggested = Set(residentSurfacePatient()?.suggestedLikedTrackTitles ?? [])
+        let suggestedBoost = 2
+        let metrics = residentSurfaceMetrics
+        return catalog
             .filter { !skipped.contains($0) }
-            .sorted { (likes[$0, default: 0], $0) > (likes[$1, default: 0], $1) }
+            .sorted { a, b in
+                let scoreA = metrics.preferenceScore(
+                    for: a,
+                    suggestedBoost: suggested.contains(a) ? suggestedBoost : 0
+                )
+                let scoreB = metrics.preferenceScore(
+                    for: b,
+                    suggestedBoost: suggested.contains(b) ? suggestedBoost : 0
+                )
+                if scoreA != scoreB { return scoreA > scoreB }
+                return a < b
+            }
+    }
+
+    /// Persist durable preference hints from a finished resident surface session.
+    /// Rage bursts are recorded for staff but never promote a track or genre.
+    func applyResidentSessionPreferences(from metrics: ResidentSurfaceSessionMetrics, patientId: UUID) {
+        for (title, count) in metrics.trackLikeCounts where count >= 1 {
+            addSuggestedLikedTrack(for: patientId, title: title)
+        }
+
+        guard let label = metrics.preferredGenreLabel(),
+              let genre = ResidentMusicGenre.allCases.first(where: { $0.accessibilityLabel == label }),
+              let intentional = metrics.intentionalGenrePlayCounts[label],
+              intentional >= 2
+        else { return }
+
+        let secondBest = metrics.intentionalGenrePlayCounts
+            .filter { $0.key != label }
+            .map(\.value)
+            .max() ?? 0
+        // Require a clear lead so a single exploratory tap does not flip favourite genre.
+        if intentional >= secondBest + 1 {
+            setFavouriteGenre(for: patientId, genre: genre)
+        }
+    }
+
+    /// Patient for the open resident surface — prefers selection, falls back to active session id.
+    func residentSurfacePatient() -> CarePatientProfile? {
+        carePatient(id: selectedCarePatientId ?? activeCarePatientId)
+    }
+
+    func addSuggestedLikedTrack(for patientId: UUID, title: String) {
+        guard ResidentPlaybackTrackCatalog.allUniqueTitles.contains(title),
+              let i = carePatients.firstIndex(where: { $0.id == patientId })
+        else { return }
+        var patients = carePatients
+        guard !patients[i].suggestedLikedTrackTitles.contains(title) else { return }
+        patients[i].suggestedLikedTrackTitles.append(title)
+        carePatients = patients
+    }
+
+    func removeSuggestedLikedTrack(for patientId: UUID, title: String) {
+        guard let i = carePatients.firstIndex(where: { $0.id == patientId }) else { return }
+        var patients = carePatients
+        patients[i].suggestedLikedTrackTitles.removeAll { $0 == title }
+        carePatients = patients
     }
 
     private func resetResidentSurfaceMetrics() {
@@ -1128,6 +1209,11 @@ final class SessionPOCState: ObservableObject {
             residentTrackChangeCount: metrics.map(\.trackChangeCount).flatMap { $0 > 0 ? $0 : nil },
             residentImmersiveEntryCount: metrics.map(\.immersiveEntryCount).flatMap { $0 > 0 ? $0 : nil },
             residentGenresPlayedSummary: metrics?.genresPlayedSummary(),
+            residentInteractionCollation: metrics?.interactionSummary(),
+            residentLikedTracksSummary: metrics?.likedTracksSummary(),
+            residentSkippedTracksSummary: metrics?.skippedTracksSummary(),
+            residentTopDwellTracksSummary: metrics?.topDwellTracksSummary(),
+            residentRageBurstCount: metrics.map(\.rageBurstCount).flatMap { $0 > 0 ? $0 : nil },
             sessionTimeOfDay: ctx.timeOfDay.label,
             preSessionState: ctx.priorState?.label,
             sessionContextSummary: ctx.formattedContextLine(),

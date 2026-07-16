@@ -81,7 +81,7 @@ struct GroupSessionView: View {
                 .foregroundStyle(BrandTheme.textSecondary)
         }
         .padding(.horizontal, BrandTheme.contentGutter)
-        .padding(.top, 12)
+        .padding(.top, 0)
         .padding(.bottom, 8)
     }
 

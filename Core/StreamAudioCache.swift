@@ -51,8 +51,10 @@ enum StreamAudioCache {
     }
 
     /// Ambient loops + discovery clips — use once the user reaches roster / welcome.
+    /// Also warms mood scene stills so song visuals paint from cache on first play.
     static func prefetchWarmCatalog() {
         prefetch(ambientPlaybackURLs + DiscoveryFlowPOC.snippetAudioStreamURLs)
+        SceneImageCache.prefetchAllMoodScenes()
     }
 
     static func prefetchDiscovery(order: [Int]) {

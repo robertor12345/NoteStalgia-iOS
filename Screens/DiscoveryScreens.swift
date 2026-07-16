@@ -58,7 +58,6 @@ struct DiscoveryCalibrationView: View {
                 )
                 Spacer(minLength: 0)
             }
-            .safeAreaPadding(.top, 4)
             .zIndex(20)
         }
         .onAppear {
@@ -70,6 +69,10 @@ struct DiscoveryCalibrationView: View {
                 from: state.discoverySnippetIndex,
                 order: state.discoverySnippetOrder
             )
+            SceneImageCache.prefetchDiscoveryUpcoming(
+                from: state.discoverySnippetIndex,
+                order: state.discoverySnippetOrder
+            )
             Task { await runDiscoveryClipTransition(skipFadeOut: true) }
         }
         .onChange(of: state.discoverySnippetIndex) { _, newIdx in
@@ -77,6 +80,10 @@ struct DiscoveryCalibrationView: View {
                 scheduleDiscoveryCompletionExitSequence()
             } else {
                 StreamAudioCache.prefetchDiscoveryUpcoming(
+                    from: newIdx,
+                    order: state.discoverySnippetOrder
+                )
+                SceneImageCache.prefetchDiscoveryUpcoming(
                     from: newIdx,
                     order: state.discoverySnippetOrder
                 )
@@ -383,12 +390,19 @@ private struct DiscoveryEraListeningOrb: View {
         .accessibilityLabel("Listening clip from \(visual.eraYear)")
         .accessibilityValue(visual.eraEvent)
         .onAppear {
-            eraMediaReady = false
+            if !SceneImageCache.isCached(visual.posterImageURL) {
+                eraMediaReady = false
+            }
             restartEraVideo()
+            SceneImageCache.prefetch(visual.posterImageURL)
         }
         .onChange(of: snippetIndex) { _, _ in
-            eraMediaReady = false
+            // Keep the prior still until the next cached image is ready — only blank when cold.
+            if !SceneImageCache.isCached(visual.posterImageURL) {
+                eraMediaReady = false
+            }
             restartEraVideo()
+            SceneImageCache.prefetch(visual.posterImageURL)
         }
         .onDisappear {
             videoLooper.stop()

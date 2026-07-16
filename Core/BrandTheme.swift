@@ -33,7 +33,8 @@ enum BrandTheme {
     static let orbShellShadow = Color(red: 0.02, green: 0.02, blue: 0.08)
 
     // MARK: - Ambient background sparkles
-    static let ambientSparkleParticleCount: Int = 300
+    /// Floating sparks behind the orb on every screen (+50% vs the prior 300).
+    static let ambientSparkleParticleCount: Int = 450
     static let ambientSparkleIntensity: CGFloat = 0.6
     /// Softer layer when stacked (e.g. resident playlist playing).
     static let ambientSparkleIntensitySubtle: CGFloat = 0.32
@@ -199,11 +200,15 @@ enum SignInPageLayout {
 enum BrandLayout {
     static let menuColumnMaxWidth: CGFloat = 560
     /// Height of the tight dissolve band at scroll clip edges.
-    static let scrollEdgeFadeHeight: CGFloat = 48
+    static let scrollEdgeFadeHeight: CGFloat = 56
+    /// Width of the tight dissolve band at horizontal scroll clip edges.
+    static let scrollEdgeFadeWidth: CGFloat = 44
     /// Max fraction of viewport used by the dissolve (keeps fade hugging the edge).
-    static let scrollEdgeFadeMaxFraction: CGFloat = 0.075
+    static let scrollEdgeFadeMaxFraction: CGFloat = 0.10
     /// Extra scroll padding so the last card clears the dissolve when fully scrolled.
     static let scrollEdgeFadeComfortPadding: CGFloat = 12
+    /// Extra horizontal padding so the last chip clears the leading/trailing dissolve.
+    static let scrollEdgeFadeComfortPaddingHorizontal: CGFloat = 10
 
     static func contentGutter(for horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
         horizontalSizeClass == .regular

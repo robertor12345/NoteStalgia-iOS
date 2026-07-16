@@ -264,6 +264,19 @@ enum CareSessionInsightBuilder {
             sentences.append("Musical stimuli explored: \(genres).")
         }
 
+        if let likes = record.residentLikedTracksSummary, !likes.isEmpty {
+            sentences.append("Tracks they appeared to enjoy: \(likes).")
+        }
+        if let skipped = record.residentSkippedTracksSummary, !skipped.isEmpty {
+            sentences.append("Tracks they moved on from: \(skipped).")
+        }
+        if let dwell = record.residentTopDwellTracksSummary, !dwell.isEmpty {
+            sentences.append("Longest listening: \(dwell).")
+        }
+        if let rage = record.residentRageBurstCount, rage > 0 {
+            sentences.append("Rapid repeated taps were noted \(rage) time\(rage == 1 ? "" : "s") (treated as frustration, not preference).")
+        }
+
         if let visits = record.residentImmersiveEntryCount, visits > 0 {
             sentences.append("They accessed therapeutic nature visuals \(visits) time\(visits == 1 ? "" : "s").")
         }

@@ -93,7 +93,7 @@ struct CareHomeAdminDashboardView: View {
 
     private var trendGraphsSection: some View {
         DashboardTrendGraphsStrip(series: dashboard.trendSeries)
-            .padding(.horizontal, 4)
+            .centeredScrollFullBleed()
     }
 
     private var kpiGrid: some View {
@@ -199,7 +199,7 @@ private struct DashboardTrendGraphsStrip: View {
                     .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
 
-                ScrollView(.horizontal, showsIndicators: false) {
+                HorizontalScrollEdgeFade(coordinateSpace: "adminTrendGraphs") {
                     HStack(spacing: 10) {
                         ForEach(series) { item in
                             DashboardTrendGraphCard(

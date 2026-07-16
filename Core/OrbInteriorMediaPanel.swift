@@ -32,14 +32,21 @@ struct OrbInteriorMediaPanel<Media: View>: View {
         // Ease the tiny pulse breathing out as it fills the page so edges never reveal a gap.
         let pulseDamping = 1 - expansion
 
-        TimelineView(.animation(minimumInterval: OrbRenderBudget.contentFrameInterval(reduceMotion: reduceMotion), paused: false)) { timeline in
+        // When the media fills the page, pulse damping is ~0 — stop the timeline so we don't
+        // spend a 60fps tick for a static scale of 1.
+        TimelineView(
+            .animation(
+                minimumInterval: OrbRenderBudget.contentFrameInterval(reduceMotion: reduceMotion),
+                paused: reduceMotion || expansion >= 0.95
+            )
+        ) { timeline in
             let elapsed = timeline.date.timeIntervalSince(pulseAnchor) * flowPanelPulseSpeed
             let sample = OrbPulseSample.sample(
                 at: elapsed,
                 mode: .calm,
                 reduceMotion: reduceMotion
             )
-            let contentScale = 1 + (sample.shellScale - 1) * pulseDamping
+            let contentScale = expansion >= 0.95 ? 1 : (1 + (sample.shellScale - 1) * pulseDamping)
             let shortDiameter = min(boxW, boxH)
 
             ZStack {

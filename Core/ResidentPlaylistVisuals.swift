@@ -38,6 +38,23 @@ enum ResidentPlaybackTrackCatalog {
         titles(for: genre).count
     }
 
+    /// Unique audible titles across all genres — used for supervisor “suggested liked songs” picks.
+    static var allUniqueTitles: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for genre in ResidentMusicGenre.allCases {
+            for title in titles(for: genre) where seen.insert(title).inserted {
+                ordered.append(title)
+            }
+        }
+        return ordered.sorted()
+    }
+
+    /// Genres that can play a given catalog title (for staff captions).
+    static func genres(containing title: String) -> [ResidentMusicGenre] {
+        ResidentMusicGenre.allCases.filter { titles(for: $0).contains(title) }
+    }
+
     static func track(
         for genre: ResidentMusicGenre,
         trackIndex: Int
@@ -79,6 +96,16 @@ enum ResidentPlaylistVisualCatalog {
         guard pool.isEmpty == false else { return .partyJohnnieRay }
         let idx = (trackIndex + StableHash.of(trackTitle)) % pool.count
         return pool[idx]
+    }
+
+    /// Scene still URL for a resident track — same resolve path the backdrop paints.
+    static func sceneImageURL(
+        for genre: ResidentMusicGenre,
+        trackTitle: String,
+        trackIndex: Int
+    ) -> URL? {
+        mood(for: genre, trackTitle: trackTitle)
+            .sceneImageURL(variant: trackIndex + StableHash.of(trackTitle))
     }
 }
 
@@ -132,17 +159,27 @@ struct ResidentPlaylistBackdropView: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .id("\(genre.rawValue)-\(trackIndex)-\(trackTitle)-\(clip.archiveItemID)")
-        .onAppear { restartVideo() }
-        .onChange(of: trackIndex) { _, _ in
-            playlistMediaReady = false
+        // No `.id(...)` remount — keep the media fill alive so the previous still stays visible
+        // until the next cached/decoded scene image is ready (crossfade in DiscoveryEraPosterImage).
+        .onAppear {
             restartVideo()
+            prefetchNeighborSceneImages()
+        }
+        .onChange(of: trackIndex) { _, _ in
+            restartVideo()
+            prefetchNeighborSceneImages()
         }
         .onChange(of: trackTitle) { _, _ in
-            playlistMediaReady = false
             restartVideo()
+            prefetchNeighborSceneImages()
         }
         .onDisappear { videoLooper.stop() }
+    }
+
+    private func prefetchNeighborSceneImages() {
+        if let url = sceneImageURL {
+            SceneImageCache.prefetch(url)
+        }
     }
 
     private var sceneImageURL: URL? {

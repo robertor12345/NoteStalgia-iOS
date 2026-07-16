@@ -80,10 +80,9 @@ struct FlowRootView: View {
         }
         // Phase fades use explicit `withAnimation` in `SessionPOCState` — no root implicit
         // animation here; it breaks TimelineView + `.position()` glyph layout on the resident surface.
-        .contentShape(Rectangle())
-        .onTapGesture {
-            skipLaunchIfNeeded()
-        }
+        // Full-screen skip tap only while the launch overlay is up — otherwise it competes with
+        // resident genre glyphs and other controls.
+        .modifier(LaunchSkipTapModifier(enabled: !launchComplete, onSkip: skipLaunchIfNeeded))
         .accessibilityLabel(launchComplete ? "NoteStalgia" : "NoteStalgia is starting.")
         .accessibilityHint(launchComplete ? "" : "Tap anywhere to skip.")
         .onAppear {
@@ -304,6 +303,22 @@ struct BrandBackground: View {
                 )
                 .ignoresSafeArea()
             }
+        }
+    }
+}
+
+/// Full-screen tap-to-skip for the launch title only — disabled once the app is interactive.
+private struct LaunchSkipTapModifier: ViewModifier {
+    var enabled: Bool
+    var onSkip: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSkip)
+        } else {
+            content
         }
     }
 }

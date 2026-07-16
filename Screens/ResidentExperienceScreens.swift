@@ -311,6 +311,8 @@ struct ResidentProfileView: View {
     @State private var comfortAffirmationTick: UInt = 0
     @State private var mediaExpansion: CGFloat = 0
     @State private var genreMediaCycleToken = 0
+    /// Bumped whenever playback ownership changes — invalidates deferred stop / affirmation work.
+    @State private var playbackGeneration: UInt = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -349,7 +351,7 @@ struct ResidentProfileView: View {
     }
 
     private var patient: CarePatientProfile? {
-        state.carePatient(id: state.selectedCarePatientId)
+        state.residentSurfacePatient()
     }
 
     private var genresOnFile: [ResidentMusicGenre] {
@@ -388,18 +390,13 @@ struct ResidentProfileView: View {
                     .transition(.opacity.animation(.easeInOut(duration: 0.45)))
                     .allowsHitTesting(false)
                 }
-
-                if activePlaylist != nil {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .ignoresSafeArea()
-                        .gesture(playlistSwipeGesture)
-                        .accessibilityLabel("Swipe for previous or next track")
-                        .accessibilityHint("Swipe right for the previous song, left for the next.")
-                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .animation(CalmMotion.playlistOrbMorph, value: mediaExpansion)
+            // Swipe for tracks — simultaneous so it never blocks genre-glyph taps.
+            .simultaneousGesture(playlistSwipeGesture)
+            .accessibilityElement(children: .contain)
+            .accessibilityHint(activePlaylist != nil ? "Swipe right for the previous song, left for the next." : "")
             .overlay {
                 residentGlyphCanvas
             }
@@ -487,7 +484,17 @@ struct ResidentProfileView: View {
                 )
             }()
 
-            TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
+            // While a playlist is expanded the side glyphs are already muted — run their drift
+            // at a calmer cadence so the denser sparkle field and media keep a clean frame budget.
+            let glyphFPS = mediaExpansion > 0.35
+                ? OrbRenderBudget.glyphPlayingFramesPerSecond
+                : OrbRenderBudget.contentFramesPerSecond
+            TimelineView(
+                .animation(
+                    minimumInterval: 1 / glyphFPS,
+                    paused: reduceMotion
+                )
+            ) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 ZStack {
                     ForEach(Array(genresOnFile.enumerated()), id: \.element.id) { index, genre in
@@ -515,7 +522,8 @@ struct ResidentProfileView: View {
                             emphasis: emphasis,
                             action: { playGenreImmediately(genre) }
                         )
-                        .zIndex(emphasis == .hero ? 50 : CGFloat(index))
+                        // Side glyphs above the hero so the equalizer/hero frame cannot steal their taps.
+                        .zIndex(emphasis == .hero ? 10 : 100 + CGFloat(index))
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -534,13 +542,13 @@ struct ResidentProfileView: View {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         activeTrackIndex = (activeTrackIndex + 1) % count
                     }
-                    state.recordResidentTrackChange()
+                    state.recordResidentTrackChange(direction: "next")
                     clearComfortAffirmation()
                 } else if value.translation.width >= 50 {
                     withAnimation(.easeInOut(duration: 0.35)) {
                         activeTrackIndex = (activeTrackIndex - 1 + count) % count
                     }
-                    state.recordResidentTrackChange()
+                    state.recordResidentTrackChange(direction: "previous")
                     clearComfortAffirmation()
                 }
             }
@@ -554,6 +562,14 @@ struct ResidentProfileView: View {
         let key = "\(genre.rawValue)|\(title)"
         guard activeAudioKey != key else { return }
         activeAudioKey = key
+        // Warm current ± neighbors so swipes paint from cache without a network hitch.
+        SceneImageCache.prefetchResidentNeighbors(
+            genre: genre,
+            titles: remainingTrackTitles,
+            index: activeTrackIndex,
+            radius: 1
+        )
+        state.noteResidentTrackStarted(title)
         stopResidentAudio()
         residentAudio.musicReactiveProfile = .discovery
         residentAudio.startFresh(streamURL: track.audioURL)
@@ -565,6 +581,8 @@ struct ResidentProfileView: View {
     }
 
     private func stopPlayback() {
+        playbackGeneration &+= 1
+        state.noteResidentTrackEnded()
         stopResidentAudio()
         activeAudioKey = nil
         selectedPlayingGenre = nil
@@ -577,7 +595,9 @@ struct ResidentProfileView: View {
 
     private func expandPlaybackMedia(afterBriefPause: Bool = false) {
         genreMediaCycleToken += 1
+        let token = genreMediaCycleToken
         let apply = {
+            guard token == genreMediaCycleToken else { return }
             if reduceMotion {
                 mediaExpansion = 1
             } else {
@@ -657,7 +677,14 @@ struct ResidentProfileView: View {
         remainingTrackTitles = next
 
         if next.isEmpty {
+            // Stop audio immediately so an empty queue never keeps playing; defer only the
+            // visual teardown, and cancel that if a new genre starts in the meantime.
+            stopResidentAudio()
+            activeAudioKey = nil
+            playbackGeneration &+= 1
+            let generation = playbackGeneration
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard generation == playbackGeneration else { return }
                 stopPlayback()
             }
             return
@@ -731,6 +758,9 @@ struct ResidentProfileView: View {
         let titles = state.residentPlaylistTitles(for: genre)
         guard titles.isEmpty == false else { return }
 
+        // Invalidate any deferred empty-queue stop from a prior cloud-skip.
+        playbackGeneration &+= 1
+
         withAnimation(.spring(response: 0.62, dampingFraction: 0.86)) {
             selectedPlayingGenre = genre
             activePlaylist = playlist
@@ -741,6 +771,12 @@ struct ResidentProfileView: View {
         clearComfortAffirmation()
         CalmExperienceFeedback.playlistStart()
         state.recordResidentGenrePlay(genre)
+        SceneImageCache.prefetchResidentNeighbors(
+            genre: genre,
+            titles: titles,
+            index: 0,
+            radius: 1
+        )
     }
 
     private func floatingGlyphButton(
@@ -840,30 +876,25 @@ struct ResidentProfileView: View {
                         barReach: OrbRadialBarEqualizerView.LiveMusicTuning.barReach,
                         neighbourMix: OrbRadialBarEqualizerView.LiveMusicTuning.neighbourMix
                     )
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 }
             }
+            // Layout room for the equalizer ribbon; hit testing is clamped on the Button below.
             .frame(width: glyphStackSquare, height: glyphStackSquare)
-            .contentShape(
-                Circle()
-                    .path(
-                        in: CGRect(
-                            x: (glyphStackSquare - diskDiameter) / 2,
-                            y: (glyphStackSquare - diskDiameter) / 2,
-                            width: diskDiameter,
-                            height: diskDiameter
-                        )
-                    )
-            )
+            .allowsHitTesting(true)
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(genre.accessibilityLabel)
         .accessibilityAddTraits(selectedPlayingGenre == genre ? .isSelected : [])
+        // Keep the control's hit target to the disk — not the larger equalizer layout box.
+        .frame(width: diskDiameter, height: diskDiameter)
+        .contentShape(Circle())
         .position(x: pos.x, y: pos.y)
         .rotationEffect(.degrees(rot))
         .scaleEffect(driftScale * roleScale, anchor: .center)
-        .opacity(emphasis == .sideStrip ? max(0.42, 0.88 - mediaExpansion * 0.46) : 1)
-        .saturation(emphasis == .sideStrip ? max(0.72, 0.94 - mediaExpansion * 0.22) : 1.04)
+        .opacity(emphasis == .sideStrip ? max(0.55, 0.92 - mediaExpansion * 0.28) : 1)
+        .saturation(emphasis == .sideStrip ? max(0.78, 0.96 - mediaExpansion * 0.14) : 1.04)
     }
 }
 

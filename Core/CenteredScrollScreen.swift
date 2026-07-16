@@ -11,22 +11,34 @@ struct CenteredScrollScreen<Content: View>: View {
 
     private let scrollSpace = "centeredScroll"
 
+    private var showsStaffChrome: Bool {
+        onBack != nil || onLogout != nil
+    }
+
     var body: some View {
         GeometryReader { geo in
+            let gutter = BrandLayout.contentGutter(for: horizontalSizeClass)
+            // `safeAreaInset` shrinks the scroll viewport; size the centered column to that
+            // reduced height so we don't invent phantom scroll space under the chrome.
+            let chromeAllowance: CGFloat = showsStaffChrome ? 52 : 0
+            let viewportHeight = max(geo.size.height - chromeAllowance, 200)
+
             ScrollViewportEdgeFade(coordinateSpace: scrollSpace) {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     content()
                         .frame(maxWidth: BrandLayout.menuColumnMaxWidth)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+                        .padding(.horizontal, gutter)
+                        .padding(.top, showsStaffChrome ? BrandLayout.scrollEdgeFadeComfortPadding : 0)
                         .padding(.bottom, BrandLayout.scrollEdgeFadeComfortPadding)
+                        .environment(\.centeredScrollContentGutter, gutter)
                     Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                .frame(maxWidth: .infinity, minHeight: viewportHeight)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                if onBack != nil || onLogout != nil {
+                if showsStaffChrome {
                     FlowTopStaffNavBar(
                         backTitle: backTitle,
                         backAccessibilityLabel: backAccessibilityLabel,
@@ -36,5 +48,34 @@ struct CenteredScrollScreen<Content: View>: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Full-bleed horizontal rows inside CenteredScrollScreen
+
+private enum CenteredScrollContentGutterKey: EnvironmentKey {
+    static let defaultValue: CGFloat = BrandTheme.contentGutter
+}
+
+extension EnvironmentValues {
+    var centeredScrollContentGutter: CGFloat {
+        get { self[CenteredScrollContentGutterKey.self] }
+        set { self[CenteredScrollContentGutterKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Breaks out of `CenteredScrollScreen`'s horizontal gutter so a chip row can fade at the
+    /// true screen edges on phone.
+    func centeredScrollFullBleed() -> some View {
+        modifier(CenteredScrollFullBleedModifier())
+    }
+}
+
+private struct CenteredScrollFullBleedModifier: ViewModifier {
+    @Environment(\.centeredScrollContentGutter) private var gutter
+
+    func body(content: Content) -> some View {
+        content.padding(.horizontal, -gutter)
     }
 }

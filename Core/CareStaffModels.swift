@@ -32,6 +32,9 @@ struct CarePatientProfile: Identifiable, Equatable {
     var nationality: ResidentNationality
     /// Preferred genre for resident iPad playlists.
     var favouriteMusicGenre: ResidentMusicGenre
+    /// Supervisor-seeded track titles that boost playlist ordering on the resident surface
+    /// (combined with live sun-likes; does not replace discovery or skips).
+    var suggestedLikedTrackTitles: [String] = []
     /// Asset name in `Assets.xcassets` (stock portrait fallback).
     var stockPortraitAssetName: String
     /// Temporary profile created during new-resident discovery — replaced when supervisor saves details.
@@ -91,6 +94,12 @@ struct CareSessionRecord: Identifiable, Equatable {
     var residentTrackChangeCount: Int?
     var residentImmersiveEntryCount: Int?
     var residentGenresPlayedSummary: String?
+    /// Collated resident-surface interaction line (duration, taps, likes, skips, dwell, rage).
+    var residentInteractionCollation: String? = nil
+    var residentLikedTracksSummary: String? = nil
+    var residentSkippedTracksSummary: String? = nil
+    var residentTopDwellTracksSummary: String? = nil
+    var residentRageBurstCount: Int? = nil
     /// Session context tags (time of day, prior state, environment).
     var sessionTimeOfDay: String? = nil
     var preSessionState: String? = nil
@@ -128,6 +137,7 @@ enum CareStaffMockData {
             residentAgeYears: 82,
             nationality: .italy,
             favouriteMusicGenre: .classical,
+            suggestedLikedTrackTitles: ["Velvet Cadenza", "Echoes of Yesterday"],
             stockPortraitAssetName: "StockPortraitElena",
             isProvisional: false,
             genrePlaylistGroups: [
@@ -181,6 +191,7 @@ enum CareStaffMockData {
             residentAgeYears: 76,
             nationality: .unitedKingdom,
             favouriteMusicGenre: .jazz,
+            suggestedLikedTrackTitles: ["Velvet Afterhours"],
             stockPortraitAssetName: "StockPortraitJames",
             isProvisional: false,
             genrePlaylistGroups: [

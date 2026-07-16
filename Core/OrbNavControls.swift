@@ -221,7 +221,7 @@ struct FlowTopStaffNavBar: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
-        .padding(.top, 2)
+        .padding(.top, 0)
         .padding(.bottom, 6)
     }
 }

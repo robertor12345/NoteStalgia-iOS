@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import UIKit
 
 // MARK: - Internet Archive clip (full MP4 + large poster / GIF)
 
@@ -222,35 +223,47 @@ struct DiscoverySnippetMediaFill: View {
             }
         }
         .opacity(anyReady ? 1 : 0)
-        .animation(.easeIn(duration: 0.32), value: anyReady)
+        .animation(.easeIn(duration: 0.28), value: anyReady)
         .onChange(of: visual) { _, _ in
-            posterReady = false
+            // Keep posterReady — SceneImageCache + DiscoveryEraPosterImage hold the prior still
+            // until the next image is decoded (avoids a blank flash on every track/snippet change).
             videoReady = false
+            if SceneImageCache.memoryImage(for: visual.posterImageURL) != nil
+                || SceneImageCache.isCached(visual.posterImageURL) {
+                posterReady = true
+            }
         }
         .onChange(of: anyReady) { _, ready in
             isMediaReady = ready
         }
         .onAppear {
+            if SceneImageCache.memoryImage(for: visual.posterImageURL) != nil
+                || SceneImageCache.isCached(visual.posterImageURL) {
+                posterReady = true
+            }
             isMediaReady = anyReady
         }
     }
 }
 
+/// Cached scene still with Ken Burns — paints from memory/disk instantly when warm, and
+/// keeps the previous image on screen until the next URL finishes loading.
 private struct DiscoveryEraPosterImage: View {
     let url: URL
     var highResolution: Bool = false
     @Binding var isLoaded: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var kenBurnsPhase: CGFloat = 0
+    @State private var displayedImage: UIImage?
+    @State private var loadGeneration: UInt = 0
 
     private var fillScale: CGFloat { highResolution ? 1.04 : 1.14 }
 
     var body: some View {
         GeometryReader { geo in
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
+            ZStack {
+                if let displayedImage {
+                    Image(uiImage: displayedImage)
                         .resizable()
                         .interpolation(.high)
                         .scaledToFill()
@@ -259,25 +272,59 @@ private struct DiscoveryEraPosterImage: View {
                             x: reduceMotion ? 0 : kenBurnsPhase * geo.size.width * 0.03 - geo.size.width * 0.015,
                             y: reduceMotion ? 0 : kenBurnsPhase * geo.size.height * 0.022 - geo.size.height * 0.011
                         )
-                        .onAppear {
-                            isLoaded = true
-                        }
-                case .failure:
-                    Color.clear
-                default:
-                    Color.clear
+                        .transition(.opacity)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .clipped()
-        }
-        .onChange(of: url) { _, _ in
-            isLoaded = false
+            .animation(.easeInOut(duration: 0.28), value: displayedImage)
         }
         .onAppear {
+            applyImage(for: url, immediate: true)
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 18).repeatForever(autoreverses: true)) {
                 kenBurnsPhase = 1
+            }
+        }
+        .onChange(of: url) { _, newURL in
+            applyImage(for: newURL, immediate: false)
+        }
+    }
+
+    private func applyImage(for target: URL, immediate: Bool) {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+
+        if let warm = SceneImageCache.memoryImage(for: target) ?? SceneImageCache.cachedImage(for: target) {
+            if immediate || reduceMotion {
+                displayedImage = warm
+            } else {
+                withAnimation(.easeInOut(duration: 0.28)) {
+                    displayedImage = warm
+                }
+            }
+            isLoaded = true
+            return
+        }
+
+        // Keep showing the previous still; only clear ready if we have nothing to show yet.
+        if displayedImage == nil {
+            isLoaded = false
+        }
+
+        Task {
+            let image = await SceneImageCache.load(target)
+            await MainActor.run {
+                guard generation == loadGeneration else { return }
+                guard let image else { return }
+                if reduceMotion {
+                    displayedImage = image
+                } else {
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        displayedImage = image
+                    }
+                }
+                isLoaded = true
             }
         }
     }

@@ -45,11 +45,11 @@ struct OrbNavigationStyle: Equatable {
     }
 
     func resolvedContentTopInset(safeTop: CGFloat) -> CGFloat {
-        switch contentTopInset {
-        case .menuStandard:
-            safeTop + 8
-        case .none:
-            0
-        }
+        // Staff screens already pin chrome via `safeAreaInset` / system safe area.
+        // Do not re-apply `safeTop` here — on iPhone that double-inset pushed back/logout
+        // well below the status bar.
+        _ = safeTop
+        _ = contentTopInset
+        return 0
     }
 }

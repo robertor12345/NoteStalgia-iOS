@@ -37,6 +37,7 @@ struct CarePatientListView: View {
 
                     if !presentation.isSearching, let home = currentHome {
                         wingFilterRow(home: home)
+                            .centeredScrollFullBleed()
                         displayModePicker
                     }
 
@@ -141,14 +142,13 @@ struct CarePatientListView: View {
     }
 
     private func wingFilterRow(home: CareHome) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        HorizontalScrollEdgeFade(coordinateSpace: "rosterWingFilter") {
             HStack(spacing: 10) {
                 wingChip(title: "All wings", wingId: nil)
                 ForEach(home.wings) { wing in
                     wingChip(title: wing.name, wingId: wing.id)
                 }
             }
-            .padding(.horizontal, 4)
         }
     }
 
@@ -838,6 +838,8 @@ struct CarePatientDetailView: View {
 
                         genrePlaylistsCard(patient)
 
+                        suggestedLikedSongsCard(patient)
+
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Resident session (handoff)")
@@ -859,7 +861,7 @@ struct CarePatientDetailView: View {
                                     ),
                                     caption: "Used with age when discovery reorders clips and genres."
                                 )
-                                Text("Music and playlists are chosen on the resident surface — not edited here.")
+                                Text("Suggested liked songs above seed playlist order; the resident can still sun-like or cloud-skip live.")
                                     .font(DetailTypography.secondary)
                                     .foregroundStyle(BrandTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -1090,6 +1092,109 @@ struct CarePatientDetailView: View {
                     }
                     genrePlaylistSection(group: group)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    /// Supervisor-seeded likes that boost track order on the resident calm surface.
+    private func suggestedLikedSongsCard(_ patient: CarePatientProfile) -> some View {
+        let selected = patient.suggestedLikedTrackTitles
+        let available = ResidentPlaybackTrackCatalog.allUniqueTitles.filter { !selected.contains($0) }
+
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Suggested liked songs")
+                    .font(DetailTypography.section)
+                    .foregroundStyle(BrandTheme.textSecondary)
+                Text("Add tracks family or staff know they enjoy. These float earlier when a playlist starts — live sun taps still raise weight further.")
+                    .font(DetailTypography.secondary)
+                    .foregroundStyle(BrandTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if selected.isEmpty {
+                    Text("None yet — add a song below.")
+                        .font(DetailTypography.secondary)
+                        .foregroundStyle(BrandTheme.textTertiary)
+                } else {
+                    FlowLayoutChipWrap {
+                        ForEach(selected, id: \.self) { title in
+                            Button {
+                                state.removeSuggestedLikedTrack(for: patient.id, title: title)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "heart.fill")
+                                        .font(.caption2.weight(.semibold))
+                                    Text(title)
+                                        .font(DetailTypography.pill)
+                                        .lineLimit(1)
+                                    Image(systemName: "xmark")
+                                        .font(.caption2.weight(.bold))
+                                        .opacity(0.75)
+                                }
+                                .foregroundStyle(BrandTheme.textOnOrb)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    BrandTheme.nebulaPink.opacity(0.88),
+                                                    BrandTheme.nebulaPurple.opacity(0.82),
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                )
+                            }
+                            .buttonStyle(ChimingPlainButtonStyle())
+                            .accessibilityLabel("Remove \(title) from suggested liked songs")
+                        }
+                    }
+                }
+
+                Menu {
+                    if available.isEmpty {
+                        Text("All catalog songs are already suggested")
+                    } else {
+                        ForEach(available, id: \.self) { title in
+                            Button {
+                                state.addSuggestedLikedTrack(for: patient.id, title: title)
+                            } label: {
+                                let genres = ResidentPlaybackTrackCatalog.genres(containing: title)
+                                    .map(\.accessibilityLabel)
+                                    .joined(separator: " · ")
+                                Text("\(title)\(genres.isEmpty ? "" : "  (\(genres))")")
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(BrandTheme.gold)
+                        Text(available.isEmpty ? "All songs added" : "Add suggested song")
+                            .font(DetailTypography.body.weight(.medium))
+                            .foregroundStyle(BrandTheme.textPrimary)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BrandTheme.goldDeep.opacity(0.85))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(BrandTheme.creamMid.opacity(0.95))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                    )
+                }
+                .disabled(available.isEmpty)
+                .accessibilityLabel("Add suggested liked song")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
