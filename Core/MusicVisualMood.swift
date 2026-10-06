@@ -169,28 +169,33 @@ enum MusicVisualMood: CaseIterable {
         if has(["cadenza", "cadence", "concerto", "sonata", "waltz", "adagio", "nocturne"]) {
             return .classicalBallroom
         }
+        if has(["afterhours", "after hours", "midnight", "jazz", "lounge", "blue note", "swing", "brass"]) {
+            return .jazzNightclub
+        }
+        // Highway / open-road stems play under the Rock glyph (jukebox).
         if has(["highway", "road", "route", "drive", "journey", "wheels", "traffic"]) {
-            return .openRoad
+            return .rockEnergetic
+        }
+        // Pine Smoke Drift (without "(1)") is Country; the "(1)" variant is the Gospel interim stem.
+        if t.contains("pine smoke drift (1)") || t.contains("pine smoke drift（1）") {
+            return .gospelUplift
         }
         if has(["pine", "smoke", "prairie", "valley", "mountain", "river", "forest", "woods", "ranch", "dust", "harvest", "field"]) {
             return .countryAmericana
         }
-        if has(["afterhours", "after hours", "midnight", "jazz", "lounge", "blue note", "swing", "brass"]) {
-            return .jazzNightclub
+        if has(["echo", "echoes", "yesterday", "sock hop", "memory", "memories", "remember", "old days", "days gone"]) {
+            return .popDanceParty
         }
-        if has(["soul", "velvet", "groove", "smooth", "honey"]) {
+        if has(["drift between", "between rooms", "soul", "groove", "smooth", "honey"]) {
             return .soulSmooth
         }
         if has(["gospel", "hallelujah", "glory", "praise", "hymn", "choir"]) {
             return .gospelUplift
         }
-        if has(["echo", "echoes", "yesterday", "memory", "memories", "remember", "old days", "days gone"]) {
-            return .nostalgic
-        }
         if has(["drift", "rooms", "still", "calm", "quiet", "dream", "sleep", "haze", "float", "drifting"]) {
-            return .ambientCalm
+            return .soulSmooth
         }
-        if has(["rock", "electric", "wild", "fire", "thunder"]) {
+        if has(["rock", "electric", "wild", "fire", "thunder", "jukebox"]) {
             return .rockEnergetic
         }
         if has(["party", "dance", "hop", "twist", "boogie", "shake"]) {

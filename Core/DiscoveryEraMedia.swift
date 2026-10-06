@@ -115,19 +115,19 @@ struct DiscoverySnippetEraVisual: Equatable {
 enum DiscoveryEraMediaCatalog {
     /// Mood per **physical** discovery snippet, aligned 1:1 with `DiscoveryFlowPOC.snippetAudioStreamURLs`
     /// so the on-screen footage + colour grade fit the song actually being auditioned:
-    ///   0 Echoes of Yesterday → nostalgic
-    ///   1 Velvet Highway      → open road
-    ///   2 Velvet Cadenza      → classical ballroom
-    ///   3 Velvet Afterhours   → jazz nightclub
-    ///   4 Pine Smoke Drift    → country / Americana
-    ///   5 Drift Between Rooms → ambient calm
+    ///   0 Echoes of Yesterday      → pop / nostalgic sock-hop
+    ///   1 Velvet Highway           → rock open road
+    ///   2 Velvet Cadenza           → classical ballroom
+    ///   3 Velvet Afterhours        → jazz nightclub
+    ///   4 Pine Smoke Drift (1)     → gospel uplift *(interim stem)*
+    ///   5 Drift Between Rooms      → soul / ambient calm
     static let snippetMoods: [MusicVisualMood] = [
-        .nostalgic,
-        .openRoad,
+        .popDanceParty,
+        .rockEnergetic,
         .classicalBallroom,
         .jazzNightclub,
-        .countryAmericana,
-        .ambientCalm,
+        .gospelUplift,
+        .soulSmooth,
     ]
 
     static let visuals: [DiscoverySnippetEraVisual] = snippetMoods.enumerated().map { index, mood in

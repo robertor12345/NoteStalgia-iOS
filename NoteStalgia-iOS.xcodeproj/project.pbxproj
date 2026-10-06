@@ -178,7 +178,7 @@
 		E0300E585CE1B0A12F711DA0 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		E15C694C356E0EB461D31D73 /* SessionSentimentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSentimentStore.swift; sourceTree = "<group>"; };
 		E1A28D3AD15887A6A74EAB62 /* Drift Between Rooms.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Drift Between Rooms.mp3"; sourceTree = "<group>"; };
-		E1A394CA6D9D8BFA22CBB12D /* NoteStalgia-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NoteStalgia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1A394CA6D9D8BFA22CBB12D /* NoteStalgia-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "NoteStalgia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E65A4F953AF74899E2090FC2 /* FlowRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowRootView.swift; sourceTree = "<group>"; };
 		E9BEFF6CA463A3080D77FB94 /* BrandTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandTheme.swift; sourceTree = "<group>"; };
 		EA8748A39AAF8CB838D2852E /* ResidentSurfaceSessionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentSurfaceSessionMetrics.swift; sourceTree = "<group>"; };
@@ -374,6 +374,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					C73F9EAA29C63CBBC2627FAA = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -578,7 +579,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 23CGZDXP4Q;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -595,7 +596,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 23CGZDXP4Q;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

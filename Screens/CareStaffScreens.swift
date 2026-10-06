@@ -1204,9 +1204,12 @@ struct CarePatientDetailView: View {
     private func genrePlaylistSection(group: CareGenrePlaylistGroup) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: group.genre.iconName)
-                    .font(.title2)
-                    .foregroundStyle(group.genre.accent)
+                Image(group.genre.artworkAssetName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(BrandTheme.gold.opacity(0.35), lineWidth: 1))
                 Text(group.genre.accessibilityLabel)
                     .font(DetailTypography.section)
                     .foregroundStyle(BrandTheme.textPrimary)

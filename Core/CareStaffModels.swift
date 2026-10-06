@@ -137,7 +137,7 @@ enum CareStaffMockData {
             residentAgeYears: 82,
             nationality: .italy,
             favouriteMusicGenre: .classical,
-            suggestedLikedTrackTitles: ["Velvet Cadenza", "Echoes of Yesterday"],
+            suggestedLikedTrackTitles: ["Velvet Cadenza", "Pine Smoke Drift (1)"],
             stockPortraitAssetName: "StockPortraitElena",
             isProvisional: false,
             genrePlaylistGroups: [
@@ -147,16 +147,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc1111-1111-4111-8111-111111111101")!,
                             title: "Soft piano · morning",
-                            trackCount: 14,
-                            durationMinutes: 42,
-                            trackTitles: ["Before sunrise", "Kitchen light", "Slow arpeggio", "Grey sky calm", "Tea steam", "Window rain"]
-                        ),
-                        CarePlaylistEntry(
-                            id: UUID(uuidString: "cccc1111-1111-4111-8111-111111111102")!,
-                            title: "Strings — unhurried",
-                            trackCount: 11,
-                            durationMinutes: 38,
-                            trackTitles: ["Cello entry", "Quiet bowing", "Second theme", "Soft release", "Held chord out"]
+                            trackCount: 1,
+                            durationMinutes: 3,
+                            trackTitles: ["Velvet Cadenza"]
                         ),
                     ]
                 ),
@@ -166,9 +159,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc1111-1111-4111-8111-111111111103")!,
                             title: "Hymns — gentle choir",
-                            trackCount: 9,
-                            durationMinutes: 33,
-                            trackTitles: ["Gathering hum", "Soft refrain", "Organ pad", "Amen sway", "Room hush"]
+                            trackCount: 1,
+                            durationMinutes: 2,
+                            trackTitles: ["Pine Smoke Drift (1)"]
                         ),
                     ]
                 ),
@@ -191,7 +184,7 @@ enum CareStaffMockData {
             residentAgeYears: 76,
             nationality: .unitedKingdom,
             favouriteMusicGenre: .jazz,
-            suggestedLikedTrackTitles: ["Velvet Afterhours"],
+            suggestedLikedTrackTitles: ["Velvet Afterhours", "Drift Between Rooms"],
             stockPortraitAssetName: "StockPortraitJames",
             isProvisional: false,
             genrePlaylistGroups: [
@@ -201,16 +194,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc2222-2222-4222-8222-222222222201")!,
                             title: "50s lounge — brushed drums",
-                            trackCount: 12,
-                            durationMinutes: 48,
-                            trackTitles: ["Hi-hat swell", "Walking line", "Muted brass", "Night ride", "Last call sway", "Dim lights"]
-                        ),
-                        CarePlaylistEntry(
-                            id: UUID(uuidString: "cccc2222-2222-4222-8222-222222222202")!,
-                            title: "Late-night sax — very slow",
-                            trackCount: 8,
-                            durationMinutes: 36,
-                            trackTitles: ["Single reed breath", "Blue room", "Curtain fringe", "Soft cadence"]
+                            trackCount: 1,
+                            durationMinutes: 4,
+                            trackTitles: ["Velvet Afterhours"]
                         ),
                     ]
                 ),
@@ -220,9 +206,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc2222-2222-4222-8222-222222222203")!,
                             title: "Warm vocals, soft band",
-                            trackCount: 10,
-                            durationMinutes: 40,
-                            trackTitles: ["Intro Rhodes", "Verse hush", "Chorus lift", "Outro lamp", "Silk tail"]
+                            trackCount: 1,
+                            durationMinutes: 3,
+                            trackTitles: ["Drift Between Rooms"]
                         ),
                     ]
                 ),
@@ -245,6 +231,7 @@ enum CareStaffMockData {
             residentAgeYears: 71,
             nationality: .jamaica,
             favouriteMusicGenre: .classical,
+            suggestedLikedTrackTitles: ["Velvet Cadenza", "Echoes of Yesterday"],
             stockPortraitAssetName: "StockPortraitSam",
             isProvisional: false,
             genrePlaylistGroups: [
@@ -254,9 +241,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc3333-3333-4333-8333-333333333301")!,
                             title: "Ocean + piano blend",
-                            trackCount: 15,
-                            durationMinutes: 45,
-                            trackTitles: ["Tide in", "Sparse keys", "Gull distance", "Sand light", "Wave fold", "Dock rope"]
+                            trackCount: 1,
+                            durationMinutes: 3,
+                            trackTitles: ["Velvet Cadenza"]
                         ),
                     ]
                 ),
@@ -266,9 +253,9 @@ enum CareStaffMockData {
                         CarePlaylistEntry(
                             id: UUID(uuidString: "cccc3333-3333-4333-8333-333333333302")!,
                             title: "Light nostalgia — soft hooks",
-                            trackCount: 13,
-                            durationMinutes: 44,
-                            trackTitles: ["Old radio fuzz", "Tape warmth", "Hum-along", "Summer brake", "Street lights"]
+                            trackCount: 1,
+                            durationMinutes: 4,
+                            trackTitles: ["Echoes of Yesterday"]
                         ),
                     ]
                 ),

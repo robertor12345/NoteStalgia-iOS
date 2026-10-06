@@ -11,26 +11,43 @@ struct ResidentPlaybackTrack {
 /// The resident playlist previously changed its on-screen title and visual while continuing to play
 /// the same ambient file. This catalog is now the single source of truth for both the audible track
 /// and its visual, so genre changes and swipes cannot drift out of sync.
+///
+/// ## POC track → genre map (bundled `App/Resources/Music`)
+/// Identified from discovery mood tags, royalty-free fallback names, titles, and audio character:
+/// | Track | Genre | Designer icon |
+/// |---|---|---|
+/// | Velvet Afterhours | Jazz | Saxophone |
+/// | Velvet Cadenza | Classical | Piano |
+/// | Echoes of Yesterday | Pop | Solo microphone |
+/// | Velvet Highway | Rock | Jukebox |
+/// | Pine Smoke Drift | Country | Violin |
+/// | Pine Smoke Drift (1) | Gospel | Opera singer *(interim — closest remaining stem)* |
+/// | Drift Between Rooms | Soul | Woman + mic |
 enum ResidentPlaybackTrackCatalog {
     /// Ordered audible track titles for a genre — the single source of truth the resident surface
     /// uses for playback, "like", and "skip / remove from playlist".
     static func titles(for genre: ResidentMusicGenre) -> [String] {
         switch genre {
         case .jazz:
-            return ["Velvet Afterhours", "Echoes of Yesterday"]
+            return ["Velvet Afterhours"]
         case .classical:
-            return ["Velvet Cadenza", "Drift Between Rooms"]
+            return ["Velvet Cadenza"]
         case .pop:
-            return ["Velvet Highway", "Echoes of Yesterday"]
+            return ["Echoes of Yesterday"]
         case .rock:
-            return ["Velvet Highway", "Pine Smoke Drift"]
+            return ["Velvet Highway"]
         case .gospel:
-            return ["Echoes of Yesterday", "Velvet Cadenza"]
+            return ["Pine Smoke Drift (1)"]
         case .country:
-            return ["Pine Smoke Drift", "Velvet Highway"]
+            return ["Pine Smoke Drift"]
         case .soul:
-            return ["Velvet Afterhours", "Drift Between Rooms"]
+            return ["Drift Between Rooms"]
         }
+    }
+
+    /// Canonical home genre for a bundled title (first match wins).
+    static func primaryGenre(for title: String) -> ResidentMusicGenre? {
+        ResidentMusicGenre.allCases.first { titles(for: $0).contains(title) }
     }
 
     /// Number of distinct audible tracks available for a genre.

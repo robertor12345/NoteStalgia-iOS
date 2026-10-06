@@ -499,7 +499,7 @@ struct ResidentProfileView: View {
                 ZStack {
                     ForEach(Array(genresOnFile.enumerated()), id: \.element.id) { index, genre in
                         let emphasis = glyphRole(for: genre)
-                        let (computedCenter, disk, icon) = glyphFrames(
+                        let (computedCenter, disk, _) = glyphFrames(
                             genre: genre,
                             index: index,
                             in: geo.size,
@@ -518,7 +518,6 @@ struct ResidentProfileView: View {
                             phase: t,
                             canvasSize: geo.size,
                             diskDiameter: disk,
-                            iconSize: icon,
                             emphasis: emphasis,
                             action: { playGenreImmediately(genre) }
                         )
@@ -787,7 +786,6 @@ struct ResidentProfileView: View {
         phase: TimeInterval,
         canvasSize: CGSize,
         diskDiameter: CGFloat,
-        iconSize: CGFloat,
         emphasis: ResidentGlyphEmphasis,
         action: @escaping () -> Void
     ) -> some View {
@@ -859,7 +857,11 @@ struct ResidentProfileView: View {
                             )
                     )
 
-                ResidentGenreGlyphIcon(genre: genre, iconSize: iconSize, emphasis: emphasis)
+                ResidentGenreGlyphIcon(
+                    genre: genre,
+                    diameter: diskDiameter * (emphasis == .hero ? 0.94 : 0.92),
+                    emphasis: emphasis
+                )
             }
             .frame(width: diskDiameter, height: diskDiameter)
             .background {
@@ -898,28 +900,36 @@ struct ResidentProfileView: View {
     }
 }
 
-// MARK: - Genre instrument glyph (high-contrast on luminous disks)
+// MARK: - Genre artwork glyph (designer circular marks)
 
 private struct ResidentGenreGlyphIcon: View {
     let genre: ResidentMusicGenre
-    let iconSize: CGFloat
+    let diameter: CGFloat
     let emphasis: ResidentGlyphEmphasis
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(emphasis == .hero ? 0.98 : 0.94))
-                .frame(width: iconSize * 1.62, height: iconSize * 1.62)
-                .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
-
-            Image(systemName: genre.iconName)
-                .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(genre.glyphIconColor)
-                .shadow(color: .white.opacity(0.55), radius: 0, x: 0, y: -0.5)
-                .shadow(color: .black.opacity(0.22), radius: 1.5, y: 1)
-                .symbolRenderingMode(.monochrome)
-        }
-        .accessibilityHidden(true)
+        Image(genre.artworkAssetName)
+            .resizable()
+            .scaledToFill()
+            .frame(width: diameter, height: diameter)
+            .clipShape(Circle())
+            .overlay {
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(emphasis == .hero ? 0.42 : 0.28),
+                                BrandTheme.gold.opacity(0.35),
+                                Color.white.opacity(0.12),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: emphasis == .hero ? 1.4 : 1.0
+                    )
+            }
+            .shadow(color: .black.opacity(0.28), radius: emphasis == .hero ? 5 : 3, y: 2)
+            .accessibilityHidden(true)
     }
 }
 

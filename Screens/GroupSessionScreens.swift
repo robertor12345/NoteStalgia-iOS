@@ -97,9 +97,11 @@ struct GroupSessionView: View {
                         Circle()
                             .fill(track.genre.accent.opacity(0.45))
                             .frame(width: 56, height: 56)
-                        Image(systemName: track.genre.iconName)
-                            .font(.title2.weight(.semibold))
-                            .foregroundStyle(track.genre.glyphIconColor)
+                        Image(track.genre.artworkAssetName)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 52, height: 52)
+                            .clipShape(Circle())
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -163,10 +165,11 @@ struct GroupSessionView: View {
                         isPlaying = true
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: track.genre.iconName)
-                                .font(.body)
-                                .foregroundStyle(track.genre.glyphIconColor)
-                                .frame(width: 28)
+                            Image(track.genre.artworkAssetName)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 28, height: 28)
+                                .clipShape(Circle())
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.title)

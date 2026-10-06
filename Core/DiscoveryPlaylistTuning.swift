@@ -126,27 +126,21 @@ private enum DiscoveryStubTracks {
     enum Variant { case primary, encore }
 
     static func titles(for genre: ResidentMusicGenre, variant: Variant) -> [String] {
+        // Lead with the real bundled stem so staff UI + discovery stubs match audible playback.
+        let real = ResidentPlaybackTrackCatalog.titles(for: genre)
         switch variant {
         case .primary:
             switch genre {
-            case .jazz: return ["Muted brass swell", "Soft brush taps", "Late lamppost blues", "Whisper reed", "Two-step hush"]
-            case .classical: return ["Morning etude", "Slow arco line", "Chapel light pad", "Solo piano veil", "Gentle resolution"]
-            case .pop: return ["Radio glow", "Soft hook loop", "Window seat hum", "Summer tape warmth", "Evening refrain"]
-            case .rock: return ["Warm amp bloom", "Clean arpeggio", "Quiet bridge", "Held power chord fade", "Side-stage hush"]
-            case .gospel: return ["Hall hum", "Solo verse air", "Choir swell — soft", "Organ pad bloom", "Tender Amen"]
-            case .country: return ["Front porch sway", "Acoustic dusk", "Distant freight rhythm", "Lamplight refrain", "Dust road calm"]
-            case .soul: return ["Ribbon mic breath", "Soft Rhodes halo", "Backbeat pillow", "Vocal warmth bloom", "Dim club outro"]
+            case .jazz: return real + ["Muted brass swell", "Soft brush taps", "Late lamppost blues"]
+            case .classical: return real + ["Morning etude", "Slow arco line", "Chapel light pad"]
+            case .pop: return real + ["Radio glow", "Soft hook loop", "Window seat hum"]
+            case .rock: return real + ["Warm amp bloom", "Clean arpeggio", "Quiet bridge"]
+            case .gospel: return real + ["Hall hum", "Solo verse air", "Choir swell — soft"]
+            case .country: return real + ["Front porch sway", "Acoustic dusk", "Distant freight rhythm"]
+            case .soul: return real + ["Ribbon mic breath", "Soft Rhodes halo", "Backbeat pillow"]
             }
         case .encore:
-            switch genre {
-            case .jazz: return ["One more refrain", "Sax breath tail", "Curtain hiss"]
-            case .classical: return ["Single chord echo", "Library quiet", "Nocturne tail"]
-            case .pop: return ["Radio tail", "One-line hook", "Soft fade beat"]
-            case .rock: return ["Amp hiss calm", "String decay", "Last bar rest"]
-            case .gospel: return ["Hall tail", "Solo hum", "Pad release"]
-            case .country: return ["Porch last chord", "Crickets pad", "Gentle strum fade"]
-            case .soul: return ["Ribbon tail", "Room reverb bloom", "Last breath note"]
-            }
+            return real
         }
     }
 }

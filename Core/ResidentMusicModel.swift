@@ -31,7 +31,20 @@ enum ResidentMusicGenre: String, CaseIterable, Identifiable, Codable, Equatable 
         rawValue.capitalized
     }
 
-    /// Instrument-first SF Symbols with fallbacks — some names only exist on newer SF Symbol drops.
+    /// Custom circular artwork for the resident playlist surface (and staff genre chips).
+    var artworkAssetName: String {
+        switch self {
+        case .jazz: return "GenreJazz"
+        case .classical: return "GenreClassical"
+        case .pop: return "GenrePop"
+        case .rock: return "GenreRock"
+        case .gospel: return "GenreGospel"
+        case .country: return "GenreCountry"
+        case .soul: return "GenreSoul"
+        }
+    }
+
+    /// Instrument-first SF Symbols with fallbacks — used only where custom artwork isn't shown.
     var iconName: String {
         switch self {
         case .jazz:
