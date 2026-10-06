@@ -1,6 +1,6 @@
 # AGENTS.md — NoteStalgia iOS
 
-Instructions for coding agents (Claude, Cursor, etc.) working in this repository.
+Instructions for Claude Code (loaded via `CLAUDE.md`) and any other coding agent working in this repository.
 
 ## Before you change code
 

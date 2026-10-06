@@ -42,6 +42,7 @@ enum DiscoveryFlowPOC {
         BundledAudio.urlOrRemote("Velvet Afterhours", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jazz%20Brunch.mp3")!),
         BundledAudio.urlOrRemote("Pine Smoke Drift (1)", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Cool%20Blast.mp3")!),
         BundledAudio.urlOrRemote("Drift Between Rooms", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Americana.mp3")!),
+        BundledAudio.urlOrRemote("Pine Smoke Drift", fallback: URL(string: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Americana.mp3")!),
     ]
 
     static func snippetAudioStreamURL(snippetIndex: Int, order: [Int]? = nil) -> URL {

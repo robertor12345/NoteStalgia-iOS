@@ -121,6 +121,7 @@ enum DiscoveryEraMediaCatalog {
     ///   3 Velvet Afterhours        → jazz nightclub
     ///   4 Pine Smoke Drift (1)     → gospel uplift *(interim stem)*
     ///   5 Drift Between Rooms      → soul / ambient calm
+    ///   6 Pine Smoke Drift         → country americana
     static let snippetMoods: [MusicVisualMood] = [
         .popDanceParty,
         .rockEnergetic,
@@ -128,6 +129,7 @@ enum DiscoveryEraMediaCatalog {
         .jazzNightclub,
         .gospelUplift,
         .soulSmooth,
+        .countryAmericana,
     ]
 
     static let visuals: [DiscoverySnippetEraVisual] = snippetMoods.enumerated().map { index, mood in

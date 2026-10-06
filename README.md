@@ -71,7 +71,8 @@ Flow/          FlowRootView — phase switch + ambient backdrop
 Screens/       SwiftUI screens by surface
 docs/          Implementation plan, pitch deck, handoff plan
 project.yml    XcodeGen source of truth
-AGENTS.md      Conventions for coding agents (Claude / Cursor)
+AGENTS.md      Conventions for coding agents (Claude Code; imported by CLAUDE.md)
+CLAUDE.md      Claude Code entry point (imports AGENTS.md)
 ```
 
 `SessionPOCState` is a **coordinator** over domain stores (`SupervisorAuthStore`, `CareDataStore`,
@@ -133,6 +134,8 @@ Android `PlaybackCatalog.kt`. **One primary stem per genre** (no cross-genre dup
 
 Discovery snippet order / moods must stay aligned with these stems (`DiscoveryEraMedia` /
 `DiscoveryFlowPOC.snippetAudioStreamURLs`).
+Discovery auditions **all 7 stems** (one snippet per genre: Pop, Rock, Classical, Jazz, Gospel,
+Soul, Country) before age/nationality reordering. *Android `calibrationMoods` not yet aligned.*
 
 ### Staff UI (iPhone + iPad)
 

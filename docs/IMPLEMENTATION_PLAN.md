@@ -2,7 +2,7 @@
 
 > Execution target: a later date, by another engineer/agent.
 >
-> **POC pickup (Claude / Cursor):** start with repo-root [`AGENTS.md`](../AGENTS.md) and
+> **POC pickup (Claude Code):** start with repo-root [`AGENTS.md`](../AGENTS.md) and
 > [`docs/HANDOFF_PLAN.md`](HANDOFF_PLAN.md). Living product decisions for the current POC are
 > catalogued in [`README.md`](../README.md). This document is the **production** architecture plan.
 >
@@ -57,7 +57,7 @@ Start from the existing POC repos (already created on disk as `NoteStalgia-iOS` 
 - `notestalgia-ml` — Python (FastAPI) model-serving + training pipelines + MLOps.
 - `notestalgia-contracts` — single source of truth for API (OpenAPI) + domain events (JSON Schema/Avro); generates iOS (Swift) + Android (Kotlin) + web + backend + ml clients.
 
-Each repo gets: `README.md` (engineer onboarding + decisions), `AGENTS.md` + `.cursor/skills/` (agent conventions), `docs/decisions/` ADRs (MADR format), CODEOWNERS, conventional-commit + lint pre-commit hooks, and CI gates.
+Each repo gets: `README.md` (engineer onboarding + decisions), `AGENTS.md` + `.claude/skills/` (agent conventions), `docs/decisions/` ADRs (MADR format), CODEOWNERS, conventional-commit + lint pre-commit hooks, and CI gates.
 
 ## 4. Backend domain boundaries (.NET)
 
@@ -308,7 +308,7 @@ This is an explicit, testable target. The numbers below show the load is modest 
 ## 14. DevEx, linting/formatting, agent skills, docs
 
 - **Backend:** `.editorconfig`, Roslyn analyzers + StyleCop, `dotnet format`; **iOS:** SwiftLint + SwiftFormat; **ml:** ruff + black + mypy. All enforced via pre-commit + CI.
-- **Agent skills:** per-repo `.cursor/skills/` (e.g. `add-bounded-context`, `add-endpoint`, `add-ios-feature-module`, `add-migration`, `update-decision-log`) + `AGENTS.md` so agents and engineers follow identical patterns with no drift.
+- **Agent skills:** per-repo `.claude/skills/` (e.g. `add-bounded-context`, `add-endpoint`, `add-ios-feature-module`, `add-migration`, `update-decision-log`) + `AGENTS.md` so agents and engineers follow identical patterns with no drift.
 - **Docs:** large root `README.md` per repo (architecture, domains, local setup, conventions) + central **decision log** (`docs/decisions/NNNN-*.md`, MADR) updated on every major change.
 
 ## 15. Sequencing
@@ -319,7 +319,7 @@ Foundation (repos, tooling, contracts, docs, skills) -> backend domain skeleton 
 
 ## 16. Implementation todos (checklist)
 
-- [ ] **foundation** — Formalise the 7 repos from existing POCs (NoteStalgia-iOS + NoteStalgia-Android already present) plus backend, web, infra, ml, contracts. Add per-repo README, AGENTS.md, .cursor/skills/, docs/decisions (ADR/MADR) + first ADRs (AWS, EKS, MongoDB/NoSQL via Atlas, phased ML, custom-OIDC auth with 6-digit PIN, modular monolith, native iOS + Android clients, Home Admin analytics parity), CODEOWNERS, conventional-commit + lint pre-commit hooks, and baseline CI.
+- [ ] **foundation** — Formalise the 7 repos from existing POCs (NoteStalgia-iOS + NoteStalgia-Android already present) plus backend, web, infra, ml, contracts. Add per-repo README, AGENTS.md, .claude/skills/, docs/decisions (ADR/MADR) + first ADRs (AWS, EKS, MongoDB/NoSQL via Atlas, phased ML, custom-OIDC auth with 6-digit PIN, modular monolith, native iOS + Android clients, Home Admin analytics parity), CODEOWNERS, conventional-commit + lint pre-commit hooks, and baseline CI.
 - [ ] **tooling-contracts** — Set up linting/formatting/test/CI gates per repo (EditorConfig + Roslyn/StyleCop + dotnet format; SwiftLint + SwiftFormat; Android ktlint/detekt; ruff/black/mypy). Stand up notestalgia-contracts (OpenAPI + versioned domain/telemetry event schemas for usage, playlist, and wellbeing facts) with client generation for iOS (Swift), Android (Kotlin), web, backend, and ml.
 - [ ] **backend-skeleton** — Scaffold the .NET modular monolith with bounded contexts (Identity, Care Org, Resident Profile, Sessions, Wellbeing, Media, Recommendations, Insights & Aggregation, Consent & Privacy, Notifications), Clean Architecture per context, MongoDB .NET driver + repository per aggregate, MediatR + FluentValidation pipeline, Result/ProblemDetails, transactional Outbox, OpenTelemetry.
 - [ ] **data-layer** — MongoDB Atlas database-per-context (collections per aggregate, JSON Schema validators + schemaVersion + versioned transform scripts), Queryable Encryption/CSFLE with per-subject keys in a KMS-backed key vault (crypto-shred ready), tenantId-based sharding + Global Cluster zone pinning for residency, Redis cache, S3+CloudFront for media/portraits, and the domain-event -> data-lake pipeline. Model home membership as an append-only, time-bounded assignments collection (subjectId, homeId, effectiveFrom/To, isTemporary) for both residents and staff; tenant = care-home company.

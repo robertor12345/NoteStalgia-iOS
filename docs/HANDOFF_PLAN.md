@@ -49,8 +49,11 @@ Ordered by impact / risk.
 
 ### P1 — Catalog / discovery consistency
 
-- [ ] Audit `DiscoveryFlowPOC.snippetAudioStreamURLs` vs `snippetMoods` vs
-      `ResidentPlaybackTrackCatalog` — one table, three consumers, zero drift.
+- [x] Audit `DiscoveryFlowPOC.snippetAudioStreamURLs` vs `snippetMoods` vs
+      `ResidentPlaybackTrackCatalog` — iOS: added missing **Country** (`Pine Smoke Drift` →
+      `.countryAmericana`) as snippet 6, so discovery now covers all 7 genres.
+- [ ] **Android TODO:** `calibrationMoods` in `DiscoveryScreens.kt` is 5 moods (Classical, Jazz,
+      Pop, Country, Gospel — no Rock / Soul) in a different order. Mirror the iOS 7-snippet order.
 - [ ] Staff “suggested liked songs” menus should only offer `allUniqueTitles` from the catalog
       (already filtered in places — verify after remap).
 
