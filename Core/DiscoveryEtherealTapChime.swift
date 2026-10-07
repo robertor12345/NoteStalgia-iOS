@@ -41,6 +41,11 @@ private final class ChimeEngine {
 
     private var graphReady = false
     private var buffers: [Variant: AVAudioPCMBuffer] = [:]
+    /// The engine keeps the audio hardware and a realtime render thread alive while running.
+    /// Nothing chimes on an idle screen, so pause it after a quiet spell; `ensureRunning()`
+    /// restarts a prepared graph in a few milliseconds on the next tap.
+    private var idlePauseTask: Task<Void, Never>?
+    private static let idlePauseDelay: TimeInterval = 20
 
     private init() {}
 
@@ -59,8 +64,20 @@ private final class ChimeEngine {
 
         // `.interrupts` keeps rapid taps crisp without stacking overlapping tails.
         player.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
+        DemoAudioLog.record("chime", ["variant": "\(variant)"])
         if !player.isPlaying {
             player.play()
+        }
+        scheduleIdlePause()
+    }
+
+    private func scheduleIdlePause() {
+        idlePauseTask?.cancel()
+        idlePauseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idlePauseDelay))
+            guard !Task.isCancelled, let self, self.engine.isRunning else { return }
+            self.player.stop()
+            self.engine.pause()
         }
     }
 

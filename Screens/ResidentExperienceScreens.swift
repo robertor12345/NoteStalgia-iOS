@@ -298,6 +298,7 @@ struct ResidentProfileView: View {
     @ObservedObject var state: SessionPOCState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.flowContainerSize) private var flowContainerSize
+    @Environment(\.flowSafeAreaInsets) private var flowSafeAreaInsets
     @Environment(\.flowOrbShellSize) private var flowOrbShellSize
     @StateObject private var residentAudio = AmbientAudioSession()
     /// Highlights the glyph whose playlist is sounding; reshapes the floating layout around it.
@@ -313,6 +314,12 @@ struct ResidentProfileView: View {
     @State private var genreMediaCycleToken = 0
     /// Bumped whenever playback ownership changes — invalidates deferred stop / affirmation work.
     @State private var playbackGeneration: UInt = 0
+    /// True once the circle → page morph has finished (not just started) expanding.
+    @State private var mediaFullyExpanded = false
+    /// True while the playlist still / clip is decoded and opaque on screen.
+    @State private var playlistMediaReady = false
+    /// Whether this view currently holds an `AmbientInteractionPause` full-page cover.
+    @State private var holdsFullPageCover = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -321,15 +328,31 @@ struct ResidentProfileView: View {
         return remainingTrackTitles[activeTrackIndex]
     }
 
-    /// Size when playlist retro visuals fill the screen — a full-bleed rectangle (covers the page
-    /// corners), with slight overscan so the subtle pulse never reveals an edge gap.
-    private func expandedMediaSize(in container: CGSize) -> CGSize {
-        CGSize(width: container.width * 1.12, height: container.height * 1.12)
+    /// The whole physical screen in this view's local coordinates. The surface is laid out inside
+    /// the safe area, so its own bounds stop short of the status bar and home indicator.
+    private func fullScreenRect(in geo: GeometryProxy) -> CGRect {
+        guard flowContainerSize.width > 1, flowContainerSize.height > 1 else {
+            return CGRect(origin: .zero, size: geo.size)
+        }
+        let global = geo.frame(in: .global)
+        let insets = flowSafeAreaInsets
+        return CGRect(
+            x: -global.minX,
+            y: -global.minY,
+            width: flowContainerSize.width + insets.leading + insets.trailing,
+            height: flowContainerSize.height + insets.top + insets.bottom
+        )
     }
 
-    private func displayMediaSize(in container: CGSize) -> CGSize {
+    /// Size when playlist retro visuals fill the screen — a full-bleed rectangle (covers the page
+    /// corners and status bar), with slight overscan so the subtle pulse never reveals an edge gap.
+    private func expandedMediaSize(screen: CGRect) -> CGSize {
+        CGSize(width: screen.width * 1.12, height: screen.height * 1.12)
+    }
+
+    private func displayMediaSize(screen: CGRect) -> CGSize {
         let compact = orbSize
-        let expanded = expandedMediaSize(in: container)
+        let expanded = expandedMediaSize(screen: screen)
         let t = mediaExpansion
         return CGSize(
             width: compact.width + (expanded.width - compact.width) * t,
@@ -341,8 +364,8 @@ struct ResidentProfileView: View {
         0.90 + mediaExpansion * 0.10
     }
 
-    private func mediaCenter(hub: CGPoint, in container: CGSize) -> CGPoint {
-        let screenCenter = CGPoint(x: container.width * 0.5, y: container.height * 0.5)
+    private func mediaCenter(hub: CGPoint, screen: CGRect) -> CGPoint {
+        let screenCenter = CGPoint(x: screen.midX, y: screen.midY)
         let t = mediaExpansion
         return CGPoint(
             x: hub.x + (screenCenter.x - hub.x) * t,
@@ -370,8 +393,9 @@ struct ResidentProfileView: View {
     var body: some View {
         GeometryReader { geo in
             let playbackHub = GlyphFloatLayout.musicGlyphHub(in: geo.size)
-            let mediaSize = displayMediaSize(in: geo.size)
-            let mediaAnchor = mediaCenter(hub: playbackHub, in: geo.size)
+            let screen = fullScreenRect(in: geo)
+            let mediaSize = displayMediaSize(screen: screen)
+            let mediaAnchor = mediaCenter(hub: playbackHub, screen: screen)
             let phoneScale = BrandLayout.compactPhoneScale(for: geo.size)
 
             ZStack {
@@ -384,7 +408,8 @@ struct ResidentProfileView: View {
                         trackIndex: activeTrackIndex,
                         orbSize: mediaSize,
                         mediaFillScale: displayMediaFillScale(),
-                        pageExpansion: mediaExpansion
+                        pageExpansion: mediaExpansion,
+                        onMediaReadyChange: { playlistMediaReady = $0 }
                     )
                     .position(x: mediaAnchor.x, y: mediaAnchor.y)
                     .transition(.opacity.animation(.easeInOut(duration: 0.45)))
@@ -403,18 +428,10 @@ struct ResidentProfileView: View {
             .overlay(alignment: .top) {
                 HStack {
                     Spacer()
-                    Button {
+                    StaffReturnHoldButton(diameter: 48 * phoneScale) {
                         stopPlayback()
                         state.leaveResidentProfileToStaff()
-                    } label: {
-                        ResidentLuminousFloatingButton(
-                            systemImage: "person.badge.key",
-                            accent: BrandTheme.logoCyan,
-                            diameter: 48 * phoneScale
-                        )
                     }
-                    .buttonStyle(ChimingPlainButtonStyle())
-                    .accessibilityLabel("Return to roster and record session")
                 }
                 .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
                 .padding(.top, 10)
@@ -453,6 +470,9 @@ struct ResidentProfileView: View {
                 playCurrentTrack()
             }
         }
+        .onChange(of: mediaCoversPage) { _, covers in
+            setFullPageCover(covers)
+        }
         .onAppear {
             state.reaffirmPhaseContentVisible()
             StreamAudioCache.prefetch(StreamAudioCache.ambientPlaybackURLs)
@@ -461,6 +481,24 @@ struct ResidentProfileView: View {
             stopResidentAudio()
             collapsePlaybackMedia()
             clearComfortAffirmation()
+            setFullPageCover(false)
+        }
+    }
+
+    /// The expanded playlist media is opaque and overscanned past every screen edge, so the
+    /// ambient sparkles + orb nebula behind it are invisible — pause their draw loops until the
+    /// media starts collapsing again. Nothing on screen changes.
+    private var mediaCoversPage: Bool {
+        selectedPlayingGenre != nil && mediaFullyExpanded && playlistMediaReady
+    }
+
+    private func setFullPageCover(_ covers: Bool) {
+        guard covers != holdsFullPageCover else { return }
+        holdsFullPageCover = covers
+        if covers {
+            AmbientInteractionPause.beginFullPageCover()
+        } else {
+            AmbientInteractionPause.endFullPageCover()
         }
     }
 
@@ -471,10 +509,14 @@ struct ResidentProfileView: View {
             let hullScale = BrandLayout.hullScale(for: geo.size)
             let heroDiskDiameter = 154 * hullScale
             let hub = GlyphFloatLayout.musicGlyphHub(in: geo.size)
-            let idle = GlyphFloatLayout.constellation(count: genresOnFile.count, in: geo.size)
+            // Resolved once per layout pass — the timeline below ticks at up to 60fps and would
+            // otherwise re-look-up the patient and re-filter genres for every glyph, every frame.
+            let genres = genresOnFile
+            let inactiveGenres = selectedPlayingGenre.map { sg in genres.filter { $0 != sg } } ?? []
+            let idle = GlyphFloatLayout.constellation(count: genres.count, in: geo.size)
             let playingPeriphery: [CGPoint] = {
-                guard let sg = selectedPlayingGenre else { return [] }
-                let others = genresOnFile.filter { $0 != sg }
+                guard selectedPlayingGenre != nil else { return [] }
+                let others = inactiveGenres
                 guard others.isEmpty == false else { return [] }
                 return GlyphFloatLayout.focusedInactivePeriphery(
                     inactiveCount: others.count,
@@ -492,12 +534,13 @@ struct ResidentProfileView: View {
             TimelineView(
                 .animation(
                     minimumInterval: 1 / glyphFPS,
-                    paused: reduceMotion
+                    // Demo recordings may freeze the drift so scripted taps land on the glyphs.
+                    paused: reduceMotion || DemoLaunchOptions.freezeGlyphDrift
                 )
             ) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 ZStack {
-                    ForEach(Array(genresOnFile.enumerated()), id: \.element.id) { index, genre in
+                    ForEach(Array(genres.enumerated()), id: \.element.id) { index, genre in
                         let emphasis = glyphRole(for: genre)
                         let (computedCenter, disk, _) = glyphFrames(
                             genre: genre,
@@ -506,6 +549,7 @@ struct ResidentProfileView: View {
                             hullScale: hullScale,
                             idleCenters: idle.centers,
                             idleHub: idle.hub,
+                            inactiveGenres: inactiveGenres,
                             peripheryPlayingCenters: playingPeriphery
                         )
                         let anchor = emphasis == .hero ? hub : computedCenter
@@ -599,9 +643,13 @@ struct ResidentProfileView: View {
             guard token == genreMediaCycleToken else { return }
             if reduceMotion {
                 mediaExpansion = 1
+                mediaFullyExpanded = true
             } else {
                 withAnimation(CalmMotion.playlistOrbMorph) {
                     mediaExpansion = 1
+                } completion: {
+                    guard token == genreMediaCycleToken else { return }
+                    mediaFullyExpanded = true
                 }
             }
         }
@@ -614,6 +662,7 @@ struct ResidentProfileView: View {
 
     private func collapsePlaybackMedia() {
         genreMediaCycleToken += 1
+        mediaFullyExpanded = false
         if reduceMotion {
             mediaExpansion = 0
         } else {
@@ -631,9 +680,11 @@ struct ResidentProfileView: View {
 
         if reduceMotion {
             mediaExpansion = 1
+            mediaFullyExpanded = true
             return
         }
 
+        mediaFullyExpanded = false
         withAnimation(CalmMotion.playlistOrbCollapse) {
             mediaExpansion = 0
         }
@@ -641,6 +692,9 @@ struct ResidentProfileView: View {
             guard token == genreMediaCycleToken, selectedPlayingGenre != nil else { return }
             withAnimation(CalmMotion.playlistOrbMorph) {
                 mediaExpansion = 1
+            } completion: {
+                guard token == genreMediaCycleToken else { return }
+                mediaFullyExpanded = true
             }
         }
     }
@@ -712,6 +766,7 @@ struct ResidentProfileView: View {
         hullScale: CGFloat,
         idleCenters: [CGPoint],
         idleHub: CGPoint,
+        inactiveGenres: [ResidentMusicGenre],
         peripheryPlayingCenters: [CGPoint]
     ) -> (CGPoint, CGFloat, CGFloat) {
         let idleDisk: CGFloat = 92 * hullScale
@@ -730,14 +785,13 @@ struct ResidentProfileView: View {
         case .hero:
             return (idleHub, heroDisk, heroIcon)
         case .sideStrip:
-            guard let sg = selectedPlayingGenre else {
+            guard selectedPlayingGenre != nil else {
                 guard index < idleCenters.count else {
                     return (idleHub, sideDisk, sideIcon)
                 }
                 return (idleCenters[index], sideDisk, sideIcon)
             }
-            let inactiveOrdered = genresOnFile.filter { $0 != sg }
-            guard let idx = inactiveOrdered.firstIndex(of: genre), idx < peripheryPlayingCenters.count else {
+            guard let idx = inactiveGenres.firstIndex(of: genre), idx < peripheryPlayingCenters.count else {
                 guard index < idleCenters.count else {
                     return (idleHub, sideDisk, sideIcon)
                 }
@@ -805,6 +859,46 @@ struct ResidentProfileView: View {
         let driftScale = GlyphFloatLayout.scalePulse(index: index, phase: phase)
         let roleScale: CGFloat =
             emphasis == .hero ? 1.02 : emphasis == .sideStrip ? 0.98 : 1
+
+        // The button itself (disk, blurs, shadows, artwork, hero equalizer) is `Equatable` and only
+        // re-evaluated when its genre / size / role changes; the per-tick drift is applied here as
+        // plain transforms, in the same order as before.
+        return ResidentGlyphButton(
+            genre: genre,
+            index: index,
+            diskDiameter: diskDiameter,
+            emphasis: emphasis,
+            isSelectedPlaying: selectedPlayingGenre == genre,
+            action: action
+        )
+        .equatable()
+        .position(x: pos.x, y: pos.y)
+        .rotationEffect(.degrees(rot))
+        .scaleEffect(driftScale * roleScale, anchor: .center)
+        .opacity(emphasis == .sideStrip ? max(0.55, 0.92 - mediaExpansion * 0.28) : 1)
+        .saturation(emphasis == .sideStrip ? max(0.78, 0.96 - mediaExpansion * 0.14) : 1.04)
+    }
+}
+
+/// One floating genre glyph, minus its motion. Equality ignores the action closure so SwiftUI can
+/// skip this body on every drift tick.
+private struct ResidentGlyphButton: View, Equatable {
+    let genre: ResidentMusicGenre
+    let index: Int
+    let diskDiameter: CGFloat
+    let emphasis: ResidentGlyphEmphasis
+    let isSelectedPlaying: Bool
+    let action: () -> Void
+
+    static func == (lhs: ResidentGlyphButton, rhs: ResidentGlyphButton) -> Bool {
+        lhs.genre == rhs.genre
+            && lhs.index == rhs.index
+            && lhs.diskDiameter == rhs.diskDiameter
+            && lhs.emphasis == rhs.emphasis
+            && lhs.isSelectedPlaying == rhs.isSelectedPlaying
+    }
+
+    var body: some View {
         let endR = diskDiameter * 0.62
         let eqRibbon = emphasis == .hero ? OrbRadialBarEqualizerView.outwardPad(for: diskDiameter) : 0
         let glyphStackSquare = diskDiameter + eqRibbon * 2
@@ -888,15 +982,11 @@ struct ResidentProfileView: View {
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(genre.accessibilityLabel)
-        .accessibilityAddTraits(selectedPlayingGenre == genre ? .isSelected : [])
+        .accessibilityAddTraits(isSelectedPlaying ? .isSelected : [])
+        .accessibilityIdentifier("surface.glyph.\(genre.rawValue)")
         // Keep the control's hit target to the disk — not the larger equalizer layout box.
         .frame(width: diskDiameter, height: diskDiameter)
         .contentShape(Circle())
-        .position(x: pos.x, y: pos.y)
-        .rotationEffect(.degrees(rot))
-        .scaleEffect(driftScale * roleScale, anchor: .center)
-        .opacity(emphasis == .sideStrip ? max(0.55, 0.92 - mediaExpansion * 0.28) : 1)
-        .saturation(emphasis == .sideStrip ? max(0.78, 0.96 - mediaExpansion * 0.14) : 1.04)
     }
 }
 
@@ -990,6 +1080,83 @@ private struct ResidentLuminousFloatingButton: View {
         }
         .shadow(color: accent.opacity(0.45), radius: 14)
         .shadow(color: BrandTheme.logoCyan.opacity(0.28), radius: 22)
+    }
+}
+
+// MARK: - Staff return (press and hold)
+
+/// Staff-only exit from the resident surface. A press-and-hold rather than a tap, so a resident
+/// exploring the screen can't end their own session by accident; a quick tap shows how to use it.
+private struct StaffReturnHoldButton: View {
+    let diameter: CGFloat
+    let action: () -> Void
+
+    private static let holdDuration: Double = 0.8
+    @State private var progress: CGFloat = 0
+    @State private var showHint = false
+    @State private var completed = false
+    @State private var hintGeneration = 0
+
+    var body: some View {
+        ResidentLuminousFloatingButton(
+            systemImage: "person.badge.key",
+            accent: BrandTheme.logoCyan,
+            diameter: diameter
+        )
+        .overlay {
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(BrandTheme.logoCyan, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: diameter + 10, height: diameter + 10)
+                .opacity(progress > 0 ? 1 : 0)
+                .allowsHitTesting(false)
+        }
+        .overlay(alignment: .topTrailing) {
+            if showHint {
+                Text("Staff: press and hold")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BrandTheme.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(BrandTheme.cream.opacity(0.92)))
+                    .overlay(Capsule().stroke(BrandTheme.logoCyan.opacity(0.5), lineWidth: 1))
+                    .fixedSize()
+                    .offset(y: diameter + 14)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .contentShape(Circle())
+        .onLongPressGesture(minimumDuration: Self.holdDuration, maximumDistance: 40) {
+            completed = true
+            CalmExperienceFeedback.buttonPress()
+            action()
+        } onPressingChanged: { pressing in
+            if pressing {
+                completed = false
+                withAnimation(.linear(duration: Self.holdDuration)) { progress = 1 }
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { progress = 0 }
+                if !completed { flashHint() }
+            }
+        }
+        .accessibilityElement()
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("End resident session (staff)")
+        .accessibilityIdentifier("surface.staffKey")
+        .accessibilityHint("Press and hold for one second. Staff only — opens the post-session observation.")
+        .accessibilityAction { action() }
+    }
+
+    private func flashHint() {
+        hintGeneration += 1
+        let generation = hintGeneration
+        withAnimation(.easeOut(duration: 0.2)) { showHint = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            guard generation == hintGeneration else { return }
+            withAnimation(.easeIn(duration: 0.3)) { showHint = false }
+        }
     }
 }
 
@@ -1146,6 +1313,7 @@ private struct PlaylistComfortChoiceButton: View {
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(choice.accessibilityLabel)
+        .accessibilityIdentifier(choice == .feelsGood ? "surface.like" : "surface.skip")
         .onChange(of: affirmationTick) { _, _ in
             guard affirmationChoice == choice else { return }
             playAffirmationGlow()

@@ -23,12 +23,13 @@ struct CarePatientListView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to home",
+                backAccessibilityLabel: "Back to start screen",
                 onBack: {
                     state.selectedCarePatientId = nil
                     state.navigateStaffToHome()
                 },
-                onLogout: { state.signOutSupervisor() }
+                onLogout: { state.signOutSupervisor() },
+                topAligned: true
             ) {
                 VStack(spacing: 22) {
                     rosterHeader
@@ -41,32 +42,39 @@ struct CarePatientListView: View {
                         displayModePicker
                     }
 
-                    careHomeSentimentCard
+                    // While searching, results sit directly under the field — the home summary
+                    // and session shortcuts would otherwise push them below the fold.
+                    if !presentation.isSearching {
+                        careHomeSentimentCard
 
-                    PrimaryButton(title: "Start discovery for new resident") {
-                        state.beginNewResidentDiscovery()
-                    }
-                    .padding(.horizontal, 24)
+                        PrimaryButton(title: "Start discovery for new resident") {
+                            state.beginNewResidentDiscovery()
+                        }
+                        .accessibilityIdentifier("roster.startDiscovery")
+                        .padding(.horizontal, 24)
 
-                    SecondaryButton(title: "Group mode") {
-                        state.beginGroupSession()
-                    }
-                    .padding(.horizontal, 24)
+                        SecondaryButton(title: "Group mode") {
+                            state.beginGroupSession()
+                        }
+                        .accessibilityIdentifier("roster.groupMode")
+                        .padding(.horizontal, 24)
 
-                    groupModeHint
+                        groupModeHint
 
-                    if let groupLine = state.latestGroupSessionSummaryLine() {
-                        FadeInLine(text: groupLine, font: BrandTheme.orbHintFont(), muted: true, delay: 0.12)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 12)
+                        if let groupLine = state.latestGroupSessionSummaryLine() {
+                            FadeInLine(text: groupLine, font: BrandTheme.orbHintFont(), muted: true, delay: 0.12)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 12)
+                        }
                     }
 
                     rosterSections
 
                     if !presentation.isSearching, !presentation.isBrowsingAll {
-                        SecondaryButton(title: "Browse all \(presentation.totalActiveResidents) residents") {
+                        SecondaryButton(title: browseAllTitle) {
                             state.rosterBrowsingAllResidents = true
                         }
+                        .accessibilityIdentifier("roster.browseAll")
                         .padding(.horizontal, 24)
                     }
 
@@ -74,6 +82,7 @@ struct CarePatientListView: View {
                         SecondaryButton(title: "Back to today’s roster") {
                             state.rosterBrowsingAllResidents = false
                         }
+                        .accessibilityIdentifier("roster.backToToday")
                         .padding(.horizontal, 24)
                     }
 
@@ -81,6 +90,7 @@ struct CarePatientListView: View {
                         SecondaryButton(title: "Switch care home") {
                             state.switchHome()
                         }
+                        .accessibilityIdentifier("roster.switchHome")
                         .padding(.horizontal, 24)
                     }
                 }
@@ -97,11 +107,25 @@ struct CarePatientListView: View {
         }
     }
 
+    private var browseAllTitle: String {
+        if let wing = presentation.wingFilterName, let count = presentation.wingResidentCount {
+            return "Browse all \(count) on \(wing)"
+        }
+        return "Browse all \(presentation.totalActiveResidents) residents"
+    }
+
+    private var rosterHeaderLine: String {
+        if let wing = presentation.wingFilterName, let count = presentation.wingResidentCount {
+            return "\(count) resident\(count == 1 ? "" : "s") on \(wing) · curated for today"
+        }
+        return "\(presentation.totalActiveResidents) residents · curated for today"
+    }
+
     private var rosterHeader: some View {
         VStack(spacing: 8) {
             FadeInTitle(text: presentation.homeName, delay: 0)
             FadeInLine(
-                text: "\(presentation.totalActiveResidents) residents · curated for today",
+                text: rosterHeaderLine,
                 font: BrandTheme.orbHintFont(),
                 muted: true,
                 delay: 0.04
@@ -115,18 +139,21 @@ struct CarePatientListView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(BrandTheme.textSecondary)
-            TextField("Search name, room, or wing", text: $state.rosterSearchQuery)
+            TextField("Search residents", text: $state.rosterSearchQuery, prompt: BrandTheme.fieldPrompt("Search name, room, or wing"))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($searchFocused)
+                .accessibilityIdentifier("roster.search")
             if !state.rosterSearchQuery.isEmpty {
                 Button {
                     state.rosterSearchQuery = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(BrandTheme.textSecondary)
+                        .expandedHitArea(vertical: 12, horizontal: 12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ChimingPlainButtonStyle())
+                .accessibilityLabel("Clear search")
             }
         }
         .font(.body)
@@ -172,7 +199,9 @@ struct CarePatientListView: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(BrandTheme.gold.opacity(selected ? 0.5 : 0.22), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChimingPlainButtonStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("roster.wing.\(title)")
     }
 
     private var displayModePicker: some View {
@@ -182,6 +211,8 @@ struct CarePatientListView: View {
             }
         }
         .pickerStyle(.segmented)
+        .chimeOnChange(of: state.rosterDisplayMode)
+        .accessibilityIdentifier("roster.displayMode")
         .padding(.horizontal, 4)
     }
 
@@ -191,6 +222,23 @@ struct CarePatientListView: View {
     // list every active resident in the home instead of the day's curated ~20.
     @ViewBuilder
     private var rosterSections: some View {
+        if state.carePatients.isEmpty {
+            // Only reachable if the welcome gate hit its cap before the roster finished seeding.
+            VStack(spacing: 14) {
+                BreathingCalmProgressView(diameter: 48)
+                Text("Loading residents…")
+                    .font(BrandTheme.orbHintFont())
+                    .orbOverlayText(muted: true)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 36)
+            .accessibilityElement(children: .combine)
+        } else {
+            rosterSectionList
+        }
+    }
+
+    private var rosterSectionList: some View {
         LazyVStack(alignment: .leading, spacing: 22) {
             ForEach(presentation.sections) { section in
                 VStack(alignment: .leading, spacing: 12) {
@@ -230,7 +278,6 @@ struct CarePatientListView: View {
                         CarePatientPortraitView(
                             assetName: patient.stockPortraitAssetName,
                             customImage: state.portraitImage(for: patient.id),
-                            remoteURL: patient.remotePortraitURL,
                             size: 44
                         )
                         VStack(alignment: .leading, spacing: 2) {
@@ -254,6 +301,7 @@ struct CarePatientListView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(ChimingPlainButtonStyle())
+                .accessibilityIdentifier("roster.resident.\(patient.displayName)")
 
                 Button {
                     state.toggleRosterPin(patient.id)
@@ -261,8 +309,10 @@ struct CarePatientListView: View {
                     Image(systemName: isPinned ? "star.fill" : "star")
                         .foregroundStyle(isPinned ? BrandTheme.gold : BrandTheme.textSecondary)
                         .frame(width: 36, height: 36)
+                        .expandedHitArea(vertical: 4, horizontal: 4)
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("roster.pin.\(patient.displayName)")
+                .buttonStyle(ChimingPlainButtonStyle())
                 .accessibilityLabel(isPinned ? "Unpin \(patient.displayName)" : "Pin \(patient.displayName)")
             }
             .padding(.horizontal, 4)
@@ -271,12 +321,12 @@ struct CarePatientListView: View {
                 OrbPortraitNavButton(
                     portraitAssetName: patient.stockPortraitAssetName,
                     customPortraitImage: state.portraitImage(for: patient.id),
-                    remotePortraitURL: patient.remotePortraitURL,
                     title: patient.displayName,
                     subtitle: subtitle
                 ) {
                     openPatient(patient)
                 }
+                .accessibilityIdentifier("roster.resident.\(patient.displayName)")
 
                 Button {
                     state.toggleRosterPin(patient.id)
@@ -285,8 +335,11 @@ struct CarePatientListView: View {
                         .font(.body)
                         .foregroundStyle(isPinned ? BrandTheme.gold : BrandTheme.textSecondary)
                         .padding(10)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.interaction, Rectangle())
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("roster.pin.\(patient.displayName)")
+                .buttonStyle(ChimingPlainButtonStyle())
                 .accessibilityLabel(isPinned ? "Unpin \(patient.displayName)" : "Pin \(patient.displayName)")
             }
             .padding(.horizontal, 4)
@@ -299,23 +352,26 @@ struct CarePatientListView: View {
         state.transitionToPhase(.carePatientDetail)
     }
 
+    /// Kept short so the roster scans at a glance — where they are and how the last visit went.
+    /// Full sentiment averages live on the resident's profile.
     private func rosterSubtitle(for patient: CarePatientProfile) -> String {
         var parts = [patient.careContextLabel]
-        if let sentiment = state.sentimentSummary(for: patient.id).formattedAveragesLine() {
-            parts.append(sentiment)
-        }
         if let last = state.recordsForPatient(patient.id).first {
-            parts.append(lastSessionSummary(last))
+            parts.append("Last visit \(relativeDay(last.date)) · \(last.calmPercent)% at ease")
+        } else {
+            parts.append("No visits yet")
         }
         return parts.joined(separator: " · ")
     }
 
-    private func lastSessionSummary(_ last: CareSessionRecord) -> String {
-        var parts = ["Last visit", last.moodSummary, "\(last.calmPercent)% at ease"]
-        if let s = last.settledness {
-            parts.append("settled \(s)%")
+    private func relativeDay(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: Date())).day ?? 0
+        switch days {
+        case ..<1: return "today"
+        case 1: return "yesterday"
+        default: return "\(days) days ago"
         }
-        return parts.joined(separator: " · ")
     }
 
     private var careHomeSentimentCard: some View {
@@ -324,7 +380,7 @@ struct CarePatientListView: View {
             if overview.hasData {
                 BrandCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Care home — supervisor observations")
+                        Text("Care home — carer observations")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(BrandTheme.textSecondary)
                         Text("Rolling averages across recent sessions with sentiment ratings.")
@@ -387,7 +443,8 @@ struct CareDiscoveryAgeInputView: View {
                                 Text("Age")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(BrandTheme.textSecondary)
-                                TextField("e.g. 82", text: $state.newResidentAgeDraft)
+                                TextField("Age", text: $state.newResidentAgeDraft, prompt: BrandTheme.fieldPrompt("e.g. 82"))
+                                    .accessibilityIdentifier("discovery.age")
                                     .keyboardType(.numberPad)
                                     .focused($ageFocused)
                                     .font(.title2.weight(.medium))
@@ -427,6 +484,7 @@ struct CareDiscoveryAgeInputView: View {
                     PrimaryButton(title: "Begin listening discovery") {
                         errorMessage = state.continueNewResidentDiscoveryFromAgeInput()
                     }
+                    .accessibilityIdentifier("discovery.begin")
                     .padding(.horizontal, 24)
                 }
                 .padding(.vertical, 28)
@@ -445,12 +503,18 @@ struct CareNewResidentProfileView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var errorMessage: String?
+    @State private var isLoadingPhoto = false
+    @State private var photoLoadError: String?
+    @State private var showDiscardConfirm = false
 
     var body: some View {
         ScreenFadeIn {
+            // Leaving here deletes the provisional resident and their whole discovery session, so
+            // the control says "Discard" and asks first instead of posing as a plain Back.
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to roster",
-                onBack: { state.cancelNewResidentProfileSave() },
+                backTitle: "Discard",
+                backAccessibilityLabel: "Discard new resident",
+                onBack: { showDiscardConfirm = true },
                 onLogout: { state.signOutSupervisor() }
             ) {
                 VStack(spacing: 22) {
@@ -491,6 +555,7 @@ struct CareNewResidentProfileView: View {
                             CalmExperienceFeedback.signInSuccess()
                         }
                     }
+                    .accessibilityIdentifier("newResident.save")
                     .padding(.horizontal, 24)
                 }
                 .padding(.vertical, 28)
@@ -500,13 +565,35 @@ struct CareNewResidentProfileView: View {
             CameraPicker(image: $state.newResidentProfilePhoto)
                 .ignoresSafeArea()
         }
+        .onAppear {
+            // Demo recordings only: stand-in portrait so the scripted flow can reach "Save to roster".
+            if DemoLaunchOptions.autoPhoto, state.newResidentProfilePhoto == nil {
+                state.newResidentProfilePhoto = UIImage(named: "PortraitWoman06")
+            }
+        }
+        .confirmationDialog("Discard this resident?", isPresented: $showDiscardConfirm, titleVisibility: .visible) {
+            Button("Discard resident and discovery", role: .destructive) {
+                state.cancelNewResidentProfileSave()
+            }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("Their listening discovery and photo won’t be saved.")
+        }
         .onChange(of: photoItem) { _, new in
-            Task {
-                guard let new else { return }
-                if let data = try? await new.loadTransferable(type: Data.self),
-                   let ui = UIImage(data: data) {
-                    let resized = ui.downscaledForDisplay(maxDimension: 600)
-                    await MainActor.run { state.newResidentProfilePhoto = resized }
+            guard let new else { return }
+            isLoadingPhoto = true
+            photoLoadError = nil
+            // Decode off-main (ImageIO thumbnail) and show progress — see `PhotoLoadStatusLine`.
+            Task.detached(priority: .userInitiated) {
+                let data = try? await new.loadTransferable(type: Data.self)
+                let image = data.flatMap { UIImage.decodedThumbnail(from: $0, maxDimension: 600) }
+                await MainActor.run {
+                    isLoadingPhoto = false
+                    if let image {
+                        state.newResidentProfilePhoto = image
+                    } else {
+                        photoLoadError = "That photo couldn’t be opened. Try another one."
+                    }
                 }
             }
         }
@@ -536,11 +623,16 @@ struct CareNewResidentProfileView: View {
             PhotosPicker(selection: $photoItem, matching: .images) {
                 OrbPickerLabel(title: "Choose photo", systemImage: "photo.stack")
             }
+            .accessibilityIdentifier("newResident.choosePhoto")
+            .buttonStyle(ChimingPlainButtonStyle())
+
+            PhotoLoadStatusLine(isLoading: isLoadingPhoto, error: photoLoadError)
 
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button { showCamera = true } label: {
                     OrbPickerLabel(title: "Take photo", systemImage: "camera.fill")
                 }
+                .accessibilityIdentifier("newResident.takePhoto")
                 .buttonStyle(ChimingPlainButtonStyle())
             }
         }
@@ -556,7 +648,8 @@ struct CareNewResidentProfileView: View {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BrandTheme.textSecondary)
-            TextField(prompt, text: text)
+            TextField(title, text: text, prompt: BrandTheme.fieldPrompt(prompt))
+                .accessibilityIdentifier("newResident.\(title.lowercased())")
                 .keyboardType(keyboard)
                 .font(.body)
                 .foregroundStyle(BrandTheme.textPrimary)
@@ -615,8 +708,10 @@ struct ResidentNationalityMenuField: View {
                         .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
                 )
             }
+            .accessibilityIdentifier("nationality.menu")
             .accessibilityLabel("\(title), \(selection.displayName)")
             .accessibilityHint("Opens a list of nationalities")
+            .chimeOnChange(of: selection)
 
             if let caption, !caption.isEmpty {
                 Text(caption)
@@ -703,6 +798,7 @@ struct CareSessionPrepView: View {
                                         .foregroundStyle(BrandTheme.textSecondary)
                                 }
                                 Slider(value: $state.iotMaxSceneBrightness, in: 0.15 ... 1)
+                                .accessibilityIdentifier("prep.brightness")
                                     .tint(BrandTheme.goldDeep)
                             }
                             .padding(.top, 4)
@@ -745,7 +841,9 @@ struct CareSessionPrepView: View {
                                 Text("\(m) min").tag(m)
                             }
                         }
+                        .accessibilityIdentifier("prep.minutes")
                         .pickerStyle(.segmented)
+                        .chimeOnChange(of: state.carePlannedDurationMinutes)
                         Text("Only a guide — stop whenever it feels right. Lights can ease down with the closing breath.")
                             .font(.caption2)
                             .foregroundStyle(BrandTheme.textSecondary)
@@ -760,6 +858,7 @@ struct CareSessionPrepView: View {
                     PrimaryButton(title: "Continue — photo or quick session") {
                         state.continueCareSessionFromPrep()
                     }
+                    .accessibilityIdentifier("prep.continue")
                     .padding(.horizontal, 24)
                 }
                 .padding(.vertical, 28)
@@ -774,7 +873,9 @@ struct CareSessionPrepView: View {
                 .foregroundStyle(BrandTheme.textPrimary)
                 .multilineTextAlignment(.leading)
         }
+        .accessibilityIdentifier("prep.toggle.\(title)")
         .tint(BrandTheme.goldDeep)
+        .chimeOnChange(of: isOn.wrappedValue)
     }
 }
 
@@ -817,7 +918,6 @@ struct CarePatientDetailView: View {
                         CarePatientPortraitView(
                             assetName: patient.stockPortraitAssetName,
                             customImage: state.portraitImage(for: patient.id),
-                            remoteURL: patient.remotePortraitURL,
                             size: portraitSize
                         )
                         .shadow(color: BrandTheme.brown.opacity(0.12), radius: 10, y: 4)
@@ -834,6 +934,13 @@ struct CarePatientDetailView: View {
                         }
                         .frame(maxWidth: .infinity)
 
+                        // The main reason a carer opens a profile — keep it above the fold.
+                        PrimaryButton(title: "Open resident calm surface") {
+                            state.openResidentProfile()
+                        }
+                        .accessibilityIdentifier("profile.openSurface")
+                        .padding(.horizontal, 24)
+
                         patientSentimentSummaryCard(patient)
 
                         genrePlaylistsCard(patient)
@@ -842,7 +949,7 @@ struct CarePatientDetailView: View {
 
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("Resident session (handoff)")
+                                Text("Listening profile")
                                     .font(DetailTypography.section)
                                     .foregroundStyle(BrandTheme.textSecondary)
                                 Stepper(value: Binding(
@@ -853,6 +960,8 @@ struct CarePatientDetailView: View {
                                         .font(DetailTypography.body)
                                         .foregroundStyle(BrandTheme.textPrimary)
                                 }
+                                .accessibilityIdentifier("profile.age")
+                                .chimeOnChange(of: patient.residentAgeYears)
                                 ResidentNationalityMenuField(
                                     title: "Nationality",
                                     selection: Binding(
@@ -865,9 +974,6 @@ struct CarePatientDetailView: View {
                                     .font(DetailTypography.secondary)
                                     .foregroundStyle(BrandTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
-                                PrimaryButton(title: "Open resident calm surface") {
-                                    state.openResidentProfile()
-                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -878,13 +984,14 @@ struct CarePatientDetailView: View {
                                 Text("Listening discovery")
                                     .font(DetailTypography.section)
                                     .foregroundStyle(BrandTheme.textSecondary)
-                                Text("Up to six calm clips (about 30 seconds each, unless they tap sooner). Tap the traffic-light faces (red unhappy → green happy) to match each sound — each tap completes that clip and starts the next. If they listen without tapping, we move on when the slice ends using a neutral default. When the pass ends, we reshuffle playlist genres/stubs from those picks, open their calm sandbox, and surface more instrument glyphs when discovery finds gaps.")
+                                Text("Seven short clips, one per genre (about 30 seconds each). The resident taps a face — red, amber or green — for each one; we then suggest genre playlists from what they enjoyed and open their calm surface.")
                                     .font(DetailTypography.secondary)
                                     .foregroundStyle(BrandTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                                 SecondaryButton(title: "Start discovery pass") {
                                     state.startDiscoveryCalibration(for: patient.id)
                                 }
+                                .accessibilityIdentifier("profile.startDiscovery")
                                 if let line = discoveryRunSummary(for: patient.id, state: state) {
                                     Text(line)
                                         .font(DetailTypography.body.weight(.medium))
@@ -965,7 +1072,7 @@ struct CarePatientDetailView: View {
                                                     .font(DetailTypography.label)
                                                     .foregroundStyle(BrandTheme.textSecondary)
                                                 Spacer()
-                                                Text("\(rec.calmPercent)% calm")
+                                                Text("\(rec.calmPercent)% at ease")
                                                     .font(DetailTypography.body.weight(.medium))
                                                     .foregroundStyle(BrandTheme.goldDeep)
                                             }
@@ -1020,6 +1127,7 @@ struct CarePatientDetailView: View {
                         PrimaryButton(title: "Lights, headset & timing") {
                             state.openCareSessionPrep()
                         }
+                        .accessibilityIdentifier("profile.prepSession")
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
                     } else {
@@ -1046,7 +1154,7 @@ struct CarePatientDetailView: View {
             if summary.hasData {
                 BrandCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Supervisor sentiment (recent sessions)")
+                        Text("Carer observations (recent sessions)")
                             .font(DetailTypography.section)
                             .foregroundStyle(BrandTheme.textSecondary)
                         Text("Rolling averages from post-session carer observations (1–10) — mood/affect, alertness, emotional presentation, and orientation.")
@@ -1118,7 +1226,8 @@ struct CarePatientDetailView: View {
                         .font(DetailTypography.secondary)
                         .foregroundStyle(BrandTheme.textTertiary)
                 } else {
-                    FlowLayoutChipWrap {
+                    // Content-sized chips (the fixed-column grid truncated titles to "Velvet…").
+                    InsightChipFlow {
                         ForEach(selected, id: \.self) { title in
                             Button {
                                 state.removeSuggestedLikedTrack(for: patient.id, title: title)
@@ -1150,6 +1259,7 @@ struct CarePatientDetailView: View {
                                         )
                                 )
                             }
+                            .accessibilityIdentifier("profile.song.remove.\(title)")
                             .buttonStyle(ChimingPlainButtonStyle())
                             .accessibilityLabel("Remove \(title) from suggested liked songs")
                         }
@@ -1162,6 +1272,8 @@ struct CarePatientDetailView: View {
                     } else {
                         ForEach(available, id: \.self) { title in
                             Button {
+                                // Menu items are UIKit-drawn (no button style) — chime explicitly.
+                                CalmExperienceFeedback.buttonPress()
                                 state.addSuggestedLikedTrack(for: patient.id, title: title)
                             } label: {
                                 let genres = ResidentPlaybackTrackCatalog.genres(containing: title)
@@ -1193,6 +1305,7 @@ struct CarePatientDetailView: View {
                             .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
                     )
                 }
+                .accessibilityIdentifier("profile.addSong")
                 .disabled(available.isEmpty)
                 .accessibilityLabel("Add suggested liked song")
             }
@@ -1224,7 +1337,7 @@ struct CarePatientDetailView: View {
                         Text(pl.title)
                             .font(DetailTypography.body.weight(.medium))
                             .foregroundStyle(BrandTheme.textPrimary)
-                        Text("\(pl.trackTitles.count) tracks in player · about \(pl.durationMinutes) min")
+                        Text("\(pl.trackTitles.count) track\(pl.trackTitles.count == 1 ? "" : "s") in player · about \(pl.durationMinutes) min")
                             .font(DetailTypography.secondary)
                             .foregroundStyle(BrandTheme.textSecondary)
                     }
@@ -1312,10 +1425,14 @@ struct CareSessionSentimentFeedbackView: View {
 
     var body: some View {
         ScreenFadeIn {
+            // Top-aligned: the step card grows (note field on the last step), and a centred
+            // layout would slide the rating buttons out from under the carer's finger.
             CenteredScrollScreen(
+                backTitle: state.sessionSentimentStep > 0 ? "Back" : "Skip",
                 backAccessibilityLabel: backLabel,
                 onBack: handleBack,
-                onLogout: { state.signOutSupervisor() }
+                onLogout: { state.signOutSupervisor() },
+                topAligned: true
             ) {
                 VStack(spacing: 24) {
                     if let patient {
@@ -1373,7 +1490,8 @@ struct CareSessionSentimentFeedbackView: View {
                                         Text("Optional note")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(BrandTheme.textSecondary)
-                                        TextField("Anything else to remember?", text: $state.sessionSentimentDraft.note, axis: .vertical)
+                                        TextField("Note", text: $state.sessionSentimentDraft.note, prompt: BrandTheme.fieldPrompt("Anything else to remember?"), axis: .vertical)
+                                        .accessibilityIdentifier("observation.note")
                                             .lineLimit(1 ... 4)
                                             .font(.body)
                                             .foregroundStyle(BrandTheme.textPrimary)
@@ -1398,7 +1516,7 @@ struct CareSessionSentimentFeedbackView: View {
                             autoAdvanceToken += 1
                         }
 
-                        PrimaryButton(title: isLastStep ? "Save to profile" : "Next") {
+                        PrimaryButton(title: isLastStep ? "Save observation" : "Next") {
                             if isLastStep {
                                 state.saveSessionSentimentFeedback()
                                 CalmExperienceFeedback.signInSuccess()
@@ -1406,6 +1524,7 @@ struct CareSessionSentimentFeedbackView: View {
                                 state.advanceSessionSentimentStep()
                             }
                         }
+                        .accessibilityIdentifier("observation.save")
                         .disabled(currentSelection == nil)
                         .opacity(currentSelection == nil ? 0.45 : 1)
                         .animation(CalmMotion.subtle, value: currentSelection)
@@ -1414,6 +1533,7 @@ struct CareSessionSentimentFeedbackView: View {
                         SecondaryButton(title: "Skip for now") {
                             state.skipSessionSentimentFeedback()
                         }
+                        .accessibilityIdentifier("observation.skip")
                         .padding(.horizontal, 24)
                     } else {
                         FadeInLine(text: "No resident linked to this session.", delay: 0)
@@ -1438,7 +1558,9 @@ struct CareSessionSentimentFeedbackView: View {
     }
 
     private var backLabel: String {
-        state.sessionSentimentStep > 0 ? "Previous question" : "Skip feedback"
+        state.sessionSentimentStep > 0
+            ? "Previous question"
+            : "Skip feedback — saves the session without ratings"
     }
 
     private func handleBack() {
@@ -1497,6 +1619,7 @@ struct SentimentScalePicker: View {
                     }
                     .buttonStyle(ChimingPlainButtonStyle())
                     .accessibilityLabel("\(value) out of 10")
+                    .accessibilityIdentifier("rating.\(value)")
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
@@ -1535,7 +1658,7 @@ struct CareSessionFeedbackView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to session summary",
+                backAccessibilityLabel: "Back to ‘How that felt’",
                 onBack: { state.phase = .insight },
                 onLogout: { state.signOutSupervisor() }
             ) {
@@ -1587,7 +1710,8 @@ struct CareSessionFeedbackView: View {
                             Text("Your note (optional)")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(BrandTheme.textSecondary)
-                            TextField("What helped — light, touch, sound? What would you soften next time?", text: $staffNote, axis: .vertical)
+                            TextField("Staff note", text: $staffNote, prompt: BrandTheme.fieldPrompt("What helped — light, touch, sound? What would you soften next time?"), axis: .vertical)
+                            .accessibilityIdentifier("feedback.note")
                                 .lineLimit(1 ... 10)
                                 .font(.body)
                                 .foregroundStyle(BrandTheme.textPrimary)
@@ -1612,11 +1736,13 @@ struct CareSessionFeedbackView: View {
                                 staffNote: staffNote
                             )
                         }
+                        .accessibilityIdentifier("feedback.save")
                         .padding(.horizontal, 24)
 
                         SecondaryButton(title: "Skip — keep session only") {
                             state.skipCareFeedback()
                         }
+                        .accessibilityIdentifier("feedback.skip")
                         .padding(.horizontal, 24)
                     } else {
                         FadeInLine(text: "Pick someone from the list to save a note.", delay: 0)
@@ -1656,6 +1782,7 @@ struct CareSessionFeedbackView: View {
                 .font(.caption2)
                 .foregroundStyle(BrandTheme.textSecondary)
             Slider(value: value, in: 0 ... 1)
+            .accessibilityIdentifier("feedback.outcome.\(title)")
                 .tint(BrandTheme.goldDeep)
         }
     }
@@ -1672,6 +1799,7 @@ struct CareSessionFeedbackView: View {
                     .foregroundStyle(BrandTheme.textSecondary)
             }
             Slider(value: value, in: 0 ... 1)
+            .accessibilityIdentifier("feedback.tuning.\(title)")
                 .tint(BrandTheme.goldDeep)
         }
         .padding(.horizontal, 4)
@@ -1709,14 +1837,18 @@ private struct SessionContextCaptureCard: View {
                         .font(.subheadline)
                         .foregroundStyle(BrandTheme.textPrimary)
                 }
+                .accessibilityIdentifier("observation.residentLed")
                 .tint(BrandTheme.goldDeep)
+                .chimeOnChange(of: context.residentLedSession)
 
                 Toggle(isOn: $context.distressOrPRNNearby) {
                     Text("Acute distress or PRN (as-required) medication nearby")
                         .font(.subheadline)
                         .foregroundStyle(BrandTheme.textPrimary)
                 }
+                .accessibilityIdentifier("observation.distress")
                 .tint(BrandTheme.goldDeep)
+                .chimeOnChange(of: context.distressOrPRNNearby)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1751,7 +1883,9 @@ private struct SessionContextCaptureCard: View {
                             )
                             .foregroundStyle(BrandTheme.textPrimary)
                     }
-                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("observation.chip.\(tag.label)")
+                    .buttonStyle(ChimingPlainButtonStyle())
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
@@ -1787,7 +1921,9 @@ private struct SessionContextCaptureCard: View {
                             )
                             .foregroundStyle(BrandTheme.textPrimary)
                     }
-                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("observation.chip.\(chipLabel(for: item))")
+                    .buttonStyle(ChimingPlainButtonStyle())
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
@@ -1815,11 +1951,63 @@ private struct FlowLayoutChipWrap<Content: View>: View {
     }
 }
 
-// MARK: - Post-session insight pack (handover + family export)
+// MARK: - Post-session summary (handover + family export)
 
+/// What the supervisor sees after rating a session: the essentials first (trend, time, music),
+/// then carer ratings, what the resident responded to and one suggested next step. The three
+/// write-ups (handover, family, care plan) sit behind one switcher with a single copy button,
+/// so only one block of prose is ever on screen.
 struct CareSessionInsightView: View {
     @ObservedObject var state: SessionPOCState
-    @State private var copiedBanner: String?
+    @State private var shareKind: ShareKind = .handover
+    @State private var copiedKind: ShareKind?
+    @State private var copiedGeneration = 0
+    @State private var narrativeExpanded = false
+
+    private enum ShareKind: String, CaseIterable, Identifiable {
+        case handover, family, carePlan
+
+        var id: String { rawValue }
+
+        var tabTitle: String {
+            switch self {
+            case .handover: return "Handover"
+            case .family: return "Family"
+            case .carePlan: return "Care plan"
+            }
+        }
+
+        var purpose: String {
+            switch self {
+            case .handover: return "For the next shift's nursing handover."
+            case .family: return "A plain-language update to share with family."
+            case .carePlan: return "One entry for the resident's care plan review."
+            }
+        }
+
+        var copyTitle: String {
+            switch self {
+            case .handover: return "Copy nursing handover"
+            case .family: return "Copy family update"
+            case .carePlan: return "Copy care plan entry"
+            }
+        }
+
+        var copiedTitle: String {
+            switch self {
+            case .handover: return "Handover copied ✓"
+            case .family: return "Family update copied ✓"
+            case .carePlan: return "Care plan entry copied ✓"
+            }
+        }
+    }
+
+    private enum Tone {
+        static let sun = Color(red: 1.0, green: 0.84, blue: 0.24)
+        static let cloud = Color(red: 0.75, green: 0.79, blue: 0.84)
+        static let attention = BrandTheme.nebulaSalmon
+        static let tile = BrandTheme.creamDeep.opacity(0.75)
+    }
 
     private var patient: CarePatientProfile? {
         state.carePatient(id: state.activeCarePatientId ?? state.selectedCarePatientId)
@@ -1836,61 +2024,36 @@ struct CareSessionInsightView: View {
                 onBack: { state.completeSessionInsightReview() },
                 onLogout: { state.signOutSupervisor() }
             ) {
-                VStack(spacing: 22) {
+                VStack(spacing: 18) {
                     if let patient, let pack {
-                        FadeInTitle(text: "Session insight", delay: 0)
-                        FadeInLine(
-                            text: "Structured for nursing handover, care plan review, or family communication — generated from this session and \(patient.displayName)'s history. Carer-observed data only.",
-                            delay: 0.06
-                        )
-
-                        insightCard(title: "Clinical narrative", body: pack.narrative)
-
-                        if !pack.deltaLines.isEmpty {
-                            insightCard(
-                                title: "Compared to recent sessions",
-                                body: pack.deltaLines.joined(separator: "\n")
-                            )
+                        VStack(spacing: 8) {
+                            FadeInTitle(text: "Session summary", delay: 0)
+                            FadeInLine(text: "\(patient.displayName) · \(pack.summary.dateText)", delay: 0.06)
                         }
+                        .padding(.bottom, 4)
 
-                        insightCard(title: "Suggested care plan action", body: pack.suggestedNextStep, accent: true)
-
-                        insightCard(title: "Care plan entry", body: pack.carePlanBullet)
-
-                        insightCard(title: "Nursing handover record", body: pack.handoverText, monospaced: true)
-
-                        insightCard(title: "Family communication", body: pack.familyText)
-
-                        VStack(spacing: 12) {
-                            PrimaryButton(title: "Copy nursing handover") {
-                                copy(pack.handoverText, label: "Handover copied")
-                            }
-                            SecondaryButton(title: "Copy family update") {
-                                copy(pack.familyText, label: "Family update copied")
-                            }
-                            SecondaryButton(title: "Copy care plan entry") {
-                                copy(pack.carePlanBullet, label: "Care plan entry copied")
-                            }
+                        glanceCard(pack.summary)
+                        if !pack.summary.ratings.isEmpty || pack.summary.note != nil {
+                            observationsCard(pack.summary)
                         }
-                        .padding(.horizontal, 24)
+                        if hasMusicDetail(pack.summary) {
+                            respondedCard(pack.summary)
+                        }
+                        nextStepCard(pack.suggestedNextStep)
+                        shareCard(pack)
 
                         PrimaryButton(title: "Done — back to roster") {
                             state.completeSessionInsightReview()
                         }
+                        .accessibilityIdentifier("summary.done")
                         .padding(.horizontal, 24)
-                        .padding(.top, 4)
-
-                        if let copiedBanner {
-                            Text(copiedBanner)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(BrandTheme.goldDeep)
-                                .transition(.opacity)
-                        }
+                        .padding(.top, 6)
                     } else {
-                        FadeInLine(text: "No insight available for this session.", delay: 0)
+                        FadeInLine(text: "No summary available for this session.", delay: 0)
                         PrimaryButton(title: "Back to roster") {
                             state.completeSessionInsightReview()
                         }
+                        .accessibilityIdentifier("summary.back")
                         .padding(.horizontal, 24)
                     }
                 }
@@ -1899,31 +2062,477 @@ struct CareSessionInsightView: View {
         }
     }
 
-    private func insightCard(
-        title: String,
-        body: String,
-        accent: Bool = false,
-        monospaced: Bool = false
+    // MARK: Cards
+
+    private func glanceCard(_ summary: CareSessionInsightSummary) -> some View {
+        sectionCard("At a glance", systemImage: "sparkles") {
+            if let trend = summary.trend {
+                trendBadge(trend)
+            }
+
+            HStack(spacing: 10) {
+                statTile(value: summary.durationText ?? "—", label: "With music")
+                statTile(value: "\(summary.genres.count)", label: summary.genres.count == 1 ? "Genre" : "Genres")
+                statTile(value: "\(summary.liked.count) · \(summary.skipped.count)", label: "Liked · skipped")
+            }
+
+            if !summary.trendNotes.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(summary.trendNotes, id: \.self) { note in
+                        bulletLine(note)
+                    }
+                }
+            }
+
+            if !summary.contextTags.isEmpty || summary.distressOrPRNNearby {
+                InsightChipFlow {
+                    ForEach(summary.contextTags, id: \.self) { tag in
+                        chip(Text(tag))
+                    }
+                    if summary.distressOrPRNNearby {
+                        chip(
+                            Text(Image(systemName: "exclamationmark.triangle.fill")) + Text(" Distress or PRN medication nearby"),
+                            tint: Tone.attention
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func observationsCard(_ summary: CareSessionInsightSummary) -> some View {
+        sectionCard("Carer observations", systemImage: "heart.text.square") {
+            if !summary.ratings.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(summary.ratings) { rating in
+                        ratingRow(rating)
+                    }
+                }
+                Text("1 = low or distressed · 10 = settled and responsive")
+                    .font(.caption)
+                    .foregroundStyle(BrandTheme.textTertiary)
+            }
+            if let note = summary.note {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Carer note")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    Text(note)
+                        .font(.callout.italic())
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 12)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(BrandTheme.logoPink.opacity(0.6)).frame(width: 3)
+                }
+            }
+        }
+    }
+
+    private func respondedCard(_ summary: CareSessionInsightSummary) -> some View {
+        sectionCard("What they responded to", systemImage: "music.note") {
+            if !summary.genres.isEmpty {
+                InsightChipFlow {
+                    ForEach(summary.genres) { play in
+                        genreChip(play)
+                    }
+                }
+            }
+            if !summary.liked.isEmpty {
+                trackGroup("Enjoyed", systemImage: "sun.max.fill", tint: Tone.sun, tracks: summary.liked)
+            }
+            if !summary.skipped.isEmpty {
+                trackGroup(
+                    "Moved on from",
+                    systemImage: "cloud.fill",
+                    tint: Tone.cloud,
+                    tracks: summary.skipped.map { .init(title: $0, detail: nil) }
+                )
+            }
+            if !summary.longestListening.isEmpty {
+                trackGroup("Longest listening", systemImage: "headphones", tint: BrandTheme.logoCyan, tracks: summary.longestListening)
+            }
+            if summary.calmRoomVisits > 0 {
+                Label(
+                    "Visited the calm nature room \(summary.calmRoomVisits) time\(summary.calmRoomVisits == 1 ? "" : "s")",
+                    systemImage: "leaf.fill"
+                )
+                .font(.footnote)
+                .foregroundStyle(BrandTheme.textSecondary)
+            }
+            if summary.frustrationBursts > 0 {
+                Label(
+                    "Rapid repeated taps \(summary.frustrationBursts)× — read as frustration, not preference",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.footnote)
+                .foregroundStyle(Tone.attention)
+            }
+        }
+    }
+
+    private func nextStepCard(_ step: String) -> some View {
+        sectionCard("Suggested next step", systemImage: "lightbulb.fill", highlighted: true) {
+            Text(step)
+                .font(.body)
+                .foregroundStyle(BrandTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func shareCard(_ pack: CareSessionInsightPack) -> some View {
+        sectionCard("Share & record", systemImage: "square.and.arrow.up") {
+            Picker("Write-up", selection: $shareKind) {
+                ForEach(ShareKind.allCases) { kind in
+                    Text(kind.tabTitle).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .chimeOnChange(of: shareKind)
+            .accessibilityIdentifier("summary.shareKind")
+
+            Text(shareKind.purpose)
+                .font(.footnote)
+                .foregroundStyle(BrandTheme.textSecondary)
+
+            shareContent(pack)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Tone.tile)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(BrandTheme.gold.opacity(0.16), lineWidth: 1)
+                )
+                .id(shareKind)
+                .transition(.opacity)
+
+            SecondaryButton(title: copiedKind == shareKind ? shareKind.copiedTitle : shareKind.copyTitle) {
+                copy(text(for: shareKind, in: pack), kind: shareKind)
+            }
+            .accessibilityIdentifier("summary.copy")
+
+            Text("Carer-observed data only — not a clinical assessment.")
+                .font(.caption)
+                .foregroundStyle(BrandTheme.textTertiary)
+                .frame(maxWidth: .infinity)
+        }
+        .animation(CalmMotion.subtle, value: shareKind)
+    }
+
+    @ViewBuilder
+    private func shareContent(_ pack: CareSessionInsightPack) -> some View {
+        switch shareKind {
+        case .handover:
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(pack.handoverSections) { section in
+                    let isNarrative = section.title == "Narrative"
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(section.title.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .tracking(0.6)
+                            .foregroundStyle(BrandTheme.textSecondary)
+                        // On screen only — the copied text keeps its original wording.
+                        Text(section.body.prefix(1).uppercased() + section.body.dropFirst())
+                            .font(.callout)
+                            .foregroundStyle(BrandTheme.textPrimary)
+                            .lineLimit(isNarrative && !narrativeExpanded ? 3 : nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if isNarrative {
+                            Button(narrativeExpanded ? "Show less" : "Read full narrative") {
+                                withAnimation(CalmMotion.subtle) { narrativeExpanded.toggle() }
+                            }
+                            .buttonStyle(ChimingPlainButtonStyle())
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(BrandTheme.logoCyan)
+                            .padding(.top, 2)
+                        }
+                    }
+                }
+            }
+        case .family:
+            Text(pack.familyText)
+                .font(.body)
+                .foregroundStyle(BrandTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        case .carePlan:
+            Text(pack.carePlanBullet)
+                .font(.body)
+                .foregroundStyle(BrandTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Pieces
+
+    private func sectionCard<Content: View>(
+        _ title: String,
+        systemImage: String,
+        highlighted: Bool = false,
+        @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         BrandCard {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text(body)
-                    .font(monospaced ? .caption.monospaced() : .body)
-                    .foregroundStyle(accent ? BrandTheme.goldDeep : BrandTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 14) {
+                Label {
+                    Text(title)
+                } icon: {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(highlighted ? Tone.sun : BrandTheme.logoCyan)
+                }
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(BrandTheme.textPrimary)
+                content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .overlay {
+            if highlighted {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Tone.sun.opacity(0.55), BrandTheme.logoPink.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+            }
         }
         .padding(.horizontal, 4)
     }
 
-    private func copy(_ text: String, label: String) {
+    private func trendBadge(_ trend: CareSessionInsightSummary.Trend) -> some View {
+        let (icon, title, detail, tint): (String, String, String, Color) = {
+            switch trend {
+            case .firstRated:
+                return ("flag.fill", "First rated session", "Sets the baseline for future comparisons", BrandTheme.logoCyan)
+            case let .higher(now, usual):
+                return ("arrow.up.right", "Better than usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.nebulaTeal)
+            case let .steady(now, usual):
+                return ("equal", "In line with usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.logoLavenderBlue)
+            case let .lower(now, usual):
+                return ("arrow.down.right", "Lower than usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", Tone.attention)
+            }
+        }()
+        return HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(tint.opacity(0.16)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(BrandTheme.textPrimary)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(BrandTheme.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func statTile(value: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.title3.weight(.semibold).monospacedDigit())
+                .foregroundStyle(BrandTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(BrandTheme.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 6)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.tile))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func ratingRow(_ rating: CareSessionInsightSummary.Rating) -> some View {
+        let tint = rating.value <= 4 ? Tone.attention : BrandTheme.logoCyan
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(rating.label)
+                    .font(.subheadline)
+                    .foregroundStyle(BrandTheme.textPrimary)
+                Spacer(minLength: 8)
+                Text("\(rating.value)/10")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(tint)
+            }
+            HStack(spacing: 3) {
+                ForEach(1 ... 10, id: \.self) { step in
+                    Capsule()
+                        .fill(step <= rating.value ? tint : Color.white.opacity(0.08))
+                        .frame(height: 7)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(rating.label), \(rating.value) out of 10")
+    }
+
+    private func genreChip(_ play: CareSessionInsightSummary.GenrePlay) -> some View {
+        HStack(spacing: 8) {
+            if let genre = play.genre {
+                Image(genre.artworkAssetName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 26, height: 26)
+                    .clipShape(Circle())
+            }
+            Text(play.name)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(BrandTheme.textPrimary)
+            if play.count > 1 {
+                Text("×\(play.count)")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(BrandTheme.textSecondary)
+            }
+        }
+        .padding(.leading, play.genre == nil ? 12 : 4)
+        .padding(.trailing, 12)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(Tone.tile))
+        .overlay(Capsule().stroke(BrandTheme.gold.opacity(0.22), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func trackGroup(
+        _ title: String,
+        systemImage: String,
+        tint: Color,
+        tracks: [CareSessionInsightSummary.TrackListen]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label {
+                Text(title)
+                    .foregroundStyle(BrandTheme.textSecondary)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint)
+            }
+            .font(.subheadline.weight(.semibold))
+            ForEach(tracks) { track in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(track.title)
+                        .font(.callout)
+                        .foregroundStyle(BrandTheme.textPrimary)
+                    Spacer(minLength: 8)
+                    if let detail = track.detail {
+                        Text(detail)
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(BrandTheme.textSecondary)
+                    }
+                }
+                .padding(.leading, 30)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func bulletLine(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle()
+                .fill(BrandTheme.logoCyan.opacity(0.7))
+                .frame(width: 5, height: 5)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(BrandTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func chip(_ text: Text, tint: Color = BrandTheme.textSecondary) -> some View {
+        text
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Tone.tile))
+            .overlay(Capsule().stroke(tint.opacity(0.28), lineWidth: 1))
+    }
+
+    // MARK: Helpers
+
+    private func hasMusicDetail(_ summary: CareSessionInsightSummary) -> Bool {
+        !summary.genres.isEmpty || !summary.liked.isEmpty || !summary.skipped.isEmpty
+            || !summary.longestListening.isEmpty || summary.calmRoomVisits > 0 || summary.frustrationBursts > 0
+    }
+
+    private func text(for kind: ShareKind, in pack: CareSessionInsightPack) -> String {
+        switch kind {
+        case .handover: return pack.handoverText
+        case .family: return pack.familyText
+        case .carePlan: return pack.carePlanBullet
+        }
+    }
+
+    private func score(_ value: Double) -> String {
+        String(format: "%.1f", value)
+    }
+
+    private func copy(_ text: String, kind: ShareKind) {
         UIPasteboard.general.string = text
+        copiedGeneration += 1
+        let generation = copiedGeneration
         withAnimation(CalmMotion.subtle) {
-            copiedBanner = label
+            copiedKind = kind
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            guard generation == copiedGeneration else { return }
+            withAnimation(CalmMotion.subtle) { copiedKind = nil }
+        }
+    }
+}
+
+/// Left-aligned wrapping row for chips of varying width.
+private struct InsightChipFlow: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            if x > 0, x + size.width > maxWidth {
+                y += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            widest = max(widest, x + size.width)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: widest, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                y += rowHeight + spacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: size.width, height: size.height))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

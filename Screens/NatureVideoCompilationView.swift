@@ -59,10 +59,17 @@ final class NatureCompilationSession: ObservableObject {
     /// `true` once the first remote clip is actually rendering frames. Drives the loading poster so
     /// the user never stares at a black player layer while the 720p clip buffers.
     @Published private(set) var isReady = false
+    /// `true` when the first clip failed or never started within `readinessTimeout` — the view swaps
+    /// the loading poster for a calm static fallback so an offline iPad never spins forever.
+    @Published private(set) var isUnavailable = false
+
+    static let readinessTimeout: TimeInterval = 8
 
     private let clipURLs: [URL]
     private var endObserver: NSObjectProtocol?
     private var timeControlObserver: NSKeyValueObservation?
+    private var itemStatusObserver: NSKeyValueObservation?
+    private var readinessTimeoutTask: Task<Void, Never>?
 
     init(clipURLs: [URL]) {
         self.clipURLs = clipURLs.isEmpty ? NatureVideoCompilation.mixkitQuickStartClipURLs : clipURLs
@@ -73,6 +80,8 @@ final class NatureCompilationSession: ObservableObject {
         timeControlObserver = queuePlayer.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
             guard let self, player.timeControlStatus == .playing else { return }
             DispatchQueue.main.async {
+                self.readinessTimeoutTask?.cancel()
+                self.isUnavailable = false
                 if !self.isReady { self.isReady = true }
             }
         }
@@ -80,14 +89,40 @@ final class NatureCompilationSession: ObservableObject {
 
     func prepareAndPlay() {
         clearQueue()
+        isUnavailable = false
         queuePlayer.isMuted = true
         queuePlayer.actionAtItemEnd = .advance
         enqueueRound()
+        observeFirstItemFailure()
+        armReadinessTimeout()
         queuePlayer.play()
     }
 
     func pause() {
         queuePlayer.pause()
+        readinessTimeoutTask?.cancel()
+    }
+
+    /// Offline / blocked CDN: the first item fails fast — don't make the resident wait out the timer.
+    private func observeFirstItemFailure() {
+        itemStatusObserver?.invalidate()
+        itemStatusObserver = queuePlayer.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            DispatchQueue.main.async {
+                guard let self, !self.isReady else { return }
+                self.readinessTimeoutTask?.cancel()
+                self.isUnavailable = true
+            }
+        }
+    }
+
+    private func armReadinessTimeout() {
+        readinessTimeoutTask?.cancel()
+        readinessTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.readinessTimeout))
+            guard !Task.isCancelled, let self, !self.isReady else { return }
+            self.isUnavailable = true
+        }
     }
 
     /// Clears the queue without relying on `removeAllItems()` (added in iOS 16.4).
@@ -131,6 +166,8 @@ final class NatureCompilationSession: ObservableObject {
             NotificationCenter.default.removeObserver(endObserver)
         }
         timeControlObserver?.invalidate()
+        itemStatusObserver?.invalidate()
+        readinessTimeoutTask?.cancel()
     }
 }
 
@@ -153,11 +190,17 @@ struct NatureVideoCompilationView: View {
                 .ignoresSafeArea()
 
             if !session.isReady {
-                NatureVideoLoadingPoster()
-                    .transition(.opacity)
+                if session.isUnavailable {
+                    NatureVideoUnavailableFallback()
+                        .transition(.opacity)
+                } else {
+                    NatureVideoLoadingPoster()
+                        .transition(.opacity)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.6), value: session.isReady)
+        .animation(.easeInOut(duration: 0.6), value: session.isUnavailable)
         .onAppear {
             session.prepareAndPlay()
         }
@@ -193,6 +236,48 @@ private struct NatureVideoLoadingPoster: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Preparing the nature video")
+    }
+}
+
+/// Opaque calm fallback when the nature reel can't start (offline, blocked CDN): the brand sky
+/// gradient, the ambient-calm still if it is already cached, and one honest line. The music keeps
+/// playing; nothing spins. Opaque, so the ambient-pause "full-page cover" logic stays valid.
+private struct NatureVideoUnavailableFallback: View {
+    @State private var still: UIImage?
+
+    var body: some View {
+        ZStack {
+            BrandTheme.sessionNatureSkyGradient
+                .ignoresSafeArea()
+
+            if let still {
+                Image(uiImage: still)
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.5)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+
+            VStack(spacing: 16) {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(BrandTheme.goldSoft)
+                Text("Video unavailable — resting with the music")
+                    .font(BrandTheme.orbLineFont())
+                    .orbOverlayText(muted: true)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+        }
+        .onAppear {
+            // Memory/disk only — never a network fetch from the fallback itself.
+            if let url = MusicVisualMood.ambientCalm.sceneImageURLs.first {
+                still = SceneImageCache.memoryImage(for: url) ?? SceneImageCache.cachedImage(for: url)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Nature video unavailable. Music continues.")
     }
 }
 

@@ -31,6 +31,7 @@ struct SessionBottomConfigMenu: View {
                     isExpanded: expanded
                 )
             }
+            .accessibilityIdentifier("immersive.settings")
             .buttonStyle(ChimingPlainButtonStyle())
             .accessibilityLabel(expanded ? "Hide session settings" : "Show session settings")
 
@@ -47,7 +48,9 @@ struct SessionBottomConfigMenu: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .accessibilityIdentifier("immersive.lights")
                     .tint(BrandTheme.goldDeep)
+                    .chimeOnChange(of: vitals.sessionHomeLightsSyncEnabled)
 
                     Button {
                         showShareSheet = true
@@ -76,6 +79,7 @@ struct SessionBottomConfigMenu: View {
                                 .stroke(BrandTheme.gold.opacity(0.3), lineWidth: 1)
                         )
                     }
+                    .accessibilityIdentifier("immersive.share")
                     .buttonStyle(ChimingPlainButtonStyle())
                 }
                 .padding(16)

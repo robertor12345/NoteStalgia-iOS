@@ -287,26 +287,48 @@ struct OrbRadialBarEqualizerView: View {
     /// Lower = sharper per-bar variation (less cross-band smoothing).
     var neighbourMix: CGFloat = 0.32
 
-    // A single `TimelineView` drives every redraw — live and synthetic — instead of relying on
-    // an `@ObservedObject` subscription to `MusicReactiveBus` to trigger extra invalidations on
-    // top of the timeline's own tick. The bus is read directly inside the tick, matching
-    // `OrbRingEqualizerView`'s pattern, so audio updates never re-render the parent view.
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
-            let liveBands = resolvedBandLevels
-            let usesLiveAudio = (liveBands?.count ?? 0) >= OrbEqualizerMotion.barCount
-            spectrumCanvas(
-                phase: usesLiveAudio ? 0 : timeline.date.timeIntervalSinceReferenceDate,
-                liveBands: liveBands,
-                usesLiveAudio: usesLiveAudio
-            )
+        if reactsToMusic, liveAudioOnly, bandLevels == nil {
+            // Live-only bars are a pure function of the bus snapshot (phase is ignored), so redraw
+            // when the bus publishes — ≤48×/s while music plays, never while idle — instead of
+            // 60×/s regardless. Same pixels on every frame that is drawn.
+            LiveSpectrumBars(equalizer: self)
+        } else {
+            // A single `TimelineView` drives every redraw — live and synthetic — instead of relying
+            // on an `@ObservedObject` subscription to `MusicReactiveBus` to trigger extra
+            // invalidations on top of the timeline's own tick. The bus is read directly inside the
+            // tick, matching `OrbRingEqualizerView`'s pattern, so audio updates never re-render
+            // the parent view.
+            TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
+                let liveBands = resolvedBandLevels
+                let usesLiveAudio = (liveBands?.count ?? 0) >= OrbEqualizerMotion.barCount
+                spectrumCanvas(
+                    phase: usesLiveAudio ? 0 : timeline.date.timeIntervalSinceReferenceDate,
+                    liveBands: liveBands,
+                    usesLiveAudio: usesLiveAudio
+                )
+            }
+            .frame(width: canvasDiameter, height: canvasDiameter)
         }
-        .frame(width: canvasDiameter, height: canvasDiameter)
     }
 
-    private func spectrumCanvas(phase: Double, liveBands: [CGFloat]?, usesLiveAudio: Bool) -> some View {
+    /// Bar angles never change for a given bar count — computed once, not 2×48 trig calls per draw.
+    private static var trigByBarCount: [Int: [(cos: Double, sin: Double)]] = [:]
+
+    private static func trig(bars: Int) -> [(cos: Double, sin: Double)] {
+        if let cached = trigByBarCount[bars] { return cached }
+        let table = (0 ..< bars).map { i -> (cos: Double, sin: Double) in
+            let angle = (Double(i) / Double(bars)) * .pi * 2 - .pi / 2
+            return (Foundation.cos(angle), Foundation.sin(angle))
+        }
+        trigByBarCount[bars] = table
+        return table
+    }
+
+    fileprivate func spectrumCanvas(phase: Double, liveBands: [CGFloat]?, usesLiveAudio: Bool) -> some View {
         let frac = min(1, max(0, listenProgress))
         let bars = max(48, visibleBarCount)
+        let trig = Self.trig(bars: bars)
 
         return Canvas { context, size in
             let center = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
@@ -318,8 +340,8 @@ struct OrbRadialBarEqualizerView: View {
 
             for i in 0 ..< bars {
                 let angle = (Double(i) / Double(bars)) * .pi * 2 - .pi / 2
-                let cosA = cos(angle)
-                let sinA = sin(angle)
+                let cosA = trig[i].cos
+                let sinA = trig[i].sin
 
                 let amp: CGFloat
                 if usesLiveAudio, let levels = liveBands {
@@ -386,6 +408,20 @@ struct OrbRadialBarEqualizerView: View {
         let snapshot = MusicReactiveBus.shared.snapshot
         guard snapshot.isActive else { return nil }
         return snapshot.bands
+    }
+}
+
+/// Observes the bus so only this canvas re-renders when levels change — the host view never does.
+private struct LiveSpectrumBars: View {
+    let equalizer: OrbRadialBarEqualizerView
+    @ObservedObject private var bus = MusicReactiveBus.shared
+
+    var body: some View {
+        let snapshot = bus.snapshot
+        let liveBands: [CGFloat]? = snapshot.isActive ? snapshot.bands : nil
+        let usesLiveAudio = (liveBands?.count ?? 0) >= OrbEqualizerMotion.barCount
+        equalizer.spectrumCanvas(phase: 0, liveBands: liveBands, usesLiveAudio: usesLiveAudio)
+            .frame(width: equalizer.canvasDiameter, height: equalizer.canvasDiameter)
     }
 }
 

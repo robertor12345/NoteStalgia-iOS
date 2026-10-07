@@ -51,11 +51,13 @@
 		769D40CC129C87F0C7E3DDA1 /* NatureSessionImagery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1798C67F9434A0BBF7A26C /* NatureSessionImagery.swift */; };
 		78B60B4A87D07DA5FDE4D713 /* MusicReactiveAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0C8A365CE9C2EFDA256189 /* MusicReactiveAnalyzer.swift */; };
 		79220441CDBCD87D83DBF52A /* ResidentSurfaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */; };
+		7A906392048571DC49437ED9 /* RosterWarmUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45AE278F9A61D57C87BD290 /* RosterWarmUp.swift */; };
 		7BBDE61652D19C68BA6B94C6 /* Pine Smoke Drift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F2A608469742D5A52BB4ED61 /* Pine Smoke Drift.mp3 */; };
 		7C2DBB6BC638C2C4C16ABC5B /* AmbientInteractionPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645E52D08B060E81A5F4C277 /* AmbientInteractionPause.swift */; };
 		7E37F5F21622D19C045750AD /* GroupSessionScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC3F0B319DC8A9D35957B9A /* GroupSessionScreens.swift */; };
 		81C7F498498E9A3EC993CE12 /* SessionSentimentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15C694C356E0EB461D31D73 /* SessionSentimentStore.swift */; };
 		8337625ED3E619EA1321444B /* DiscoveryScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5A9D4FF7238E5685832515 /* DiscoveryScreens.swift */; };
+		845D19F33E99579DFDE34B6A /* ResidentProfileSeeds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA02E9B51F9354254CD4D76 /* ResidentProfileSeeds.swift */; };
 		85E1D3243360A15AC10AA9CD /* SimplifiedFlowScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C02A04293FCAA86377E964E /* SimplifiedFlowScreens.swift */; };
 		87C21F8E1C2A88402D7BF8DC /* AmbientAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706F5B3C05618C27B2BEE70C /* AmbientAudioSession.swift */; };
 		8BD947C3F0DAD58F7F2DD25F /* ResidentSurfaceSessionMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8748A39AAF8CB838D2852E /* ResidentSurfaceSessionMetrics.swift */; };
@@ -76,6 +78,8 @@
 		B4B7416822794DD52567A3BD /* ReferenceOrbNebulaRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA18FDA494AA5DB9AF7319F /* ReferenceOrbNebulaRender.swift */; };
 		B4FC569A1E2BE2699294C16B /* CareHomeAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6557C281671AA42E18D424E7 /* CareHomeAnalytics.swift */; };
 		BFD49F18D60DBB0201205FE3 /* BundledAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688824863BB9DA9977E5E56F /* BundledAudio.swift */; };
+		C17F53244BC42AD2B4F032E2 /* TouchRipple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494513B683F1354BD77085EF /* TouchRipple.swift */; };
+		C1B5E297F2D2FD15069E163E /* DemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */; };
 		C76E63C483EFC6FD2B6DE7BF /* CareHomeAdminScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF42203AC4A30DC54AAAAE8C /* CareHomeAdminScreens.swift */; };
 		C7E8B9C0E12854F39EA74878 /* Echoes of Yesterday.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B879157B1E93C74600D5008C /* Echoes of Yesterday.mp3 */; };
 		CA47DFE7B49F046F0FD1FC98 /* ResidentPlaylistVisuals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F09B7F7065FA4FBD329FF3D /* ResidentPlaylistVisuals.swift */; };
@@ -88,14 +92,26 @@
 		D231FE611D571E6023F8A112 /* CareStaffModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 750B86EC8F15A1842583BB25 /* CareStaffModels.swift */; };
 		D4BDDFA2DC23C6B0C3D96F6A /* ResidentExperienceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0171AB6386A5B0D685AE8 /* ResidentExperienceScreens.swift */; };
 		D5F8DA71EF6AFCCFF6676A76 /* NoteStalgiaOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5B813D50C80B05C4BDA95E /* NoteStalgiaOrbView.swift */; };
+		D84D9AF1DBB1C3928E4CC51F /* DemoAudioLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */; };
 		DF9AAD10BDC467C367E982C1 /* OrbHeartbeat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6777C1D1D1A4834A251DA4DE /* OrbHeartbeat.swift */; };
 		E19D0C7450B16B90DF67FCE9 /* CareRosterUIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D02D7DC5D72572A5909480 /* CareRosterUIStore.swift */; };
 		F3A795C4B697292297FB9C45 /* GoldAmbientSparklesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BEA93FFD064D5D3BC21EB0 /* GoldAmbientSparklesView.swift */; };
+		F4B054FD5A920C3E5C4EB0E3 /* DemoWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */; };
 		F4CFA9483CCA5D19B107BD14 /* OrbReferenceMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00AA2762A0271C8A6372D4CB /* OrbReferenceMotion.swift */; };
 		F522E5BC9B4E78DDFB079415 /* CareTenancyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A944D80479F51DD56CB787E /* CareTenancyModels.swift */; };
 		F7FB1916109B99A65486ACCB /* OrbInteriorMediaPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF28FC77C3F799DDA3C8972D /* OrbInteriorMediaPanel.swift */; };
 		FFE46080094D1CE8A5B2736F /* OrbRenderBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5A1F7D6CFB1042EA787C45 /* OrbRenderBudget.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EEC326D2B02E0F1418F149C5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 293809E39FAE41092E4512DD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C73F9EAA29C63CBBC2627FAA;
+			remoteInfo = "NoteStalgia-iOS";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		00AA2762A0271C8A6372D4CB /* OrbReferenceMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbReferenceMotion.swift; sourceTree = "<group>"; };
@@ -125,6 +141,7 @@
 		42CD973945EB93A5C1EC0A7F /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		45F1525B52278FA2FC7D9227 /* ResidentNationality.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentNationality.swift; sourceTree = "<group>"; };
 		4733E2F12334954C0B7EAD63 /* CarePatientPortrait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarePatientPortrait.swift; sourceTree = "<group>"; };
+		494513B683F1354BD77085EF /* TouchRipple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchRipple.swift; sourceTree = "<group>"; };
 		4A0F8F4E67F48B3B90D54420 /* DiscoveryPlaylistTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryPlaylistTuning.swift; sourceTree = "<group>"; };
 		4CE4C4356D79102349B740BF /* CareSessionSentiment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareSessionSentiment.swift; sourceTree = "<group>"; };
 		4E804FD11A95AE15C0481009 /* PatientBiometricAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatientBiometricAuth.swift; sourceTree = "<group>"; };
@@ -145,6 +162,7 @@
 		75EE6925280DAA00A9924D3D /* CaptureScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreens.swift; sourceTree = "<group>"; };
 		795D94D01ECCD77AAB686BCC /* OrbRingEqualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbRingEqualizer.swift; sourceTree = "<group>"; };
 		7C02A04293FCAA86377E964E /* SimplifiedFlowScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimplifiedFlowScreens.swift; sourceTree = "<group>"; };
+		7CA02E9B51F9354254CD4D76 /* ResidentProfileSeeds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentProfileSeeds.swift; sourceTree = "<group>"; };
 		7E019BE75130A742395614A4 /* SupervisorCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupervisorCredentialStore.swift; sourceTree = "<group>"; };
 		83F2D53CBA4C1A1965FB5805 /* LaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchIntroOverlay.swift; sourceTree = "<group>"; };
 		88D02D7DC5D72572A5909480 /* CareRosterUIStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareRosterUIStore.swift; sourceTree = "<group>"; };
@@ -160,8 +178,10 @@
 		A317F2DFDC71F9C399CD4BD0 /* NoteStalgiaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStalgiaApp.swift; sourceTree = "<group>"; };
 		A5A596CF4765246D1EADB5D5 /* FlowContainerSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowContainerSize.swift; sourceTree = "<group>"; };
 		A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryEraMedia.swift; sourceTree = "<group>"; };
+		A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoWalkthroughUITests.swift; sourceTree = "<group>"; };
 		A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentSurfaceStore.swift; sourceTree = "<group>"; };
 		B00F5132BEFFF09FCEF9D499 /* DiscoveryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryModels.swift; sourceTree = "<group>"; };
+		B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAudioLog.swift; sourceTree = "<group>"; };
 		B879157B1E93C74600D5008C /* Echoes of Yesterday.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Echoes of Yesterday.mp3"; sourceTree = "<group>"; };
 		BA2FF55409E22DB7B64392F6 /* SixDigitPinInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SixDigitPinInput.swift; sourceTree = "<group>"; };
 		BF1798C67F9434A0BBF7A26C /* NatureSessionImagery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NatureSessionImagery.swift; sourceTree = "<group>"; };
@@ -169,7 +189,9 @@
 		BFADE22ECDA1B31306992177 /* ResidentMusicModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentMusicModel.swift; sourceTree = "<group>"; };
 		C24F0E3B65BF5289378C685C /* SessionPOCState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPOCState.swift; sourceTree = "<group>"; };
 		C35093FF297C5AB86C27B6B5 /* ImageDownscaling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaling.swift; sourceTree = "<group>"; };
+		C45AE278F9A61D57C87BD290 /* RosterWarmUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterWarmUp.swift; sourceTree = "<group>"; };
 		C7A56F33E38CBA4DBE4E1EDC /* OrbOverlayTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbOverlayTextStyle.swift; sourceTree = "<group>"; };
+		CE1511773F37AAA3C175FF38 /* NoteStalgiaDemoUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteStalgiaDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEC3F0B319DC8A9D35957B9A /* GroupSessionScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSessionScreens.swift; sourceTree = "<group>"; };
 		D2BB02C5033336FE30FF866D /* LeafBreezeLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeafBreezeLayer.swift; sourceTree = "<group>"; };
 		D68383A8CEA8B0E2CEC2270B /* NatureVideoCompilationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NatureVideoCompilationView.swift; sourceTree = "<group>"; };
@@ -186,6 +208,7 @@
 		EC0C8A365CE9C2EFDA256189 /* MusicReactiveAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicReactiveAnalyzer.swift; sourceTree = "<group>"; };
 		EE5A9D4FF7238E5685832515 /* DiscoveryScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryScreens.swift; sourceTree = "<group>"; };
 		F2A608469742D5A52BB4ED61 /* Pine Smoke Drift.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Pine Smoke Drift.mp3"; sourceTree = "<group>"; };
+		F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLaunchOptions.swift; sourceTree = "<group>"; };
 		FBF0BEC44066D39427758EE8 /* CalmMotionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalmMotionViews.swift; sourceTree = "<group>"; };
 		FF42203AC4A30DC54AAAAE8C /* CareHomeAdminScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareHomeAdminScreens.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -208,10 +231,19 @@
 			children = (
 				244EF73ED1BED0B8E9982A96 /* App */,
 				A4D677D55A863B1BFAF76328 /* Core */,
+				669987283A7B56B0B12D7D41 /* DemoUITests */,
 				EA289CFA4C086243CC579BF1 /* Flow */,
 				8ECF1C4609A8D112383020F7 /* Screens */,
 				9607007A455895D04AF95F9E /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		669987283A7B56B0B12D7D41 /* DemoUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */,
+			);
+			path = DemoUITests;
 			sourceTree = "<group>";
 		};
 		8ECF1C4609A8D112383020F7 /* Screens */ = {
@@ -246,6 +278,7 @@
 			isa = PBXGroup;
 			children = (
 				E1A394CA6D9D8BFA22CBB12D /* NoteStalgia-iOS.app */,
+				CE1511773F37AAA3C175FF38 /* NoteStalgiaDemoUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -268,6 +301,8 @@
 				750B86EC8F15A1842583BB25 /* CareStaffModels.swift */,
 				3A944D80479F51DD56CB787E /* CareTenancyModels.swift */,
 				8FC262E7C97631F8EA58E1DB /* CenteredScrollScreen.swift */,
+				B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */,
+				F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */,
 				A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */,
 				09FDA751DB7B0A223C8C089C /* DiscoveryEtherealTapChime.swift */,
 				B00F5132BEFFF09FCEF9D499 /* DiscoveryModels.swift */,
@@ -306,8 +341,10 @@
 				1629AD9DA286A45E70E52EA3 /* ResidentPlaylistComfort.swift */,
 				2F09B7F7065FA4FBD329FF3D /* ResidentPlaylistVisuals.swift */,
 				60592EA6AB1938391A5ABA6D /* ResidentPortraitCatalog.swift */,
+				7CA02E9B51F9354254CD4D76 /* ResidentProfileSeeds.swift */,
 				EA8748A39AAF8CB838D2852E /* ResidentSurfaceSessionMetrics.swift */,
 				A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */,
+				C45AE278F9A61D57C87BD290 /* RosterWarmUp.swift */,
 				992C564F19EBC31E9AC3B4C8 /* SceneImageCache.swift */,
 				9B49A44F89439AE6A04D10A7 /* ScrollContentEdgeFade.swift */,
 				C24F0E3B65BF5289378C685C /* SessionPOCState.swift */,
@@ -317,6 +354,7 @@
 				1157FA363CF322DCC5404626 /* SupervisorAuth.swift */,
 				97044ED3FA3DBF15327445D3 /* SupervisorAuthStore.swift */,
 				7E019BE75130A742395614A4 /* SupervisorCredentialStore.swift */,
+				494513B683F1354BD77085EF /* TouchRipple.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -346,6 +384,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A4CED8CA9A9AE2A4A48DC1F2 /* NoteStalgiaDemoUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3DCC4BB03EDF7E1D59AD7EC7 /* Build configuration list for PBXNativeTarget "NoteStalgiaDemoUITests" */;
+			buildPhases = (
+				E9BD9DB6B74387CD4DFEA6F1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				03EC562952BD251B3A2CA4C9 /* PBXTargetDependency */,
+			);
+			name = NoteStalgiaDemoUITests;
+			packageProductDependencies = (
+			);
+			productName = NoteStalgiaDemoUITests;
+			productReference = CE1511773F37AAA3C175FF38 /* NoteStalgiaDemoUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 15C0B5AD2F7327B6C7410790 /* Build configuration list for PBXNativeTarget "NoteStalgia-iOS" */;
@@ -373,6 +429,11 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					A4CED8CA9A9AE2A4A48DC1F2 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						TestTargetID = C73F9EAA29C63CBBC2627FAA;
+					};
 					C73F9EAA29C63CBBC2627FAA = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -394,6 +455,7 @@
 			projectRoot = "";
 			targets = (
 				C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */,
+				A4CED8CA9A9AE2A4A48DC1F2 /* NoteStalgiaDemoUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -440,6 +502,8 @@
 				B3025AB8733B0E16FD8751B3 /* CareStaffScreens.swift in Sources */,
 				F522E5BC9B4E78DDFB079415 /* CareTenancyModels.swift in Sources */,
 				7419FA19C741ED96D703D8AE /* CenteredScrollScreen.swift in Sources */,
+				D84D9AF1DBB1C3928E4CC51F /* DemoAudioLog.swift in Sources */,
+				C1B5E297F2D2FD15069E163E /* DemoLaunchOptions.swift in Sources */,
 				539D8BB0D13E3F59C86C98B9 /* DiscoveryEraMedia.swift in Sources */,
 				0392BFA35CB1D785B7C75E82 /* DiscoveryEtherealTapChime.swift in Sources */,
 				36E68885D3AC4D05D87DA1CD /* DiscoveryModels.swift in Sources */,
@@ -487,8 +551,10 @@
 				D04A96016105877DEB4874A2 /* ResidentPlaylistComfort.swift in Sources */,
 				CA47DFE7B49F046F0FD1FC98 /* ResidentPlaylistVisuals.swift in Sources */,
 				354099A4BC4309763169588C /* ResidentPortraitCatalog.swift in Sources */,
+				845D19F33E99579DFDE34B6A /* ResidentProfileSeeds.swift in Sources */,
 				8BD947C3F0DAD58F7F2DD25F /* ResidentSurfaceSessionMetrics.swift in Sources */,
 				79220441CDBCD87D83DBF52A /* ResidentSurfaceStore.swift in Sources */,
+				7A906392048571DC49437ED9 /* RosterWarmUp.swift in Sources */,
 				3F28B710FF28BFD481148812 /* SceneImageCache.swift in Sources */,
 				6D86D5A4ABEE1FD644AD9271 /* ScrollContentEdgeFade.swift in Sources */,
 				41089DA84EB00806297A777A /* SessionBottomConfigMenu.swift in Sources */,
@@ -501,10 +567,27 @@
 				20C26CB621660F8F171A58BF /* SupervisorAuth.swift in Sources */,
 				9229C66E1E7305D090091B7D /* SupervisorAuthStore.swift in Sources */,
 				A3E689E4967D591072D5857B /* SupervisorCredentialStore.swift in Sources */,
+				C17F53244BC42AD2B4F032E2 /* TouchRipple.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9BD9DB6B74387CD4DFEA6F1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F4B054FD5A920C3E5C4EB0E3 /* DemoWalkthroughUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		03EC562952BD251B3A2CA4C9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */;
+			targetProxy = EEC326D2B02E0F1418F149C5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1CB955B2F3AAC70E4E7F6B83 /* Debug */ = {
@@ -570,6 +653,25 @@
 				SWIFT_COMPILATION_MODE = singlefile;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		3A0CC39D06C8BA4F757B2C19 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notestalgia.ios.demouitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NoteStalgia-iOS";
 			};
 			name = Debug;
 		};
@@ -667,6 +769,25 @@
 			};
 			name = Release;
 		};
+		C7AFF711159FC29155B0502A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notestalgia.ios.demouitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "NoteStalgia-iOS";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -675,6 +796,15 @@
 			buildConfigurations = (
 				9F0C5971598512DE54D2A57B /* Debug */,
 				58E56A28D3E8D02991A159AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3DCC4BB03EDF7E1D59AD7EC7 /* Build configuration list for PBXNativeTarget "NoteStalgiaDemoUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A0CC39D06C8BA4F757B2C19 /* Debug */,
+				C7AFF711159FC29155B0502A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

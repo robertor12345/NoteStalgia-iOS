@@ -93,7 +93,7 @@ struct CareHomeAdminDashboardView: View {
 
     private var trendGraphsSection: some View {
         DashboardTrendGraphsStrip(series: dashboard.trendSeries)
-            .centeredScrollFullBleed()
+            .padding(.horizontal, 4)
     }
 
     private var kpiGrid: some View {
@@ -177,6 +177,7 @@ struct CareHomeAdminDashboardView: View {
                 SecondaryButton(title: "Switch care home") {
                     state.switchHome()
                 }
+                .accessibilityIdentifier("admin.switchHome")
                 .padding(.horizontal, 24)
             }
         }
@@ -200,7 +201,7 @@ private struct DashboardTrendGraphsStrip: View {
                     .foregroundStyle(BrandTheme.textSecondary)
 
                 HorizontalScrollEdgeFade(coordinateSpace: "adminTrendGraphs") {
-                    HStack(spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
                         ForEach(series) { item in
                             DashboardTrendGraphCard(
                                 series: item,
@@ -311,7 +312,8 @@ private struct DashboardTrendGraphCard: View {
                     }
             }
         }
-        .buttonStyle(.plain)
+        .accessibilityIdentifier("admin.trend.\(series.id)")
+        .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel("\(series.title) trend chart")
         .accessibilityHint(isExpanded ? "Collapse chart" : "Expand chart")
     }
@@ -386,11 +388,11 @@ private struct DashboardTrendChart: View {
 
                 if showArea, plotted.count > 1 {
                     Path { path in
-                        path.move(to: CGPoint(x: plotted[0].x, y: geo.size.height))
-                        for point in plotted {
-                            path.addLine(to: point)
+                        path.move(to: CGPoint(x: plotted[0].point.x, y: geo.size.height))
+                        for plot in plotted {
+                            path.addLine(to: plot.point)
                         }
-                        path.addLine(to: CGPoint(x: plotted[plotted.count - 1].x, y: geo.size.height))
+                        path.addLine(to: CGPoint(x: plotted[plotted.count - 1].point.x, y: geo.size.height))
                         path.closeSubpath()
                     }
                     .fill(
@@ -409,9 +411,9 @@ private struct DashboardTrendChart: View {
                         .frame(maxHeight: .infinity, alignment: .center)
                 } else {
                     Path { path in
-                        for (index, point) in plotted.enumerated() {
-                            if index == 0 { path.move(to: point) }
-                            else { path.addLine(to: point) }
+                        for (index, plot) in plotted.enumerated() {
+                            if index == 0 { path.move(to: plot.point) }
+                            else { path.addLine(to: plot.point) }
                         }
                     }
                     .stroke(
@@ -424,13 +426,15 @@ private struct DashboardTrendChart: View {
                     )
 
                     if showFullXAxis {
-                        ForEach(Array(plotted.enumerated()), id: \.offset) { index, point in
-                            if let value = series.points[index].value {
+                        // Each dot carries its own source day — `plotted` skips days with no data, so
+                        // indexing back into `series.points` put dots on the wrong day.
+                        ForEach(plotted, id: \.source.id) { plot in
+                            if let value = plot.source.value {
                                 Circle()
                                     .fill(accent)
                                     .frame(width: 5, height: 5)
-                                    .position(point)
-                                    .accessibilityLabel("\(series.points[index].dayLabel): \(formatAxisValue(value))")
+                                    .position(plot.point)
+                                    .accessibilityLabel("\(plot.source.dayLabel): \(formatAxisValue(value))")
                             }
                         }
                     }
@@ -453,16 +457,16 @@ private struct DashboardTrendChart: View {
         }
     }
 
-    private func plottedPoints(in size: CGSize) -> [CGPoint] {
+    private func plottedPoints(in size: CGSize) -> [(point: CGPoint, source: CareHomeTrendPoint)] {
         let minV = series.axis.minimum
         let maxV = series.axis.maximum
         let range = max(maxV - minV, 0.001)
-        return series.points.enumerated().compactMap { index, point -> CGPoint? in
+        return series.points.enumerated().compactMap { index, point -> (point: CGPoint, source: CareHomeTrendPoint)? in
             guard let value = point.value else { return nil }
             let x = size.width * CGFloat(index) / CGFloat(max(series.points.count - 1, 1))
             let clamped = min(max(value, minV), maxV)
             let y = size.height * (1 - CGFloat((clamped - minV) / range))
-            return CGPoint(x: x, y: y)
+            return (CGPoint(x: x, y: y), point)
         }
     }
 
@@ -552,7 +556,7 @@ private struct DashboardWingImpactRow: View {
             HStack(spacing: 12) {
                 Text("\(wing.residentsReached) residents")
                 if let calm = wing.averageCalmPercent {
-                    Text("avg \(calm)% calm")
+                    Text("avg \(calm)% at ease")
                 }
                 if let wellbeing = wing.averageWellbeing {
                     Text(String(format: "%.1f/10 wellbeing", wellbeing))
@@ -638,7 +642,8 @@ struct CareHomeAdminWelcomeView: View {
     @State private var greetingVisible = false
     @State private var loaderVisible = false
     @State private var didAnimateEntrance = false
-    @State private var didScheduleExit = false
+    /// Shown only when the readiness gate runs past `RosterWarmUp.longWaitHintDelay`.
+    @State private var showsLongerWaitHint = false
 
     private var displayName: String {
         state.currentSupervisorAccount()?.displayName ?? "Admin"
@@ -672,8 +677,16 @@ struct CareHomeAdminWelcomeView: View {
                     PrimaryButton(title: "Open home insights") {
                         state.openAdminDashboardFromWelcome()
                     }
+                    .accessibilityIdentifier("admin.open")
                     .padding(.horizontal, 32)
                     .opacity(greetingVisible ? 1 : 0)
+                } else {
+                    // Space is reserved so the greeting never shifts when the hint fades in.
+                    Text("Preparing home insights…")
+                        .font(BrandTheme.orbHintFont())
+                        .orbOverlayText(muted: true)
+                        .opacity(showsLongerWaitHint ? 1 : 0)
+                        .accessibilityHidden(!showsLongerWaitHint)
                 }
             }
             .padding(.horizontal, 28)
@@ -690,14 +703,21 @@ struct CareHomeAdminWelcomeView: View {
                     greetingVisible = true
                 }
             }
+        }
+        // Auto-advance waits for the dashboard's data to be seeded and its presentation cached —
+        // never before the minimum dwell, never after the cap. Manual mode shows the button instead.
+        .task {
             guard !isManualReturn else { return }
-            guard !didScheduleExit else { return }
-            didScheduleExit = true
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 2_800_000_000)
-                guard state.phase == .careHomeAdminWelcome else { return }
-                state.openAdminDashboardFromWelcome()
+            let start = Date()
+            let hint = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(RosterWarmUp.longWaitHintDelay))
+                guard !Task.isCancelled else { return }
+                withAnimation(CalmMotion.softFade) { showsLongerWaitHint = true }
             }
+            _ = await RosterWarmUp.awaitAdminReady(state: state, start: start)
+            hint.cancel()
+            guard !Task.isCancelled, state.phase == .careHomeAdminWelcome else { return }
+            state.openAdminDashboardFromWelcome()
         }
     }
 

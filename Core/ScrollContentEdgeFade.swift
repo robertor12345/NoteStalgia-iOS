@@ -100,7 +100,11 @@ struct ScrollViewportEdgeFade<Content: View>: View {
         ScrollView {
             content()
                 .background {
-                    ScrollViewportMetricsReader(coordinateSpace: coordinateSpace)
+                    // iOS 18+ reads offsets from `onScrollGeometryChange` / `onScrollPhaseChange`;
+                    // skip the per-frame geometry preference there so scrolling does no extra layout.
+                    if #unavailable(iOS 18.0) {
+                        ScrollViewportMetricsReader(coordinateSpace: coordinateSpace)
+                    }
                 }
         }
         .coordinateSpace(name: coordinateSpace)
@@ -220,14 +224,6 @@ private struct HorizontalContentMetrics: Equatable {
     var minX: CGFloat = 0
 }
 
-private enum HorizontalContentMetricsKey: PreferenceKey {
-    static var defaultValue = HorizontalContentMetrics()
-
-    static func reduce(value: inout HorizontalContentMetrics, nextValue: () -> HorizontalContentMetrics) {
-        value = nextValue()
-    }
-}
-
 private struct HorizontalScrollViewportEdgeMask: View {
     var showLeading: Bool
     var showTrailing: Bool
@@ -281,71 +277,73 @@ private struct HorizontalScrollFadeSnapshot: Equatable {
 struct HorizontalScrollEdgeFade<Content: View>: View {
     var coordinateSpace: String
     var fadeWidth: CGFloat = BrandLayout.scrollEdgeFadeWidth
+    /// When the row fits without scrolling, centre it under the rest of the column instead of
+    /// hugging the leading edge (the wing filter pills looked off-centre on iPad).
+    var centersWhenContentFits: Bool = true
     @ViewBuilder var content: () -> Content
 
     @State private var showLeadingFade = false
     @State private var showTrailingFade = false
-    @State private var rowHeight: CGFloat = 40
+    @State private var viewportWidth: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
     @State private var lastOffsetX: CGFloat = 0
 
-    var body: some View {
-        GeometryReader { outer in
-            let viewportWidth = outer.size.width
+    // The row sizes to its content's height (`fixedSize` on the vertical axis) instead of a
+    // preference-measured `@State` height, which stayed at its seed value — tall rows (admin
+    // trend cards) were clipped to ~40pt and spilled over the cards below.
+    private var contentFits: Bool {
+        viewportWidth > 1 && contentWidth > 1 && contentWidth <= viewportWidth + 2
+    }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                content()
-                    .padding(.horizontal, BrandLayout.scrollEdgeFadeComfortPaddingHorizontal)
-                    .background {
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: HorizontalContentMetricsKey.self,
-                                value: HorizontalContentMetrics(
-                                    size: geo.size,
-                                    minX: geo.frame(in: .named(coordinateSpace)).minX
-                                )
-                            )
-                        }
-                    }
-            }
-            .coordinateSpace(name: coordinateSpace)
-            .scrollBounceBehavior(.basedOnSize)
-            .mask {
-                HorizontalScrollViewportEdgeMask(
-                    showLeading: showLeadingFade,
-                    showTrailing: showTrailingFade,
-                    fadeWidth: fadeWidth,
-                    viewportWidth: viewportWidth
-                )
-            }
-            .onPreferenceChange(HorizontalContentMetricsKey.self) { metrics in
-                if abs(metrics.size.height - rowHeight) > 0.5 {
-                    rowHeight = max(metrics.size.height, 32)
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            content()
+                .padding(.horizontal, BrandLayout.scrollEdgeFadeComfortPaddingHorizontal)
+                // Measured on the intrinsic content (inside the centring frame below).
+                .onGeometryChange(for: HorizontalContentMetrics.self) { proxy in
+                    HorizontalContentMetrics(
+                        size: proxy.size,
+                        minX: proxy.frame(in: .named(coordinateSpace)).minX
+                    )
+                } action: { metrics in
+                    contentWidth = metrics.size.width
+                    // Covers iOS 17; on iOS 18 the geometry modifier owns offsets while
+                    // scrolling, but this still seeds the resting clipped/trailing state.
+                    let offsetX = -metrics.minX
+                    lastOffsetX = offsetX
+                    applyFades(
+                        offsetX: offsetX,
+                        contentWidth: metrics.size.width,
+                        viewportWidth: viewportWidth
+                    )
                 }
-                contentWidth = metrics.size.width
-                // Preference path covers iOS 17; on iOS 18 the geometry modifier owns offsets
-                // while scrolling, but this still seeds the resting clipped/trailing state.
-                let offsetX = -metrics.minX
-                lastOffsetX = offsetX
-                applyFades(
-                    offsetX: offsetX,
-                    contentWidth: metrics.size.width,
-                    viewportWidth: viewportWidth
-                )
-            }
-            .modifier(
-                HorizontalScrollGeometryFadeModifier(
-                    showLeadingFade: $showLeadingFade,
-                    showTrailingFade: $showTrailingFade,
-                    lastOffsetX: $lastOffsetX
-                )
-            )
-            .onChange(of: viewportWidth) { _, width in
-                applyFades(offsetX: lastOffsetX, contentWidth: contentWidth, viewportWidth: width)
-            }
+                .frame(minWidth: centersWhenContentFits && contentFits ? viewportWidth : nil, alignment: .center)
         }
+        .coordinateSpace(name: coordinateSpace)
+        .scrollBounceBehavior(.basedOnSize)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity)
-        .frame(height: rowHeight)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            viewportWidth = width
+            applyFades(offsetX: lastOffsetX, contentWidth: contentWidth, viewportWidth: width)
+        }
+        .mask {
+            HorizontalScrollViewportEdgeMask(
+                showLeading: showLeadingFade,
+                showTrailing: showTrailingFade,
+                fadeWidth: fadeWidth,
+                viewportWidth: viewportWidth
+            )
+        }
+        .modifier(
+            HorizontalScrollGeometryFadeModifier(
+                showLeadingFade: $showLeadingFade,
+                showTrailingFade: $showTrailingFade,
+                lastOffsetX: $lastOffsetX
+            )
+        )
     }
 
     private func applyFades(offsetX: CGFloat, contentWidth: CGFloat, viewportWidth: CGFloat) {

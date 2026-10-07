@@ -32,31 +32,109 @@ extension AnyTransition {
 
 // MARK: - Soft press (buttons feel organic, not sharp)
 
+/// Every button press chimes and sends a soft glowing pulse out from the control: a quick bloom
+/// that rings outward and fades. The halo sits behind the label (no layout change) and only
+/// exists while the pulse is running, so idle buttons cost nothing extra.
 struct SoftPressButtonStyle: ButtonStyle {
     var pressedScale: CGFloat = 0.978
+    var glow: Color = BrandTheme.logoCyan
 
     func makeBody(configuration: Configuration) -> some View {
+        GlowPressBody(configuration: configuration, pressedScale: pressedScale, pressedOpacity: 0.94, tone: glow)
+    }
+}
+
+/// Plain buttons (custom-drawn labels) with the same chime and glow pulse.
+struct ChimingPlainButtonStyle: ButtonStyle {
+    var glow: Color = BrandTheme.logoCyan
+
+    func makeBody(configuration: Configuration) -> some View {
+        GlowPressBody(configuration: configuration, pressedScale: 1, pressedOpacity: 1, tone: glow)
+    }
+}
+
+private struct GlowPulseFrame {
+    var glow: CGFloat = 0
+    var ring: CGFloat = 0
+}
+
+private struct GlowPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    var pressedScale: CGFloat
+    var pressedOpacity: Double
+    var tone: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulseCount = 0
+
+    var body: some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? pressedScale : 1)
-            .opacity(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? pressedOpacity : 1)
             .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed {
-                    CalmExperienceFeedback.buttonPress()
+            // Keyframes so even a very quick tap gets the full bloom → ring → fade.
+            .keyframeAnimator(initialValue: GlowPulseFrame(), trigger: pulseCount) { content, frame in
+                content.background {
+                    if frame.glow > 0.01 {
+                        PressGlowHalo(glow: frame.glow, ring: frame.ring, tone: tone)
+                    }
                 }
+            } keyframes: { _ in
+                KeyframeTrack(\.glow) {
+                    CubicKeyframe(1, duration: 0.12)
+                    CubicKeyframe(0.8, duration: 0.2)
+                    CubicKeyframe(0, duration: 0.5)
+                }
+                KeyframeTrack(\.ring) {
+                    LinearKeyframe(0, duration: 0.08)
+                    CubicKeyframe(1, duration: 0.74)
+                }
+            }
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                guard isPressed else { return }
+                CalmExperienceFeedback.buttonPress()
+                if !reduceMotion { pulseCount &+= 1 }
             }
     }
 }
 
-/// Plain buttons with the same soft chime on press.
-struct ChimingPlainButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed {
-                    CalmExperienceFeedback.buttonPress()
-                }
+/// Soft bloom hugging the control plus a thin ring that drifts outward as it fades. Square-ish
+/// controls (glyphs, round buttons) get a circle; wider ones a capsule / rounded card outline.
+private struct PressGlowHalo: View {
+    let glow: CGFloat
+    let ring: CGFloat
+    let tone: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            // Compact controls (round orb buttons with a caption) get a pill; wide rows and cards
+            // keep a card-like corner.
+            let radius = max(w, h) < min(w, h) * 1.5 ? min(w, h) / 2 : min(h / 2, 22)
+            let spread = 3 + 18 * ring
+            ZStack {
+                RoundedRectangle(cornerRadius: radius + 6, style: .continuous)
+                    .fill(tone.opacity(0.38 * glow))
+                    .padding(-6)
+                    .blur(radius: 12)
+                RoundedRectangle(cornerRadius: radius + spread, style: .continuous)
+                    .stroke(tone.opacity(0.9 * glow), lineWidth: 2)
+                    .padding(-spread)
+                    .blur(radius: 1)
             }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Chime when a non-button control (toggle, segmented picker, stepper, menu) changes value.
+    func chimeOnChange<V: Equatable>(of value: V) -> some View {
+        onChange(of: value) { _, _ in
+            CalmExperienceFeedback.buttonPress()
+        }
     }
 }
 
@@ -82,7 +160,10 @@ struct CalmCircularLoader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { context in
+        // Capped at 60fps — the ring is a quarter-second sweep, so 120Hz ProMotion ticks bought
+        // nothing visible. Shadows are centred (y: 0) and so rotation-invariant; applying them
+        // before the rotation means they are not re-blurred on every tick.
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: reduceMotion)) { context in
             let rotation = reduceMotion
                 ? 0
                 : context.date.timeIntervalSinceReferenceDate
@@ -108,9 +189,9 @@ struct CalmCircularLoader: View {
                         style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
                     )
                     .frame(width: diameter, height: diameter)
-                    .rotationEffect(.degrees(rotation))
                     .shadow(color: BrandTheme.logoCyan.opacity(0.55), radius: 10)
                     .shadow(color: BrandTheme.gold.opacity(0.45), radius: 6)
+                    .rotationEffect(.degrees(rotation))
             }
         }
         .accessibilityLabel("Loading")
@@ -196,7 +277,7 @@ struct ResidentStaffHandoffOverlay: View {
                         .font(BrandTheme.orbTitleFont(.title2))
                         .orbOverlayText()
                 }
-                Text("Handing to calm")
+                Text("Opening calm surface")
                     .font(BrandTheme.orbLineFont())
                     .orbOverlayText(muted: true)
             }
@@ -204,7 +285,7 @@ struct ResidentStaffHandoffOverlay: View {
         }
         .allowsHitTesting(true)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Handing device to resident calm surface")
+        .accessibilityLabel("Opening the resident calm surface")
         .onAppear {
             withAnimation(.easeInOut(duration: 0.55)) {
                 veilOpacity = 1

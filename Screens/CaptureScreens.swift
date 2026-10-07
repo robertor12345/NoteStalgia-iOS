@@ -3,10 +3,41 @@ import PhotosUI
 
 // MARK: - Camera path — confirm photo, then straight to session
 
+/// "Opening photo…" while a library photo loads, or a soft failure line — shared by the photo
+/// pickers so a slow or broken import is never silent.
+struct PhotoLoadStatusLine: View {
+    var isLoading: Bool
+    var error: String?
+
+    var body: some View {
+        Group {
+            if isLoading {
+                HStack(spacing: 10) {
+                    BreathingCalmProgressView(diameter: 26, pace: .brisk)
+                    Text("Opening photo…")
+                        .font(.caption)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                }
+                .transition(.opacity)
+                .accessibilityElement(children: .combine)
+            } else if let error, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(BrandTheme.nebulaSalmon)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
+            }
+        }
+        .animation(CalmMotion.subtle, value: isLoading)
+    }
+}
+
 struct CapturePhotoView: View {
     @ObservedObject var state: SessionPOCState
     @State private var photoItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var isLoadingPhoto = false
+    @State private var photoLoadError: String?
 
     var body: some View {
         ScreenFadeIn {
@@ -55,16 +86,29 @@ struct CapturePhotoView: View {
             PhotosPicker(selection: $photoItem, matching: .images) {
                 OrbPickerLabel(title: "Choose from library", systemImage: "photo.stack")
             }
+            .accessibilityIdentifier("capture.chooseLibrary")
+            .buttonStyle(ChimingPlainButtonStyle())
             .onChange(of: photoItem) { _, new in
-                Task {
-                    guard let new else { return }
-                    if let data = try? await new.loadTransferable(type: Data.self),
-                       let ui = UIImage(data: data) {
-                        let resized = ui.downscaledForDisplay()
-                        await MainActor.run { state.capturedImage = resized }
+                guard let new else { return }
+                isLoadingPhoto = true
+                photoLoadError = nil
+                // Library photos can be 12 MP+: load and decode off the main thread so the
+                // screen keeps animating, and say so while it happens.
+                Task.detached(priority: .userInitiated) {
+                    let data = try? await new.loadTransferable(type: Data.self)
+                    let image = data.flatMap { UIImage.decodedThumbnail(from: $0, maxDimension: 1200) }
+                    await MainActor.run {
+                        isLoadingPhoto = false
+                        if let image {
+                            state.capturedImage = image
+                        } else {
+                            photoLoadError = "That photo couldn’t be opened. Try another one."
+                        }
                     }
                 }
             }
+
+            PhotoLoadStatusLine(isLoading: isLoadingPhoto, error: photoLoadError)
 
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button {
@@ -72,6 +116,8 @@ struct CapturePhotoView: View {
                 } label: {
                     OrbPickerLabel(title: "Take a picture", systemImage: "camera.fill")
                 }
+                .accessibilityIdentifier("capture.takePicture")
+                .buttonStyle(ChimingPlainButtonStyle())
             }
 
         }
@@ -99,6 +145,7 @@ struct CapturePhotoView: View {
                 state.beginSession()
                 state.phase = .immersive
             }
+            .accessibilityIdentifier("capture.startSession")
             .padding(.horizontal, 4)
 
             VStack(spacing: 10) {
@@ -106,11 +153,13 @@ struct CapturePhotoView: View {
                     state.capturedImage = nil
                     photoItem = nil
                 }
+                .accessibilityIdentifier("capture.chooseAnother")
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
                     SecondaryButton(title: "Take again") {
                         state.capturedImage = nil
                         showCamera = true
                     }
+                    .accessibilityIdentifier("capture.takeAgain")
                 }
             }
             .padding(.horizontal, 4)

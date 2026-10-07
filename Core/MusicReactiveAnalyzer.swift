@@ -1,6 +1,7 @@
 import AVFoundation
 import Accelerate
 import MediaToolbox
+import os
 
 /// Live audio levels derived from PCM during AVPlayer playback — drives equalizer rings + orb pulse.
 struct MusicReactiveSnapshot: Equatable {
@@ -79,6 +80,10 @@ final class MusicReactiveTapContext: @unchecked Sendable {
     private var monoBuffer = [Float]()
     private var rawBands = [Float](repeating: 0, count: MusicReactiveSnapshot.bandCount)
 
+    /// Set from the main actor, consumed on the audio thread. The smoothing arrays are only ever
+    /// touched by the audio thread — resetting them directly from main raced with `ingest`.
+    private let resetRequested = OSAllocatedUnfairLock(initialState: false)
+
     /// Log-spaced target frequencies for a 32-band “equalizer” readout.
     private static let bandCenterHz: [Double] = {
         let low = 90.0
@@ -99,6 +104,14 @@ final class MusicReactiveTapContext: @unchecked Sendable {
         let sampleCount = Int(frameCount)
         guard sampleCount > 0 else { return }
 
+        // Never block the realtime thread — if main holds the lock, pick the reset up next buffer.
+        if resetRequested.withLockIfAvailable({ requested -> Bool in
+            defer { requested = false }
+            return requested
+        }) == true {
+            applyReset()
+        }
+
         // Reuse the buffer across callbacks — keeps capacity, no per-callback heap allocation.
         monoBuffer.removeAll(keepingCapacity: true)
         if monoBuffer.capacity < sampleCount {
@@ -106,13 +119,18 @@ final class MusicReactiveTapContext: @unchecked Sendable {
         }
 
         if let asbd = streamDescription, asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0 {
-            let channels = max(1, Int(asbd.mChannelsPerFrame))
+            // Channels interleaved in *this* buffer — 1 for non-interleaved taps (one buffer per
+            // channel) even when the stream is stereo. Reading `mChannelsPerFrame` here walked
+            // twice past the end of the buffer on non-interleaved stereo.
+            let channels = max(1, Int(first.mNumberChannels))
+            let framesInBuffer = Int(first.mDataByteSize) / (MemoryLayout<Float>.size * channels)
+            let frames = min(sampleCount, framesInBuffer)
             let floats = data.assumingMemoryBound(to: Float.self)
             if channels == 1 {
-                monoBuffer.append(contentsOf: UnsafeBufferPointer(start: floats, count: sampleCount))
+                monoBuffer.append(contentsOf: UnsafeBufferPointer(start: floats, count: frames))
             } else {
                 let inv = 1 / Float(channels)
-                for i in 0 ..< sampleCount {
+                for i in 0 ..< frames {
                     var sum: Float = 0
                     for ch in 0 ..< channels {
                         sum += floats[i * channels + ch]
@@ -200,8 +218,15 @@ final class MusicReactiveTapContext: @unchecked Sendable {
         return Float(sqrt(max(0, power))) / Float(count)
     }
 
+    /// Requests a reset of the smoothing state; applied by the audio thread on its next buffer.
     func reset() {
-        smoothedBands = [Float](repeating: 0.15, count: MusicReactiveSnapshot.bandCount)
+        resetRequested.withLock { $0 = true }
+    }
+
+    private func applyReset() {
+        for i in smoothedBands.indices {
+            smoothedBands[i] = 0.15
+        }
         smoothedPulse = 0.5
         smoothedGlow = 0.72
         lastPublishTime = 0
@@ -306,10 +331,19 @@ private func tapInit(
     clientInfo: UnsafeMutableRawPointer?,
     tapStorageOut: UnsafeMutablePointer<UnsafeMutableRawPointer?>
 ) {
+    // AVFoundation tears the tap down on its own schedule — often after the view, its
+    // `AmbientAudioSession` and the analyzer are gone. The tap therefore owns a strong reference
+    // to the context (balanced in `tapFinalize`) so the audio thread never touches freed memory.
+    if let clientInfo {
+        _ = Unmanaged<MusicReactiveTapContext>.fromOpaque(clientInfo).retain()
+    }
     tapStorageOut.pointee = clientInfo
 }
 
-private func tapFinalize(_ tap: MTAudioProcessingTap) {}
+private func tapFinalize(_ tap: MTAudioProcessingTap) {
+    let storage = MTAudioProcessingTapGetStorage(tap)
+    Unmanaged<MusicReactiveTapContext>.fromOpaque(storage).release()
+}
 
 private func tapPrepare(
     _ tap: MTAudioProcessingTap,

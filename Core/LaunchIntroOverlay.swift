@@ -49,7 +49,7 @@ struct LaunchIntroOverlay: View {
                 .offset(y: reduceMotion ? 0 : (1 - titleOpacity) * 14)
 
                 IntroStaggeredWords(
-                    text: "Sound that takes you back....",
+                    text: "Sound that takes you back…",
                     elapsed: elapsed,
                     startAt: reduceMotion ? 0.3 : subtitleStart,
                     wordStagger: reduceMotion ? 0 : wordStagger,

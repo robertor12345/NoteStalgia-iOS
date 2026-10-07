@@ -1,3 +1,4 @@
+import ImageIO
 import UIKit
 
 /// POC photo capture stores images straight into `@Published` state (mood/colour analysis,
@@ -21,5 +22,26 @@ extension UIImage {
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: targetSize))
         }
+    }
+
+    /// Decodes picker/camera `data` straight to a display-ready thumbnail no larger than
+    /// `maxDimension` on its longest side, honouring EXIF orientation. ImageIO builds the thumbnail
+    /// without ever inflating the full 12 MP bitmap, so this is cheap enough to run off-main for
+    /// any photo the library can hand us.
+    static func decodedThumbnail(from data: Data, maxDimension: CGFloat) -> UIImage? {
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else {
+            return nil
+        }
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(maxDimension),
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
     }
 }

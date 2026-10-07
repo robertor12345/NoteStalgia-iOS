@@ -67,6 +67,7 @@ struct GroupSessionView: View {
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(BrandTheme.gold.opacity(0.35), lineWidth: 1))
             }
+            .accessibilityIdentifier("group.end")
             .buttonStyle(ChimingPlainButtonStyle())
 
             FlowSmallLogoutButton {
@@ -131,6 +132,7 @@ struct GroupSessionView: View {
             GroupTransportButton(systemImage: "backward.fill", label: "Previous") {
                 state.groupSessionPreviousTrack()
             }
+            .accessibilityIdentifier("group.previous")
             .disabled(tracks.isEmpty)
 
             GroupTransportButton(
@@ -141,11 +143,13 @@ struct GroupSessionView: View {
             ) {
                 togglePlayback()
             }
+            .accessibilityIdentifier("group.playPause")
             .disabled(tracks.isEmpty)
 
             GroupTransportButton(systemImage: "forward.fill", label: "Next") {
                 state.groupSessionNextTrack()
             }
+            .accessibilityIdentifier("group.next")
             .disabled(tracks.isEmpty)
         }
         .frame(maxWidth: .infinity)
@@ -189,6 +193,7 @@ struct GroupSessionView: View {
                         }
                         .padding(.vertical, 8)
                     }
+                    .accessibilityIdentifier("group.track.\(track.title)")
                     .buttonStyle(ChimingPlainButtonStyle())
 
                     if index < tracks.count - 1 {
@@ -212,9 +217,10 @@ struct GroupSessionView: View {
     }
 
     private func startCurrentTrack() {
-        guard currentTrack != nil else { return }
+        guard let track = currentTrack else { return }
         audio.stop()
-        audio.startFresh(photoAnchored: false)
+        // Play the listed track — this previously always started the ambient loop.
+        audio.startFresh(streamURL: ResidentPlaybackTrackCatalog.track(titled: track.title, genre: track.genre).audioURL)
         isPlaying = true
         state.markGroupTrackPlayed()
     }
@@ -281,10 +287,14 @@ struct GroupSessionFeedbackView: View {
 
     var body: some View {
         ScreenFadeIn {
+            // Top-aligned: the step card grows (note field on the last step), and a centred
+            // layout would slide the rating buttons out from under the carer's finger.
             CenteredScrollScreen(
+                backTitle: state.groupSessionFeedbackStep > 0 ? "Back" : "Skip",
                 backAccessibilityLabel: backLabel,
                 onBack: handleBack,
-                onLogout: { state.signOutSupervisor() }
+                onLogout: { state.signOutSupervisor() },
+                topAligned: true
             ) {
                 VStack(spacing: 24) {
                     FadeInTitle(text: "Group check-in", delay: 0)
@@ -338,7 +348,8 @@ struct GroupSessionFeedbackView: View {
                                     Text("Optional note")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(BrandTheme.textSecondary)
-                                    TextField("Anything else about the group?", text: $state.groupSessionFeedbackDraft.note, axis: .vertical)
+                                    TextField("Note", text: $state.groupSessionFeedbackDraft.note, prompt: BrandTheme.fieldPrompt("Anything else about the group?"), axis: .vertical)
+                                    .accessibilityIdentifier("group.note")
                                         .lineLimit(1 ... 4)
                                         .font(.body)
                                         .foregroundStyle(BrandTheme.textPrimary)
@@ -371,6 +382,7 @@ struct GroupSessionFeedbackView: View {
                             state.advanceGroupSessionFeedbackStep()
                         }
                     }
+                    .accessibilityIdentifier("group.save")
                     .disabled(currentSelection == nil)
                     .opacity(currentSelection == nil ? 0.45 : 1)
                     .animation(CalmMotion.subtle, value: currentSelection)
@@ -379,6 +391,7 @@ struct GroupSessionFeedbackView: View {
                     SecondaryButton(title: "Skip — back to roster") {
                         state.skipGroupSessionFeedback()
                     }
+                    .accessibilityIdentifier("group.skip")
                     .padding(.horizontal, 24)
                 }
                 .padding(.vertical, 28)
@@ -399,7 +412,9 @@ struct GroupSessionFeedbackView: View {
     }
 
     private var backLabel: String {
-        state.groupSessionFeedbackStep > 0 ? "Previous question" : "Skip feedback"
+        state.groupSessionFeedbackStep > 0
+            ? "Previous question"
+            : "Skip feedback — saves the group session without ratings"
     }
 
     private func handleBack() {

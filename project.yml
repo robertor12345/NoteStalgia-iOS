@@ -50,10 +50,31 @@ targets:
         NSHealthUpdateUsageDescription: Optional wellness updates when you connect Health.
     dependencies: []
 
+  # Scripted demo walkthroughs (see tools/demo/README.md). Not shipped; drives the app for recordings.
+  NoteStalgiaDemoUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - DemoUITests
+    dependencies:
+      - target: NoteStalgia-iOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.notestalgia.ios.demouitests
+        TEST_TARGET_NAME: NoteStalgia-iOS
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+
 schemes:
   NoteStalgia-iOS:
     build:
       targets:
         NoteStalgia-iOS: all
+        NoteStalgiaDemoUITests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - NoteStalgiaDemoUITests

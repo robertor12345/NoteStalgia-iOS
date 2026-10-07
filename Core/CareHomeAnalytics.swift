@@ -138,7 +138,7 @@ enum CareHomeAnalytics {
             ),
             CareHomeKPICard(
                 id: "calm",
-                title: "Avg calm",
+                title: "Avg at ease",
                 value: avgCalm.map { "\($0)%" } ?? "—",
                 detail: "During session"
             ),
@@ -281,13 +281,13 @@ enum CareHomeAnalytics {
             ),
             makeTrendSeries(
                 id: "calm",
-                title: "Avg calm",
+                title: "Avg at ease",
                 unitLabel: "% at ease during session",
-                legendDescription: "Average calm score across sessions each day",
+                legendDescription: "Average at-ease score across sessions each day",
                 valueFormat: .percent,
                 points: calmPoints,
                 latestSummary: latestCalmSummary(points: calmPoints),
-                fixedAxis: CareHomeTrendAxis(title: "% calm", minimum: 0, maximum: 100, tickValues: [0, 25, 50, 75, 100])
+                fixedAxis: CareHomeTrendAxis(title: "% at ease", minimum: 0, maximum: 100, tickValues: [0, 25, 50, 75, 100])
             ),
             makeTrendSeries(
                 id: "wellbeing",
@@ -365,7 +365,7 @@ enum CareHomeAnalytics {
 
     private static func latestCalmSummary(points: [CareHomeTrendPoint]) -> String? {
         guard let latest = points.last(where: { $0.value != nil })?.value else { return nil }
-        return "Latest day: \(Int(latest.rounded()))% calm"
+        return "Latest day: \(Int(latest.rounded()))% at ease"
     }
 
     private static func latestWellbeingSummary(points: [CareHomeTrendPoint]) -> String? {

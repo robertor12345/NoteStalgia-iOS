@@ -104,7 +104,7 @@ struct PrimaryButton: View {
                 .background { OrbPeachCapsuleFill() }
                 .clipShape(Capsule(style: .continuous))
         }
-        .buttonStyle(SoftPressButtonStyle())
+        .buttonStyle(SoftPressButtonStyle(glow: BrandTheme.logoPink))
     }
 }
 
@@ -134,6 +134,23 @@ enum FlowStaffNavChrome {
     static let buttonMinWidth: CGFloat = 76
 }
 
+extension View {
+    /// Grows a control's hit area to at least 44pt without moving a pixel: transparent padding is
+    /// added for hit-testing, then taken back out of layout.
+    func expandedHitArea(vertical: CGFloat = 0, horizontal: CGFloat = 0) -> some View {
+        padding(.vertical, vertical)
+            .padding(.horizontal, horizontal)
+            .contentShape(.interaction, Rectangle())
+            .padding(.vertical, -vertical)
+            .padding(.horizontal, -horizontal)
+    }
+
+    /// The compact Back / Log out capsules are ≈28pt tall; this lifts their touch target to 44pt.
+    func staffChromeHitArea() -> some View {
+        expandedHitArea(vertical: 8)
+    }
+}
+
 struct FlowSmallBackButton: View {
     var title: String = "Back"
     var accessibilityLabel: String?
@@ -159,9 +176,11 @@ struct FlowSmallBackButton: View {
                             .stroke(BrandTheme.gold.opacity(0.24), lineWidth: 1)
                     }
             }
+            .staffChromeHitArea()
         }
         .buttonStyle(SoftPressButtonStyle(pressedScale: 0.97))
         .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityIdentifier("chrome.back")
     }
 }
 
@@ -193,9 +212,11 @@ struct FlowSmallLogoutButton: View {
                             .stroke(logoutRed.opacity(0.42), lineWidth: 1)
                     }
             }
+            .staffChromeHitArea()
         }
         .buttonStyle(SoftPressButtonStyle(pressedScale: 0.97))
         .accessibilityLabel(title)
+        .accessibilityIdentifier("chrome.logout")
     }
 }
 
@@ -363,6 +384,7 @@ struct OrbNavTile: View {
                     }
             }
         }
+        .accessibilityIdentifier("entry.\(title)")
         .buttonStyle(ChimingPlainButtonStyle())
     }
 }
@@ -394,9 +416,8 @@ struct OrbIconNavButton: View {
 }
 
 struct OrbPortraitNavButton: View {
-    let portraitAssetName: String
+    let portraitAssetName: String?
     var customPortraitImage: UIImage?
-    var remotePortraitURL: URL? = nil
     let title: String
     let subtitle: String
     var portraitSize: CGFloat?
@@ -416,7 +437,6 @@ struct OrbPortraitNavButton: View {
                 ZStack {
                     NoteStalgiaOrbBackdrop(diameter: frameSize, pulse: 0.5, glowPulse: 0.62)
                     ResidentPortraitFill(
-                        remoteURL: remotePortraitURL,
                         assetName: portraitAssetName,
                         customImage: customPortraitImage
                     )
@@ -454,7 +474,7 @@ struct OrbPortraitNavButton: View {
 }
 
 struct OrbFaceLinkedTile: View {
-    let portraitAssetName: String
+    let portraitAssetName: String?
     let title: String
     let subtitle: String
     var action: () -> Void
@@ -474,9 +494,7 @@ struct OrbFaceLinkedTile: View {
             VStack(spacing: 10) {
                 ZStack {
                     NoteStalgiaOrbBackdrop(diameter: backdropDiameter, pulse: 0.5, glowPulse: 0.64)
-                    Image(portraitAssetName)
-                        .resizable()
-                        .scaledToFill()
+                    ResidentPortraitFill(assetName: portraitAssetName, customImage: nil)
                         .frame(width: portraitDiameter, height: portraitDiameter)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 2))
@@ -511,13 +529,15 @@ struct OrbFaceLinkedTile: View {
 struct OrbMoodNavOrb: View {
     let title: String
     let index: Int
-    let phase: TimeInterval
     let isSelected: Bool
     let onSelect: () -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    private var floatY: CGFloat {
+    /// Gentle bob applied by the parent (`MoodOrbFloat`) so the orb body itself isn't rebuilt
+    /// 60× a second. The amplitude matches the former in-body offset exactly; the selected orb's
+    /// 1.04 scale is applied inside, so the parent compensates to keep the translation identical.
+    static func floatY(index: Int, phase: TimeInterval, isSelected: Bool) -> CGFloat {
         CGFloat(sin(phase * 0.82 + Double(index) * 0.61) * (isSelected ? 2.5 : 4.5))
     }
 
@@ -544,11 +564,27 @@ struct OrbMoodNavOrb: View {
                     .shadow(color: Color(red: 0.38, green: 0.58, blue: 0.78).opacity(0.35), radius: 4, y: 1)
             }
             .frame(width: diameter + 8, height: diameter + 8)
-            .offset(y: floatY)
             .scaleEffect(isSelected ? 1.04 : 1)
         }
         .buttonStyle(ChimingPlainButtonStyle())
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("mood.\(title)")
         .animation(.spring(response: 0.4, dampingFraction: 0.78), value: isSelected)
+    }
+}
+
+/// Per-tick float for a mood orb. Lives outside the orb so the timeline only re-evaluates this
+/// offset, not the orb's label (backdrop, text, shadows).
+struct MoodOrbFloat: ViewModifier {
+    let index: Int
+    let phase: TimeInterval
+    let isSelected: Bool
+
+    func body(content: Content) -> some View {
+        // The offset used to sit under the orb's own `scaleEffect(1.04)`; applied after it now,
+        // so scale the translation to land on the same pixels.
+        content.offset(y: OrbMoodNavOrb.floatY(index: index, phase: phase, isSelected: isSelected) * (isSelected ? 1.04 : 1))
     }
 }
 

@@ -198,6 +198,66 @@ struct CareSessionInsightPack: Equatable {
     let carePlanBullet: String
     let handoverText: String
     let familyText: String
+    /// The same facts, broken out for the at-a-glance supervisor layout (the texts above are what gets copied).
+    let summary: CareSessionInsightSummary
+    /// `handoverText` split into labelled sections for on-screen reading.
+    let handoverSections: [CareInsightSection]
+}
+
+struct CareInsightSection: Equatable, Identifiable {
+    let title: String
+    let body: String
+    var id: String { title }
+}
+
+/// Structured view of one session for the post-session summary screen.
+struct CareSessionInsightSummary: Equatable {
+    struct Rating: Equatable, Identifiable {
+        let label: String
+        let value: Int
+        var id: String { label }
+    }
+
+    struct GenrePlay: Equatable, Identifiable {
+        let name: String
+        let count: Int
+        var id: String { name }
+        var genre: ResidentMusicGenre? {
+            ResidentMusicGenre.allCases.first { $0.accessibilityLabel.caseInsensitiveCompare(name) == .orderedSame }
+        }
+    }
+
+    struct TrackListen: Equatable, Identifiable {
+        let title: String
+        let detail: String?
+        var id: String { title }
+    }
+
+    enum Trend: Equatable {
+        /// No earlier rated session to compare with.
+        case firstRated
+        case higher(now: Double, usual: Double)
+        case steady(now: Double, usual: Double)
+        case lower(now: Double, usual: Double)
+    }
+
+    let dateText: String
+    let durationText: String?
+    /// Composite of the carer ratings (needs at least two).
+    let wellbeing: Double?
+    let trend: Trend?
+    /// Secondary trend remarks (mood, duration) — the composite is carried by `trend`.
+    let trendNotes: [String]
+    let ratings: [Rating]
+    let genres: [GenrePlay]
+    let liked: [TrackListen]
+    let skipped: [String]
+    let longestListening: [TrackListen]
+    let frustrationBursts: Int
+    let calmRoomVisits: Int
+    let contextTags: [String]
+    let distressOrPRNNearby: Bool
+    let note: String?
 }
 
 enum CareSessionInsightBuilder {
@@ -232,8 +292,10 @@ enum CareSessionInsightBuilder {
             deltaLines: deltas,
             suggestedNextStep: nextStep,
             carePlanBullet: carePlan,
-            handoverText: handover,
-            familyText: family
+            handoverText: handover.text,
+            familyText: family,
+            summary: buildSummary(record: record, priorRecords: priorRecords, deltas: deltas),
+            handoverSections: handover.sections
         )
     }
 
@@ -377,7 +439,7 @@ enum CareSessionInsightBuilder {
             if let favourite = favouriteGenreLabel(patient) {
                 parts.append("using gentle \(favourite) from their care profile")
             }
-            parts.append("and low-stimulus environmental conditions.")
+            parts.append("and low-stimulus environmental conditions")
             return parts.joined(separator: ", ") + "."
         }
 
@@ -416,32 +478,133 @@ enum CareSessionInsightBuilder {
         narrative: String,
         deltas: [String],
         nextStep: String
-    ) -> String {
+    ) -> (text: String, sections: [CareInsightSection]) {
+        var facts: [CareInsightSection] = []
+        if let interaction = record.residentInteractionSummaryLine() {
+            facts.append(CareInsightSection(title: "Intervention", body: "reminiscence music — \(interaction)"))
+        }
+        if let context = record.sessionContextSummary, !context.isEmpty {
+            facts.append(CareInsightSection(title: "Clinical context", body: context))
+        }
+        if let observed = staffObservedPhrase(record) {
+            facts.append(CareInsightSection(title: "Carer observations (1–10)", body: observed))
+        }
+        if !deltas.isEmpty {
+            facts.append(CareInsightSection(title: "Trend vs recent sessions", body: deltas.joined(separator: " ")))
+        }
+        let narrativeSection = CareInsightSection(title: "Narrative", body: narrative)
+        let actionSection = CareInsightSection(title: "Care plan action", body: nextStep)
+        let noteSection = record.staffNote?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            .map { CareInsightSection(title: "Carer note", body: $0) }
+
+        func line(_ section: CareInsightSection) -> String { "\(section.title): \(section.body)" }
+
         var lines: [String] = []
         lines.append("NURSING HANDOVER RECORD — \(patient.displayName)")
         lines.append(dateFormatter.string(from: record.date))
         lines.append("")
-        if let interaction = record.residentInteractionSummaryLine() {
-            lines.append("Intervention: reminiscence music — \(interaction)")
-        }
-        if let context = record.sessionContextSummary, !context.isEmpty {
-            lines.append("Clinical context: \(context)")
-        }
-        if let observed = staffObservedPhrase(record) {
-            lines.append("Carer observations (1–10): \(observed)")
-        }
-        if !deltas.isEmpty {
-            lines.append("Trend vs recent sessions: \(deltas.joined(separator: " "))")
-        }
+        lines.append(contentsOf: facts.map(line))
         lines.append("")
-        lines.append("Narrative: \(narrative)")
+        lines.append(line(narrativeSection))
         lines.append("")
-        lines.append("Care plan action: \(nextStep)")
-        if let note = record.staffNote?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+        lines.append(line(actionSection))
+        if let noteSection {
             lines.append("")
-            lines.append("Carer note: \(note)")
+            lines.append(line(noteSection))
         }
-        return lines.joined(separator: "\n")
+        let sections = facts + [actionSection] + (noteSection.map { [$0] } ?? []) + [narrativeSection]
+        return (lines.joined(separator: "\n"), sections)
+    }
+
+    private static func buildSummary(
+        record: CareSessionRecord,
+        priorRecords: [CareSessionRecord],
+        deltas: [String]
+    ) -> CareSessionInsightSummary {
+        let current = wellbeingScore(for: record)
+        let priorScores = priorRecords.compactMap(wellbeingScore(for:)).prefix(5)
+        var trend: CareSessionInsightSummary.Trend?
+        var trendNotes = deltas
+        if let current {
+            if priorScores.isEmpty {
+                trend = .firstRated
+                trendNotes = []
+            } else {
+                let usual = priorScores.reduce(0, +) / Double(priorScores.count)
+                let delta = current - usual
+                trend = abs(delta) < 0.4 ? .steady(now: current, usual: usual)
+                    : delta > 0 ? .higher(now: current, usual: usual)
+                    : .lower(now: current, usual: usual)
+                trendNotes = Array(deltas.dropFirst())
+            }
+        } else if priorRecords.isEmpty {
+            trend = .firstRated
+            trendNotes = []
+        }
+
+        let ratings: [CareSessionInsightSummary.Rating] = [
+            ("Mood / affect", record.moodRating),
+            ("Emotional presentation", record.emotionalStateRating),
+            ("Alertness", record.alertnessRating),
+            ("Orientation & responsiveness", record.lucidityRating),
+        ].compactMap { label, value in value.map { .init(label: label, value: $0) } }
+
+        let genres = splitList(record.residentGenresPlayedSummary).map { item -> CareSessionInsightSummary.GenrePlay in
+            let (name, count) = splitCount(item)
+            return .init(name: name, count: count ?? 1)
+        }
+        let liked = splitList(record.residentLikedTracksSummary).map { item -> CareSessionInsightSummary.TrackListen in
+            let (title, count) = splitCount(item)
+            return .init(title: title, detail: (count ?? 1) > 1 ? "×\(count!)" : nil)
+        }
+        let longest = splitList(record.residentTopDwellTracksSummary).map { item -> CareSessionInsightSummary.TrackListen in
+            // "Title 47s" — the listening time is the last word.
+            guard let space = item.lastIndex(of: " "), item.hasSuffix("s"),
+                  let seconds = Int(item[item.index(after: space)...].dropLast())
+            else { return .init(title: item, detail: nil) }
+            return .init(title: String(item[..<space]), detail: formatDuration(seconds))
+        }
+
+        // "Afternoon · Following meal, Lights dimmed · Resident-led" → one chip per fact.
+        let contextTags = (record.sessionContextSummary ?? "")
+            .components(separatedBy: " · ")
+            .flatMap { $0.components(separatedBy: ", ") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("Acute distress") }
+
+        return CareSessionInsightSummary(
+            dateText: dateFormatter.string(from: record.date),
+            durationText: record.sessionDurationSeconds.flatMap { $0 > 0 ? formatDuration($0) : nil },
+            wellbeing: current,
+            trend: trend,
+            trendNotes: trendNotes,
+            ratings: ratings,
+            genres: genres,
+            liked: liked,
+            skipped: splitList(record.residentSkippedTracksSummary),
+            longestListening: longest,
+            frustrationBursts: record.residentRageBurstCount ?? 0,
+            calmRoomVisits: record.residentImmersiveEntryCount ?? 0,
+            contextTags: contextTags,
+            distressOrPRNNearby: record.distressOrPRNNearby == true,
+            note: record.staffNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        )
+    }
+
+    private static func splitList(_ summary: String?) -> [String] {
+        (summary ?? "")
+            .components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// "Jazz ×2" → ("Jazz", 2); "Jazz" → ("Jazz", nil).
+    private static func splitCount(_ item: String) -> (String, Int?) {
+        let parts = item.components(separatedBy: " ×")
+        guard parts.count == 2, let count = Int(parts[1]) else { return (item, nil) }
+        return (parts[0], count)
     }
 
     private static func buildFamilyText(
@@ -502,8 +665,13 @@ enum CareSessionInsightBuilder {
     }
 }
 
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
+}
+
 extension CareSessionRecord {
+    /// Narrative only — the history row shows the suggested step on its own "Next:" line.
     func insightPreviewLine() -> String? {
-        insightNarrative ?? insightSuggestedNextStep
+        insightNarrative
     }
 }

@@ -52,7 +52,11 @@ final class SessionPOCState: ObservableObject {
             .store(in: &storeSubscriptions)
     }
 
-    @Published var phase: FlowPhase = .home
+    @Published var phase: FlowPhase = .home {
+        didSet {
+            if phase != oldValue { DemoAudioLog.record("phase", ["phase": "\(phase)"]) }
+        }
+    }
     @Published private(set) var phaseContentVisible = true
     private var phaseTransitionTask: Task<Void, Never>?
 
@@ -852,14 +856,13 @@ final class SessionPOCState: ObservableObject {
     /// cache the result and only rebuild the (filter/aggregate-heavy) dashboard when the
     /// residents, records, or selected home actually changed.
     func careHomeDashboardPresentation() -> CareHomeDashboardPresentation {
-        let residents = residentsInCurrentHome()
         let key = CareRosterUIStore.DashboardPresentationCacheKey(homeId: currentHomeId, dataRevision: careData.dataRevision)
         if let cache = rosterUI.dashboardPresentationCache, cache.key == key {
             return cache.value
         }
         let value = CareHomeAnalytics.buildDashboard(
             home: currentHome(),
-            residents: residents,
+            residents: residentsInCurrentHome(),
             records: careSessionRecords
         )
         rosterUI.dashboardPresentationCache = (key, value)
@@ -1040,7 +1043,7 @@ final class SessionPOCState: ObservableObject {
             residentAgeYears: age,
             nationality: nationality,
             favouriteMusicGenre: seedGenre,
-            stockPortraitAssetName: "StockPortraitSam",
+            stockPortraitAssetName: nil,
             isProvisional: true,
             genrePlaylistGroups: [],
             homeId: homeId,
@@ -1100,6 +1103,8 @@ final class SessionPOCState: ObservableObject {
         patients[idx].nationality = newResidentProfileNationalityDraft
         patients[idx].careContextLabel = "New on roster"
         patients[idx].isProvisional = false
+        // The captured photo is mandatory and always wins; the bundled portrait is the fallback.
+        patients[idx].stockPortraitAssetName = ResidentPortraitCatalog.assetName(displayName: name)
         if patients[idx].genrePlaylistGroups.isEmpty {
             patients[idx].genrePlaylistGroups = [
                 DiscoveryPlaylistTuning.stubGenreGroup(for: patients[idx].favouriteMusicGenre),
@@ -1121,6 +1126,8 @@ final class SessionPOCState: ObservableObject {
         newResidentProfilePhoto = nil
         selectedCarePatientId = pid
         resetResidentSurfaceMetrics()
+        // A search left over from before the discovery would otherwise hide the new resident.
+        rosterSearchQuery = ""
         phase = .carePatientList
         return nil
     }
@@ -1380,9 +1387,16 @@ final class SessionPOCState: ObservableObject {
         CareSessionSentimentAnalytics.summary(for: recordsForPatient(patientId))
     }
 
+    /// Read by the roster body on every pass (including each search keystroke) — cached so it
+    /// only re-walks every session record when the home or the underlying data changes.
     func careHomeSentimentOverview() -> CareSessionSentimentSummary {
-        let roster = residentsInCurrentHome()
-        return CareSessionSentimentAnalytics.homeOverview(for: roster, records: careSessionRecords)
+        let key = CareRosterUIStore.DashboardPresentationCacheKey(homeId: currentHomeId, dataRevision: careData.dataRevision)
+        if let cache = rosterUI.homeSentimentOverviewCache, cache.key == key {
+            return cache.value
+        }
+        let value = CareSessionSentimentAnalytics.homeOverview(for: residentsInCurrentHome(), records: careSessionRecords)
+        rosterUI.homeSentimentOverviewCache = (key, value)
+        return value
     }
 
     // MARK: - Group session

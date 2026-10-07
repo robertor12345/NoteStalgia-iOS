@@ -253,8 +253,11 @@ private struct DiscoveryEraListeningOrb: View {
     var onSelectMood: (DiscoveryTrafficSentiment) -> Void
 
     @StateObject private var videoLooper = DiscoverySnippetVideoLooper()
-    @ObservedObject private var reactiveBus = MusicReactiveBus.shared
     @State private var eraMediaReady = false
+    /// Set when the era still/clip hasn't arrived within `mediaReadyTimeout` — the shimmer gives way
+    /// to a mood-coloured fallback with the genre artwork, so an offline iPad never shimmers forever.
+    @State private var mediaTimedOut = false
+    private let mediaReadyTimeout: TimeInterval = 6
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.flowOrbPulseAnchor) private var flowOrbPulseAnchor
     @Environment(\.flowPanelPulseIntensity) private var flowPanelPulseIntensity
@@ -283,8 +286,10 @@ private struct DiscoveryEraListeningOrb: View {
         return videoLooper.player.rate > 0
     }
 
+    /// Read inside the 60fps tick (not observed): subscribing to the bus here re-rendered this whole
+    /// orb — media, gradients, three faces — up to 48 extra times a second on top of the timeline.
     private var showEqualizer: Bool {
-        isClipPlaybackActive && visualsArePlaying && reactiveBus.snapshot.isActive
+        isClipPlaybackActive && visualsArePlaying && MusicReactiveBus.shared.snapshot.isActive
     }
 
     var body: some View {
@@ -303,9 +308,15 @@ private struct DiscoveryEraListeningOrb: View {
             ZStack {
                 ZStack {
                     if !eraMediaReady {
-                        DiscoveryMediaLoadingFill(diameter: coreDiameter)
-                            .frame(width: coreDiameter, height: coreDiameter)
-                            .transition(.opacity)
+                        if mediaTimedOut {
+                            DiscoveryMediaFallbackFill(mood: visualMood, diameter: coreDiameter)
+                                .frame(width: coreDiameter, height: coreDiameter)
+                                .transition(.opacity)
+                        } else {
+                            DiscoveryMediaLoadingFill(diameter: coreDiameter)
+                                .frame(width: coreDiameter, height: coreDiameter)
+                                .transition(.opacity)
+                        }
                     }
 
                     DiscoverySnippetMediaFill(
@@ -339,6 +350,7 @@ private struct DiscoveryEraListeningOrb: View {
                 }
                 .clipShape(Circle())
                 .animation(.easeInOut(duration: 0.5), value: eraMediaReady)
+                .animation(.easeInOut(duration: 0.5), value: mediaTimedOut)
 
                 Circle()
                     .fill(Color.black.opacity(0.32))
@@ -370,7 +382,7 @@ private struct DiscoveryEraListeningOrb: View {
                         listenProgress: 1,
                         reactsToMusic: true,
                         liveAudioOnly: true,
-                        bandLevels: reactiveBus.snapshot.bands,
+                        bandLevels: nil,
                         liveAudioGain: OrbRadialBarEqualizerView.LiveMusicTuning.liveAudioGain,
                         liveLevelExponent: OrbRadialBarEqualizerView.LiveMusicTuning.liveLevelExponent,
                         barAmplitudeFloor: OrbRadialBarEqualizerView.LiveMusicTuning.barAmplitudeFloor,
@@ -406,6 +418,16 @@ private struct DiscoveryEraListeningOrb: View {
         }
         .onDisappear {
             videoLooper.stop()
+        }
+        // Restarts per clip; cancelled with the view. Only fires if the media is still cold.
+        .task(id: snippetIndex) {
+            mediaTimedOut = false
+            try? await Task.sleep(for: .seconds(mediaReadyTimeout))
+            guard !Task.isCancelled, !eraMediaReady else { return }
+            mediaTimedOut = true
+        }
+        .onChange(of: eraMediaReady) { _, ready in
+            if ready { mediaTimedOut = false }
         }
     }
 
@@ -450,6 +472,47 @@ private struct DiscoveryMediaLoadingFill: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// Fallback interior when the era media never arrives: the mood's colour grade over the dark base,
+/// with the genre's designer artwork ghosted in the centre so the orb still says what is playing.
+/// The smiley faces stay layered on top as usual.
+private struct DiscoveryMediaFallbackFill: View {
+    let mood: MusicVisualMood
+    let diameter: CGFloat
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.10, green: 0.09, blue: 0.14)
+            LinearGradient(
+                colors: mood.tintColors.map { $0.opacity(0.55) },
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            if let artwork = Self.genreArtwork(for: mood) {
+                Image(artwork)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: diameter * 0.5, height: diameter * 0.5)
+                    .clipShape(Circle())
+                    .opacity(0.35)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private static func genreArtwork(for mood: MusicVisualMood) -> String? {
+        switch mood {
+        case .jazzNightclub: return ResidentMusicGenre.jazz.artworkAssetName
+        case .classicalBallroom: return ResidentMusicGenre.classical.artworkAssetName
+        case .popDanceParty: return ResidentMusicGenre.pop.artworkAssetName
+        case .rockEnergetic: return ResidentMusicGenre.rock.artworkAssetName
+        case .countryAmericana: return ResidentMusicGenre.country.artworkAssetName
+        case .soulSmooth: return ResidentMusicGenre.soul.artworkAssetName
+        case .gospelUplift: return ResidentMusicGenre.gospel.artworkAssetName
+        case .nostalgic, .openRoad, .ambientCalm: return nil
+        }
     }
 }
 
@@ -550,6 +613,7 @@ private struct TrafficSmileyFaceButton: View {
             playAffirmationGlow()
         }
         .accessibilityLabel(sentiment.accessibilitySummary + " mood")
+        .accessibilityIdentifier("discovery.face.\(sentiment.accessibilitySummary.lowercased())")
         .accessibilityHint("Confirms mood. The next clip follows a short pause with a bright ring on your choice.")
     }
 

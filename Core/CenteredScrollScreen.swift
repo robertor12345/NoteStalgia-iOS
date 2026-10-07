@@ -7,6 +7,9 @@ struct CenteredScrollScreen<Content: View>: View {
     var backAccessibilityLabel: String?
     var onBack: (() -> Void)?
     var onLogout: (() -> Void)?
+    /// Pin content to the top instead of centring it when it is shorter than the viewport — for
+    /// screens whose height changes as the user types (e.g. roster search), so the field never jumps.
+    var topAligned: Bool = false
     @ViewBuilder var content: () -> Content
 
     private let scrollSpace = "centeredScroll"
@@ -25,7 +28,9 @@ struct CenteredScrollScreen<Content: View>: View {
 
             ScrollViewportEdgeFade(coordinateSpace: scrollSpace) {
                 VStack(spacing: 0) {
-                    Spacer(minLength: 0)
+                    if !topAligned {
+                        Spacer(minLength: 0)
+                    }
                     content()
                         .frame(maxWidth: BrandLayout.menuColumnMaxWidth)
                         .frame(maxWidth: .infinity)

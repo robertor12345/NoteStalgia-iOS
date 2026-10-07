@@ -92,70 +92,6 @@ struct NoteStalgiaOrbAnimatedArcFrame: View {
 /// Legacy alias — prefer ``NoteStalgiaOrbAnimatedArcFrame``.
 typealias NoteStalgiaOrbArcFrame = NoteStalgiaOrbAnimatedArcFrame
 
-// MARK: - Reference orb ripple rings (concentric glass shells from reference video)
-
-struct NoteStalgiaOrbRippleRings: View {
-    var diameter: CGFloat
-    var phase: Double
-    var glowPulse: Double
-    var ringExpansion: Double = 1
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Canvas { context, size in
-            let center = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-            let baseRadius = min(size.width, size.height) * 0.46
-            let shimmer = 0.72 + 0.28 * glowPulse
-
-            for ring in 0 ..< 3 {
-                let ringBias = Double(ring) * 0.055
-                let expand = ringExpansion + ringBias + phase * 0.018
-                let radius = baseRadius * expand
-                let ringRect = CGRect(
-                    x: center.x - radius,
-                    y: center.y - radius,
-                    width: radius * 2,
-                    height: radius * 2
-                )
-                let strokeOpacity = (0.42 - Double(ring) * 0.09) * shimmer
-                context.stroke(
-                    Path(ellipseIn: ringRect),
-                    with: .color(.white.opacity(strokeOpacity)),
-                    lineWidth: max(0.6, diameter * 0.0018)
-                )
-                context.stroke(
-                    Path(ellipseIn: ringRect),
-                    with: .color(BrandTheme.nebulaCyan.opacity(strokeOpacity * 0.55)),
-                    lineWidth: max(0.45, diameter * 0.0014)
-                )
-
-                let topoCount = 3 + ring
-                for line in 1 ... topoCount {
-                    let inset = CGFloat(line) * max(0.8, diameter * 0.0032)
-                    let inner = radius - inset
-                    guard inner > radius * 0.55 else { continue }
-                    let innerRect = CGRect(
-                        x: center.x - inner,
-                        y: center.y - inner,
-                        width: inner * 2,
-                        height: inner * 2
-                    )
-                    context.stroke(
-                        Path(ellipseIn: innerRect),
-                        with: .color(BrandTheme.nebulaCyan.opacity(0.07 * shimmer)),
-                        lineWidth: 0.45
-                    )
-                }
-            }
-        }
-        .frame(width: diameter * 1.22, height: diameter * 1.22)
-        .rotationEffect(.degrees(reduceMotion ? 0 : phase * 4.5))
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
 // MARK: - Reference orb exterior smoke wisps
 
 struct NoteStalgiaOrbExteriorWisps: View {
@@ -220,9 +156,23 @@ struct NoteStalgiaOrbExteriorWisps: View {
                 .blur(radius: diameter * 0.05)
         }
         .frame(width: diameter * 1.45, height: diameter * 1.15)
+        // Blurred gradient ellipses were rasterised on the CPU (`PaintShapeLayer`) every frame —
+        // ~20% of main-thread time. Flatten them on the GPU instead; the padding keeps the offset
+        // ellipses and their blur tails inside the offscreen so nothing is clipped, and the
+        // negative padding restores the original layout size. Pixels are unchanged.
+        .padding(.horizontal, diameter * Self.renderBleedX)
+        .padding(.vertical, diameter * Self.renderBleedY)
+        .drawingGroup(opaque: false, colorMode: .nonLinear)
+        .padding(.horizontal, -diameter * Self.renderBleedX)
+        .padding(.vertical, -diameter * Self.renderBleedY)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
+
+    /// Extra offscreen margin (fraction of diameter) beyond the 1.45 × 1.15 layout box: the side
+    /// ellipses reach ~0.95d from centre and blur adds up to ~0.25d.
+    private static let renderBleedX: CGFloat = 0.6
+    private static let renderBleedY: CGFloat = 0.35
 }
 
 // MARK: - Animated nebula interior (reference video match)
@@ -260,6 +210,8 @@ struct NoteStalgiaNebulaOrbShell: View {
     /// When set, the parent timeline drives animation (avoids a second 60fps timer).
     var animationElapsed: TimeInterval? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.flowAmbientPaused) private var flowAmbientPaused
+    @Environment(\.scenePhase) private var scenePhase
 
     private var bounds: CGFloat { min(width, height) }
 
@@ -268,7 +220,11 @@ struct NoteStalgiaNebulaOrbShell: View {
     private var diameter: CGFloat { baseDiameter * shellScale }
 
     private var shellFrameInterval: Double {
-        1 / (reduceMotion ? OrbRenderBudget.reducedMotionFramesPerSecond : OrbRenderBudget.shellFramesPerSecond)
+        if reduceMotion { return 1 / OrbRenderBudget.reducedMotionFramesPerSecond }
+        // Small self-driven orbs have no per-frame nebula noise (lite interior) — only slow wisp
+        // and arc drift — so a calmer cadence is visually identical.
+        if diameter < OrbRenderBudget.iconOrbMaxDiameter { return 1 / OrbRenderBudget.iconFramesPerSecond }
+        return 1 / OrbRenderBudget.shellFramesPerSecond
     }
 
     var body: some View {
@@ -276,7 +232,14 @@ struct NoteStalgiaNebulaOrbShell: View {
             if let animationElapsed {
                 orbShellContent(elapsed: animationElapsed)
             } else {
-                TimelineView(.animation(minimumInterval: shellFrameInterval, paused: false)) { timeline in
+                // Self-driven (icon orbs). Freeze — same frame, not a different one — while the
+                // keyboard is up, a staff list is scrolling, or the app is in the background.
+                TimelineView(
+                    .animation(
+                        minimumInterval: shellFrameInterval,
+                        paused: flowAmbientPaused || scenePhase != .active
+                    )
+                ) { timeline in
                     orbShellContent(elapsed: timeline.date.timeIntervalSince(anchor))
                 }
             }
@@ -287,18 +250,16 @@ struct NoteStalgiaNebulaOrbShell: View {
         let swirl = reduceMotion ? 0 : elapsed * 0.32
         let breathe = OrbHeartbeat.breatheScale(forPulse: pulse)
         let glowStrength = min(1.35, shellGlowScale)
-        let ringExpansion = OrbReferenceMotion.ringExpansion(at: elapsed)
         let wispDrift = OrbReferenceMotion.wispDrift(at: elapsed)
 
         return ZStack {
-            orbRadianceHalo(glowStrength: glowStrength)
+            // Pre-rendered halo (see `OrbGlowSprites`) — same pixels as re-blurring it every frame.
+            OrbGlowSprites.sprite(.halo, diameter: diameter, bloom: glowPulse * Double(glowStrength))
 
             proceduralOrbInterior(
                 swirl: swirl,
                 breathe: breathe,
                 glowStrength: glowStrength,
-                pulse: pulse,
-                ringExpansion: ringExpansion,
                 wispDrift: wispDrift
             )
         }
@@ -312,10 +273,136 @@ struct NoteStalgiaNebulaOrbShell: View {
         )
     }
 
-    /// Soft outer corona + inner bloom — reads as radiant light without extra canvas work.
-    private func orbRadianceHalo(glowStrength: CGFloat) -> some View {
-        let bloom = glowPulse * Double(glowStrength)
-        return ZStack {
+    @ViewBuilder
+    private func proceduralOrbInterior(
+        swirl: Double,
+        breathe: CGFloat,
+        glowStrength: CGFloat,
+        wispDrift: Double
+    ) -> some View {
+        NoteStalgiaOrbExteriorWisps(
+            diameter: diameter,
+            swirlPhase: swirl,
+            glowPulse: glowPulse,
+            drift: wispDrift
+        )
+
+        // Pre-rendered inner glow (see `OrbGlowSprites`).
+        OrbGlowSprites.sprite(.glow, diameter: diameter, bloom: glowPulse * Double(glowStrength))
+            .scaleEffect(breathe)
+
+        NoteStalgiaNebulaFill(
+            diameter: diameter,
+            swirlPhase: swirl,
+            glowPulse: glowPulse,
+            fillOpacity: nebulaFillOpacity
+        )
+        .scaleEffect(breathe)
+
+        // Large shells used to add a "ripple rings" Canvas here that drew nothing; only small
+        // orbs show an arc frame.
+        if showArcFrame, diameter < 96 {
+            NoteStalgiaOrbAnimatedArcFrame(
+                diameter: diameter * 1.01,
+                lineWidth: max(1.5, diameter * 0.004),
+                swirlPhase: swirl,
+                glowPulse: glowPulse,
+                breathe: breathe
+            )
+        }
+    }
+}
+
+// MARK: - Brand wordmark
+
+struct NoteStalgiaWordmark: View {
+    var font: Font = BrandTheme.orbTitleFont(.largeTitle)
+    var tracking: CGFloat = 4
+    /// Main wordmark point size — scales the ™ mark proportionally.
+    var pointSize: CGFloat = 32
+
+    private var trademarkSize: CGFloat { max(8, pointSize * 0.30) }
+    private var trademarkBaselineOffset: CGFloat { pointSize * 0.42 }
+
+    var body: some View {
+        (Text("NoteStalgia")
+            .font(font)
+            .tracking(tracking)
+         + Text("™")
+            .font(.system(size: trademarkSize, weight: .medium, design: .default))
+            .baselineOffset(trademarkBaselineOffset))
+            .foregroundStyle(BrandTheme.textOnOrb)
+            .orbOverlayTextStyle()
+            .accessibilityLabel("NoteStalgia")
+    }
+}
+
+
+// MARK: - Cached orb glow sprites
+
+/// The orb's outer radiance halo and inner glow are two large blurred radial gradients. Both are
+/// scale-invariant (every radius and blur is a fixed fraction of the diameter) and every colour
+/// stop's opacity is a multiple of `bloom`, so each frame is exactly "the same image, scaled and
+/// faded". Rendering them once and drawing the bitmap removes two full-size Gaussian blurs per
+/// frame — the single most expensive GPU work on every screen — without changing what's drawn.
+@MainActor
+enum OrbGlowSprites {
+    enum Kind { case halo, glow }
+
+    /// Sprite canvas as a multiple of diameter: content frame + room for the blur tails.
+    private static func canvas(_ kind: Kind) -> CGFloat {
+        switch kind {
+        case .halo: return 2.1   // 1.42d circle, σ = 0.09d blur
+        case .glow: return 1.44  // 1.04d circle, σ = 0.058d blur
+        }
+    }
+
+    /// Highest bloom the shell produces (glowPulse ≤ 1, glow strength ≤ 1.35); sprites are
+    /// rendered here and faded down, so no stop ever exceeds full opacity.
+    private static let referenceBloom: Double = 1.35
+    private static let referenceDiameter: CGFloat = 420
+    private static let renderScale: CGFloat = 2
+    private static var cache: [Kind: Image] = [:]
+
+    static func prewarm() {
+        _ = image(.halo)
+        _ = image(.glow)
+    }
+
+    static func sprite(_ kind: Kind, diameter: CGFloat, bloom: Double) -> some View {
+        let side = diameter * canvas(kind)
+        return image(kind)
+            .resizable()
+            // Bilinear is plenty for a heavily blurred gradient; `.high` resampling every frame
+            // cost more GPU time than the blur it replaced.
+            .interpolation(.medium)
+            .frame(width: side, height: side)
+            .opacity(min(1, max(0, bloom / referenceBloom)))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private static func image(_ kind: Kind) -> Image {
+        if let cached = cache[kind] { return cached }
+        let d = referenceDiameter
+        let side = d * canvas(kind)
+        let content = Group {
+            switch kind {
+            case .halo: haloContent(diameter: d, bloom: referenceBloom)
+            case .glow: glowContent(diameter: d, bloom: referenceBloom)
+            }
+        }
+        .frame(width: side, height: side)
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = renderScale
+        renderer.isOpaque = false
+        let image = renderer.cgImage.map { Image(decorative: $0, scale: renderScale) } ?? Image(systemName: "circle")
+        cache[kind] = image
+        return image
+    }
+
+    static func haloContent(diameter: CGFloat, bloom: Double) -> some View {
+        ZStack {
             Circle()
                 .fill(
                     RadialGradient(
@@ -355,57 +442,8 @@ struct NoteStalgiaNebulaOrbShell: View {
         .accessibilityHidden(true)
     }
 
-    @ViewBuilder
-    private func proceduralOrbInterior(
-        swirl: Double,
-        breathe: CGFloat,
-        glowStrength: CGFloat,
-        pulse: Double,
-        ringExpansion: Double,
-        wispDrift: Double
-    ) -> some View {
-        NoteStalgiaOrbExteriorWisps(
-            diameter: diameter,
-            swirlPhase: swirl,
-            glowPulse: glowPulse,
-            drift: wispDrift
-        )
-
-        nebulaGlowLayer(glowStrength: glowStrength)
-            .scaleEffect(breathe)
-
-        NoteStalgiaNebulaFill(
-            diameter: diameter,
-            swirlPhase: swirl,
-            glowPulse: glowPulse,
-            fillOpacity: nebulaFillOpacity
-        )
-        .scaleEffect(breathe)
-
-        if showArcFrame {
-            if diameter >= 96 {
-                NoteStalgiaOrbRippleRings(
-                    diameter: diameter,
-                    phase: pulse,
-                    glowPulse: glowPulse,
-                    ringExpansion: ringExpansion
-                )
-                .scaleEffect(breathe)
-            } else {
-                NoteStalgiaOrbAnimatedArcFrame(
-                    diameter: diameter * 1.01,
-                    lineWidth: max(1.5, diameter * 0.004),
-                    swirlPhase: swirl,
-                    glowPulse: glowPulse,
-                    breathe: breathe
-                )
-            }
-        }
-    }
-
-    private func nebulaGlowLayer(glowStrength: CGFloat) -> some View {
-        let bloom = glowPulse * Double(glowStrength)
-        return ZStack {
+    static func glowContent(diameter: CGFloat, bloom: Double) -> some View {
+        ZStack {
             Circle()
                 .fill(
                     RadialGradient(
@@ -438,29 +476,5 @@ struct NoteStalgiaNebulaOrbShell: View {
         }
         .frame(width: diameter * 1.04, height: diameter * 1.04)
         .blur(radius: diameter * 0.058)
-    }
-}
-
-// MARK: - Brand wordmark
-
-struct NoteStalgiaWordmark: View {
-    var font: Font = BrandTheme.orbTitleFont(.largeTitle)
-    var tracking: CGFloat = 4
-    /// Main wordmark point size — scales the ™ mark proportionally.
-    var pointSize: CGFloat = 32
-
-    private var trademarkSize: CGFloat { max(8, pointSize * 0.30) }
-    private var trademarkBaselineOffset: CGFloat { pointSize * 0.42 }
-
-    var body: some View {
-        (Text("NoteStalgia")
-            .font(font)
-            .tracking(tracking)
-         + Text("™")
-            .font(.system(size: trademarkSize, weight: .medium, design: .default))
-            .baselineOffset(trademarkBaselineOffset))
-            .foregroundStyle(BrandTheme.textOnOrb)
-            .orbOverlayTextStyle()
-            .accessibilityLabel("NoteStalgia")
     }
 }

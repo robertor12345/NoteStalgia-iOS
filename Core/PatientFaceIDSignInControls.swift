@@ -76,7 +76,6 @@ struct PatientFaceIDSignInPanel: View {
         BrandCard {
             VStack(spacing: SignInPageLayout.sectionSpacing) {
                 ResidentPortraitFill(
-                    remoteURL: patient.remotePortraitURL,
                     assetName: patient.stockPortraitAssetName,
                     customImage: nil
                 )

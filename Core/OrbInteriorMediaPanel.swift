@@ -32,6 +32,10 @@ struct OrbInteriorMediaPanel<Media: View>: View {
         // Ease the tiny pulse breathing out as it fills the page so edges never reveal a gap.
         let pulseDamping = 1 - expansion
 
+        // Built once per body pass, not once per tick: for the nature reel, `media()` runs
+        // `NatureVideoCompilationView.init`, which re-shuffles its playlist every call.
+        let mediaView = media()
+
         // When the media fills the page, pulse damping is ~0 — stop the timeline so we don't
         // spend a 60fps tick for a static scale of 1.
         TimelineView(
@@ -50,28 +54,20 @@ struct OrbInteriorMediaPanel<Media: View>: View {
             let shortDiameter = min(boxW, boxH)
 
             ZStack {
-                media()
+                mediaView
                     .frame(width: mediaW, height: mediaH)
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .scaleEffect(contentScale)
 
-                if showArcFrame, expansion < 0.02 {
-                    if shortDiameter >= 96 {
-                        NoteStalgiaOrbRippleRings(
-                            diameter: shortDiameter,
-                            phase: sample.pulse,
-                            glowPulse: sample.glowPulse,
-                            ringExpansion: OrbReferenceMotion.ringExpansion(at: elapsed)
-                        )
-                    } else {
-                        NoteStalgiaOrbAnimatedArcFrame(
-                            diameter: shortDiameter * 1.02,
-                            lineWidth: max(1.5, shortDiameter * 0.004),
-                            swirlPhase: elapsed,
-                            glowPulse: sample.glowPulse,
-                            breathe: contentScale
-                        )
-                    }
+                // Large panels have no visible frame (the old ripple-rings canvas drew nothing).
+                if showArcFrame, expansion < 0.02, shortDiameter < 96 {
+                    NoteStalgiaOrbAnimatedArcFrame(
+                        diameter: shortDiameter * 1.02,
+                        lineWidth: max(1.5, shortDiameter * 0.004),
+                        swirlPhase: elapsed,
+                        glowPulse: sample.glowPulse,
+                        breathe: contentScale
+                    )
                 }
             }
             .frame(width: boxW, height: boxH)

@@ -68,6 +68,9 @@ struct CareRosterPresentation: Equatable {
     var sections: [CareRosterSection]
     var isSearching: Bool
     var isBrowsingAll: Bool
+    /// Set while a wing chip filters the roster — name + resident count on that wing.
+    var wingFilterName: String? = nil
+    var wingResidentCount: Int? = nil
 }
 
 enum CareRosterEngine {
@@ -150,8 +153,13 @@ enum CareRosterEngine {
             )
         }
 
+        // A selected wing chip filters every curated section (and browse-all) to that wing.
+        let wingId = preferredWingId.flatMap { id in home.wings.contains(where: { $0.id == id }) ? id : nil }
+        let filterName = wingId.map { wingName(home: home, wingId: $0) }
+        let scopedResidents = wingId.map { id in homeResidents.filter { $0.wingId == id } } ?? homeResidents
+
         if browsingAll {
-            let allIds = homeResidents
+            let allIds = scopedResidents
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
                 .map(\.id)
             return CareRosterPresentation(
@@ -161,13 +169,15 @@ enum CareRosterEngine {
                     CareRosterSection(
                         id: "all",
                         kind: .allResidents,
-                        title: "All residents",
+                        title: filterName.map { "All residents · \($0)" } ?? "All residents",
                         subtitle: "A–Z",
                         patientIds: allIds
                     ),
                 ],
                 isSearching: false,
-                isBrowsingAll: true
+                isBrowsingAll: true,
+                wingFilterName: filterName,
+                wingResidentCount: wingId == nil ? nil : scopedResidents.count
             )
         }
 
@@ -187,24 +197,20 @@ enum CareRosterEngine {
             ))
         }
 
-        var pinnedOrdered: [UUID] = []
-        var seenPin = Set<UUID>()
-        for id in recentlyViewedIds where pinnedIds.contains(id) {
-            if seenPin.insert(id).inserted { pinnedOrdered.append(id) }
-        }
-        for resident in homeResidents where pinnedIds.contains(resident.id) && !seenPin.contains(resident.id) {
-            pinnedOrdered.append(resident.id)
-            seenPin.insert(resident.id)
-        }
+        // Stable A–Z: a recent-first order reshuffled the pinned cards every time one was opened.
+        let pinnedOrdered = scopedResidents
+            .filter { pinnedIds.contains($0.id) }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            .map(\.id)
         appendSection(CareRosterSection(
             id: "pinned",
             kind: .pinned,
             title: "Pinned",
-            subtitle: "Your regular residents",
+            subtitle: "Your regular residents · A–Z",
             patientIds: Array(pinnedOrdered.prefix(todaySectionLimit))
         ))
 
-        let recentIds = homeResidents
+        let recentIds = scopedResidents
             .filter { isRecent(for: $0.id, records: records, now: now) }
             .sorted {
                 (lastSessionDate(for: $0.id, records: records) ?? .distantPast) >
@@ -220,7 +226,7 @@ enum CareRosterEngine {
             patientIds: Array(recentIds)
         ))
 
-        let dueIds = homeResidents
+        let dueIds = scopedResidents
             .filter { isDue(for: $0.id, records: records, now: now) }
             .sorted {
                 (daysSinceLastSession(for: $0.id, records: records, now: now) ?? 999) >
@@ -236,24 +242,9 @@ enum CareRosterEngine {
             patientIds: Array(dueIds)
         ))
 
-        if let wingId = preferredWingId, home.wings.contains(where: { $0.id == wingId }) {
-            let wingIds = homeResidents
-                .filter { $0.wingId == wingId }
-                .sorted { $0.roomLabel.localizedCaseInsensitiveCompare($1.roomLabel) == .orderedAscending }
-                .prefix(todaySectionLimit)
-                .map(\.id)
-            appendSection(CareRosterSection(
-                id: "wing-\(wingId)",
-                kind: .wing(wingId),
-                title: wingName(home: home, wingId: wingId),
-                subtitle: "On this wing today",
-                patientIds: Array(wingIds)
-            ))
-        }
-
         let previewCount = sections.reduce(0) { $0 + $1.patientIds.count }
-        if previewCount < min(8, homeResidents.count) {
-            let filler = homeResidents
+        if previewCount < min(8, scopedResidents.count) {
+            let filler = scopedResidents
                 .filter { !used.contains($0.id) }
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
                 .prefix(max(0, todaySectionLimit - previewCount))
@@ -261,7 +252,7 @@ enum CareRosterEngine {
             appendSection(CareRosterSection(
                 id: "more-today",
                 kind: .allResidents,
-                title: "More at this home",
+                title: filterName.map { "More on \($0)" } ?? "More at this home",
                 subtitle: nil,
                 patientIds: Array(filler)
             ))
@@ -272,7 +263,9 @@ enum CareRosterEngine {
             totalActiveResidents: homeResidents.count,
             sections: sections,
             isSearching: false,
-            isBrowsingAll: false
+            isBrowsingAll: false,
+            wingFilterName: filterName,
+            wingResidentCount: wingId == nil ? nil : scopedResidents.count
         )
     }
 }
@@ -488,38 +481,38 @@ enum CareTenancyMockData {
             "Audrey", "Cyril", "Muriel", "Keith", "Joan", "Raymond", "Ethel", "Leslie",
             "Phyllis", "Bernard", "Winifred", "Gordon",
         ]
-        let portraits = ["StockPortraitElena", "StockPortraitJames", "StockPortraitSam"]
-        let genres: [ResidentMusicGenre] = [.classical, .jazz, .pop, .gospel, .soul, .country]
         let wings = [wingMemoryCare, wingResidential, wingDayProgram]
-        let templates = CareStaffMockData.initialPatients
 
+        // Each resident is an individual (`ResidentProfileSeeds`) — they used to cycle through the
+        // three named residents' templates, so most profiles read word-for-word the same.
         return firstNames.enumerated().map { index, first in
             let lastInitial = Character(UnicodeScalar(65 + (index % 26))!)
             let wing = wings[index % wings.count]
             let wingLabel = mapleLodge.wings.first { $0.id == wing }?.name ?? wing
             let room = wing == wingDayProgram ? "Day lounge \(index + 1)" : "Room \(100 + index)"
-            let genre = genres[index % genres.count]
-            let template = templates[index % templates.count]
+            let displayName = "\(first) \(lastInitial)."
+            let seed = ResidentProfileSeeds.seed(forFirstName: first)
             return CarePatientProfile(
                 id: UUID(uuidString: String(format: "40000000-0000-4000-8000-%012x", index + 10))!,
-                displayName: "\(first) \(lastInitial).",
+                displayName: displayName,
                 careContextLabel: "\(room) · \(wingLabel)",
-                likes: template.likes,
-                dislikes: template.dislikes,
-                preferredLight: template.preferredLight,
-                scentGuidance: template.scentGuidance,
-                touchComfortNotes: template.touchComfortNotes,
-                comfortThemes: template.comfortThemes,
-                prefersGentleSoundOnsets: true,
-                musicTempoBias: template.musicTempoBias,
-                natureVsAbstract: template.natureVsAbstract,
-                voiceVsInstrumental: template.voiceVsInstrumental,
-                residentAgeYears: 72 + (index % 18),
-                nationality: ResidentNationality.menuOrder[index % ResidentNationality.menuOrder.count],
-                favouriteMusicGenre: genre,
-                stockPortraitAssetName: portraits[index % portraits.count],
+                likes: seed.likes,
+                dislikes: seed.dislikes,
+                preferredLight: seed.light,
+                scentGuidance: seed.scent,
+                touchComfortNotes: seed.touch,
+                comfortThemes: seed.themes,
+                prefersGentleSoundOnsets: seed.gentleOnsets,
+                musicTempoBias: seed.tempo,
+                natureVsAbstract: seed.nature,
+                voiceVsInstrumental: seed.voice,
+                residentAgeYears: seed.age,
+                nationality: seed.nationality,
+                favouriteMusicGenre: seed.favourite,
+                suggestedLikedTrackTitles: ResidentProfileSeeds.suggestedTitles(for: seed),
+                stockPortraitAssetName: ResidentPortraitCatalog.assetName(displayName: displayName),
                 isProvisional: false,
-                genrePlaylistGroups: template.genrePlaylistGroups,
+                genrePlaylistGroups: ResidentProfileSeeds.playlistGroups(for: seed, residentIndex: index + 10),
                 homeId: mapleLodgeId,
                 wingId: wing,
                 roomLabel: room,
@@ -530,31 +523,32 @@ enum CareTenancyMockData {
 
     private static func riversideSeedResidents() -> [CarePatientProfile] {
         let names = ["Helen T.", "Peter W.", "Grace L.", "David N.", "Mary S.", "John H."]
-        let template = CareStaffMockData.initialPatients[0]
         return names.enumerated().map { index, name in
             let wing = index.isMultiple(of: 2) ? wingResidential : wingMemoryCare
             let wingLabel = riversideHouse.wings.first { $0.id == wing }?.name ?? wing
             let room = "Room \(20 + index)"
+            let seed = ResidentProfileSeeds.seed(forFirstName: String(name.split(separator: " ").first ?? ""))
             return CarePatientProfile(
                 id: UUID(uuidString: String(format: "50000000-0000-4000-8000-%012x", index + 1))!,
                 displayName: name,
                 careContextLabel: "\(room) · \(wingLabel)",
-                likes: template.likes,
-                dislikes: template.dislikes,
-                preferredLight: template.preferredLight,
-                scentGuidance: template.scentGuidance,
-                touchComfortNotes: template.touchComfortNotes,
-                comfortThemes: template.comfortThemes,
-                prefersGentleSoundOnsets: true,
-                musicTempoBias: template.musicTempoBias,
-                natureVsAbstract: template.natureVsAbstract,
-                voiceVsInstrumental: template.voiceVsInstrumental,
-                residentAgeYears: 78 + index,
-                nationality: index.isMultiple(of: 2) ? .unitedKingdom : .ireland,
-                favouriteMusicGenre: .classical,
-                stockPortraitAssetName: "StockPortraitElena",
+                likes: seed.likes,
+                dislikes: seed.dislikes,
+                preferredLight: seed.light,
+                scentGuidance: seed.scent,
+                touchComfortNotes: seed.touch,
+                comfortThemes: seed.themes,
+                prefersGentleSoundOnsets: seed.gentleOnsets,
+                musicTempoBias: seed.tempo,
+                natureVsAbstract: seed.nature,
+                voiceVsInstrumental: seed.voice,
+                residentAgeYears: seed.age,
+                nationality: seed.nationality,
+                favouriteMusicGenre: seed.favourite,
+                suggestedLikedTrackTitles: ResidentProfileSeeds.suggestedTitles(for: seed),
+                stockPortraitAssetName: ResidentPortraitCatalog.assetName(displayName: name),
                 isProvisional: false,
-                genrePlaylistGroups: template.genrePlaylistGroups,
+                genrePlaylistGroups: ResidentProfileSeeds.playlistGroups(for: seed, residentIndex: 100 + index),
                 homeId: riversideHouseId,
                 wingId: wing,
                 roomLabel: room,

@@ -1,7 +1,8 @@
 import Foundation
 
-// Stock portrait assets live in `App/Assets.xcassets` (POC placeholders). Replace with
-// your own licensed imagery and consent before shipping.
+// Portrait assets (`PortraitWoman01…06`, `PortraitMan01…06`) live in `App/Assets.xcassets` and are
+// assigned per resident by `ResidentPortraitCatalog`. Replace with your own licensed imagery and
+// consent before shipping.
 
 /// Person-centred profile for one-to-one calm moments — sensory hints, life themes, and adaptive sound shaping preferences.
 struct CarePatientProfile: Identifiable, Equatable {
@@ -35,8 +36,10 @@ struct CarePatientProfile: Identifiable, Equatable {
     /// Supervisor-seeded track titles that boost playlist ordering on the resident surface
     /// (combined with live sun-likes; does not replace discovery or skips).
     var suggestedLikedTrackTitles: [String] = []
-    /// Asset name in `Assets.xcassets` (stock portrait fallback).
-    var stockPortraitAssetName: String
+    /// Bundled portrait in `Assets.xcassets`, assigned at seed time via
+    /// `ResidentPortraitCatalog.assetName(displayName:)`; `nil` for a provisional resident mid-discovery.
+    /// A captured photo (`CareDataStore.carePatientPortraitImages`) always wins.
+    var stockPortraitAssetName: String?
     /// Temporary profile created during new-resident discovery — replaced when supervisor saves details.
     var isProvisional: Bool
     /// Curated playlists keyed by genre — shown when staff opens this profile (e.g. from face-linked photo).
@@ -45,12 +48,6 @@ struct CarePatientProfile: Identifiable, Equatable {
     var wingId: String = CareTenancyMockData.wingResidential
     var roomLabel: String = ""
     var isActive: Bool = true
-
-    /// Name-appropriate photograph of a genuinely elderly person (Wikimedia Commons). Deterministic
-    /// per resident; a captured photo or the bundled asset are used as fallbacks.
-    var remotePortraitURL: URL? {
-        ResidentPortraitCatalog.portraitURL(displayName: displayName)
-    }
 }
 
 /// Saved playlist linked to a genre for resident calm sessions (POC stubs).
@@ -138,7 +135,7 @@ enum CareStaffMockData {
             nationality: .italy,
             favouriteMusicGenre: .classical,
             suggestedLikedTrackTitles: ["Velvet Cadenza", "Pine Smoke Drift (1)"],
-            stockPortraitAssetName: "StockPortraitElena",
+            stockPortraitAssetName: ResidentPortraitCatalog.assetName(displayName: "Elena M."),
             isProvisional: false,
             genrePlaylistGroups: [
                 CareGenrePlaylistGroup(
@@ -170,7 +167,7 @@ enum CareStaffMockData {
         CarePatientProfile(
             id: james,
             displayName: "James R.",
-            careContextLabel: "Day program · Quiet lounge",
+            careContextLabel: "Day programme · Quiet lounge",
             likes: ["Low strings", "Very slow builds", "Predictable loops"],
             dislikes: ["Crowded highs", "Fast rhythm guitar", "Screen glare"],
             preferredLight: "Dimmer side of room; natural daylight diffused.",
@@ -185,7 +182,7 @@ enum CareStaffMockData {
             nationality: .unitedKingdom,
             favouriteMusicGenre: .jazz,
             suggestedLikedTrackTitles: ["Velvet Afterhours", "Drift Between Rooms"],
-            stockPortraitAssetName: "StockPortraitJames",
+            stockPortraitAssetName: ResidentPortraitCatalog.assetName(displayName: "James R."),
             isProvisional: false,
             genrePlaylistGroups: [
                 CareGenrePlaylistGroup(
@@ -232,7 +229,7 @@ enum CareStaffMockData {
             nationality: .jamaica,
             favouriteMusicGenre: .classical,
             suggestedLikedTrackTitles: ["Velvet Cadenza", "Echoes of Yesterday"],
-            stockPortraitAssetName: "StockPortraitSam",
+            stockPortraitAssetName: ResidentPortraitCatalog.assetName(displayName: "Sam K."),
             isProvisional: false,
             genrePlaylistGroups: [
                 CareGenrePlaylistGroup(

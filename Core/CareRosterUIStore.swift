@@ -21,6 +21,8 @@ final class CareRosterUIStore: ObservableObject {
         var dataRevision: Int
     }
     var dashboardPresentationCache: (key: DashboardPresentationCacheKey, value: CareHomeDashboardPresentation)?
+    /// Same key as the dashboard — the home-wide sentiment card only depends on home + data.
+    var homeSentimentOverviewCache: (key: DashboardPresentationCacheKey, value: CareSessionSentimentSummary)?
 
     struct RosterPresentationCacheKey: Equatable {
         var homeId: UUID

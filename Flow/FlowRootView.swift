@@ -16,11 +16,13 @@ struct FlowRootView: View {
     /// loops so their continuous main-thread rendering doesn't make form fields feel unresponsive.
     @State private var keyboardVisible = false
     /// While a staff scroll view is interacting / decelerating — freeze ambient loops so the
-    /// scroll compositor gets a clean 60fps budget. Fidelity is unchanged (same particles / nebula;
-    /// motion simply resumes when the scroll settles).
-    @State private var scrollAmbientPaused = false
+    /// scroll compositor gets a clean 60fps budget — and while resident playlist media fully
+    /// covers them. Fidelity is unchanged (same particles / nebula; motion simply resumes when
+    /// the scroll settles or the media collapses).
+    @State private var interactionAmbientPaused = false
 
-    private let launchTotalDuration: Double = 5.8
+    /// `-NoteStalgiaDemoSkipLaunch YES` keeps only the warm-up window (see `DemoLaunchOptions`).
+    private let launchTotalDuration: Double = DemoLaunchOptions.skipLaunch ? 0.9 : 5.8
 
     var body: some View {
         GeometryReader { geo in
@@ -50,14 +52,16 @@ struct FlowRootView: View {
                 FlowAmbientBackdrop(
                     shellConfig: shellConfig,
                     anchor: launchAnchor,
-                    ambientPaused: keyboardVisible || scrollAmbientPaused
+                    ambientPaused: keyboardVisible || interactionAmbientPaused
                 )
                 .equatable()
                 .zIndex(1)
 
                 phaseLayer(contentInset: contentInset, style: style)
                     .zIndex(2)
+                    .environment(\.flowAmbientPaused, keyboardVisible || interactionAmbientPaused)
                     .environment(\.flowContainerSize, geo.size)
+                    .environment(\.flowSafeAreaInsets, geo.safeAreaInsets)
                     .environment(\.flowOrbShellSize, CGSize(width: shellConfig.width, height: shellConfig.height))
                     .environment(\.flowOrbPulseAnchor, launchAnchor)
                     .environment(\.flowPanelPulseIntensity, shellConfig.panelPulseIntensity)
@@ -97,7 +101,7 @@ struct FlowRootView: View {
             keyboardVisible = false
         }
         .onReceive(NotificationCenter.default.publisher(for: AmbientInteractionPause.didChangeNotification)) { note in
-            scrollAmbientPaused = (note.userInfo?[AmbientInteractionPause.isPausedKey] as? Bool) ?? false
+            interactionAmbientPaused = (note.userInfo?[AmbientInteractionPause.isPausedKey] as? Bool) ?? false
         }
         .task {
             // Let the first frame + launch animation start, then warm up the subsystems that
@@ -205,6 +209,8 @@ struct FlowRootView: View {
         withAnimation(.easeInOut(duration: 0.62)) {
             launchComplete = true
         }
+        // Demo recordings: sign in as the title fades so the welcome still gets its full dwell.
+        state.applyDemoSignInIfRequested()
     }
 
 }
@@ -222,6 +228,12 @@ enum LaunchWarmUp {
         // First tap chime would otherwise start an AVAudioEngine + synthesise buffers on main.
         AppAudioSession.activate()
         DiscoveryEtherealTapChime.prewarm()
+        // Render the orb's cached halo / glow sprites before the first screen needs them.
+        OrbGlowSprites.prewarm()
+        // Decode the 12 bundled resident portraits off-main so the roster paints them instantly.
+        ResidentPortraitCatalog.startWarmUp()
+        // Tap-ripple sprite, so the very first tap doesn't render it on the spot.
+        TouchRippleSprite.prewarm()
         // First button press would otherwise pay Taptic engine first-use latency.
         CalmExperienceFeedback.prewarm()
         // The very first `becomeFirstResponder` loads the keyboard subsystem (the biggest first-tap

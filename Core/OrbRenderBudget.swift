@@ -17,6 +17,11 @@ enum OrbRenderBudget {
     static let ambientFramesPerSecond: Double = 30
     /// Genre-glyph constellation while a playlist is expanded — drift is already muted.
     static let glyphPlayingFramesPerSecond: Double = 30
+    /// Self-driven icon orbs under `iconOrbMaxDiameter` (roster cards, mood orbs, picker labels,
+    /// nav buttons). Their only motion is the wisps (~0.9pt/s) and the arc sway (~1.8pt/s at the
+    /// rim), so a 20fps step is ≤0.1pt — sub-pixel — while cutting the per-orb cost by two thirds.
+    static let iconFramesPerSecond: Double = 20
+    static let iconOrbMaxDiameter: CGFloat = 96
 
     /// Frame interval for the orb shell, respecting Reduce Motion.
     static func shellFrameInterval(reduceMotion: Bool) -> Double {

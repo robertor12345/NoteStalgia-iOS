@@ -12,6 +12,8 @@ struct SixDigitPinInput<FocusValue: Hashable>: View {
     var focus: FocusState<FocusValue>.Binding
     var focusValue: FocusValue
     var onComplete: (() -> Void)?
+    /// For scripted UI tests (`tools/demo`); the sign-in form uses the default.
+    var accessibilityIdentifier: String = "signin.pin"
 
     private let cellSpacing: CGFloat = 10
     private let cellCornerRadius: CGFloat = 12
@@ -36,6 +38,7 @@ struct SixDigitPinInput<FocusValue: Hashable>: View {
                     .opacity(0.02)
                     .accessibilityLabel("Enter your 6-digit PIN")
                     .accessibilityHint("Type six numbers. Digits are hidden as you enter them.")
+                    .accessibilityIdentifier(accessibilityIdentifier)
 
                 HStack(spacing: cellSpacing) {
                     ForEach(0 ..< PinInputSpec.digitCount, id: \.self) { index in

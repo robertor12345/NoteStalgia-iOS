@@ -59,6 +59,12 @@ enum BrandTheme {
     /// De-emphasised orb copy — still light, not grey.
     static let textOnOrbMuted = Color(red: 0.93, green: 0.95, blue: 1.0)
 
+    /// Placeholder for text fields on the dark cream fields. The system placeholder colour is
+    /// tuned for light backgrounds and nearly vanishes here (or picks up the tint colour).
+    static func fieldPrompt(_ text: String) -> Text {
+        Text(text).foregroundStyle(textTertiary.opacity(0.85))
+    }
+
     // MARK: - Orb overlay typography (sized up for legibility on the nebula)
     static func orbTitleFont(_ style: Font.TextStyle = .largeTitle) -> Font {
         .system(style, design: .rounded, weight: .semibold)

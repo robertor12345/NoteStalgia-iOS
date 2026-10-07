@@ -24,6 +24,9 @@ struct ResidentInteractionEvent: Equatable {
 /// (intentional likes/dwell raise preference; rage bursts do not).
 struct ResidentSurfaceSessionMetrics: Equatable {
     var startedAt: Date?
+    /// When staff took the device back. Freezes `durationSeconds`, so time spent on the
+    /// post-session form is not counted as resident time on the surface.
+    var endedAt: Date?
     var genrePlayCounts: [String: Int] = [:]
     /// Genre taps that were not part of a rage burst — used for favourite-genre preference.
     var intentionalGenrePlayCounts: [String: Int] = [:]
@@ -188,6 +191,7 @@ struct ResidentSurfaceSessionMetrics: Equatable {
 
     mutating func recordStaffHandoff() {
         endTrackListen()
+        if endedAt == nil { endedAt = Date() }
         appendEvent(ResidentInteractionEvent(at: Date(), kind: .staffHandoff))
     }
 
@@ -248,7 +252,7 @@ struct ResidentSurfaceSessionMetrics: Equatable {
 
     var durationSeconds: Int? {
         guard let startedAt else { return nil }
-        return max(1, Int(Date().timeIntervalSince(startedAt).rounded()))
+        return max(1, Int((endedAt ?? Date()).timeIntervalSince(startedAt).rounded()))
     }
 
     var totalGenrePlays: Int {

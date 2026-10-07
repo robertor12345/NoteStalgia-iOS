@@ -1,39 +1,36 @@
+import os
 import SwiftUI
 
-/// Remote portrait imagery for residents.
+/// Bundled portrait imagery for residents.
 ///
-/// The bundled `StockPortrait*` assets are reused across ~40 mock residents, so every profile looked
-/// like one of three people. This catalog assigns each resident a **name-appropriate photograph of a
-/// genuinely elderly person**, pulled from Wikimedia Commons (licensing is not a concern for this POC).
+/// Twelve photographs of genuinely elderly people (originally sourced from Wikimedia Commons;
+/// licensing is not a concern for this POC) ship in the asset catalog as `PortraitWoman01…06` and
+/// `PortraitMan01…06`. Every resident is assigned one **deterministically**: the first name picks the
+/// gendered pool and a stable (launch-independent) hash picks the photo, so the same resident always
+/// shows the same face — on every screen, every launch, with no network and nothing to wait for.
+/// A captured photo, when present, always wins.
 ///
-/// Selection is deterministic: the resident's display name picks the gendered pool and a stable
-/// (launch-independent) hash picks the specific portrait, so the same resident always shows the same
-/// face. A captured photo, when present, always wins; the bundled asset is the offline fallback.
+/// Twelve faces across ~37 mock residents means repeats are expected in the POC.
+///
+/// **Pool order is part of the resident → face contract.** Reordering either array changes every
+/// resident's face. `StableHash` must stay FNV-1a for the same reason.
 enum ResidentPortraitCatalog {
     enum InferredGender {
         case feminine
         case masculine
     }
 
-    /// Verified elderly-woman photographs (Wikimedia Commons).
-    private static let femininePortraits: [URL] = urls([
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Elderly_Gambian_woman_face_portrait.jpg/960px-Elderly_Gambian_woman_face_portrait.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/2/27/Elderly_woman_writing_in_Oaxaca.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Tabu%2C_Myanmar%2C_Senior_woman.jpg/960px-Tabu%2C_Myanmar%2C_Senior_woman.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Humano_De_Los_Andes_%28136091391%29.jpeg/960px-Humano_De_Los_Andes_%28136091391%29.jpeg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Older_Woman%2C_Dassanech%2C_Ethiopia_%2822892648376%29.jpg/960px-Older_Woman%2C_Dassanech%2C_Ethiopia_%2822892648376%29.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/a/a1/Portrait_of_a_Peasant_Woman_%2860ies%29._%287744724856%29.jpg",
-    ])
+    private static let femininePortraits: [String] = [
+        "PortraitWoman01", "PortraitWoman02", "PortraitWoman03",
+        "PortraitWoman04", "PortraitWoman05", "PortraitWoman06",
+    ]
 
-    /// Verified elderly-man photographs (Wikimedia Commons).
-    private static let masculinePortraits: [URL] = urls([
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/A_portrait_of_an_old_man_of_Bukhara.jpg/960px-A_portrait_of_an_old_man_of_Bukhara.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Old_man_reading_newspaper_early_in_the_morning_at_Basantapur-IMG_6800.jpg/960px-Old_man_reading_newspaper_early_in_the_morning_at_Basantapur-IMG_6800.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Bearded_man_smoking_pipe-3013924.jpg/960px-Bearded_man_smoking_pipe-3013924.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Masarwa_man_-_http-natavillage.org_-_Flickr_-_jonrawlinson.jpg/960px-Masarwa_man_-_http-natavillage.org_-_Flickr_-_jonrawlinson.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Andean_Man.jpg/960px-Andean_Man.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/AlfredGessow8b.jpg/960px-AlfredGessow8b.jpg",
-    ])
+    private static let masculinePortraits: [String] = [
+        "PortraitMan01", "PortraitMan02", "PortraitMan03",
+        "PortraitMan04", "PortraitMan05", "PortraitMan06",
+    ]
+
+    static var allAssetNames: [String] { femininePortraits + masculinePortraits }
 
     /// First-name → gender map covering the mock roster (British/Irish given names of this generation).
     private static let genderByFirstName: [String: InferredGender] = [
@@ -65,10 +62,9 @@ enum ResidentPortraitCatalog {
         return StableHash.of(first).isMultiple(of: 2) ? .feminine : .masculine
     }
 
-    /// Deterministic portrait for a resident. `nil` only if the pools are somehow empty.
-    static func portraitURL(displayName: String) -> URL? {
+    /// Deterministic bundled portrait for a resident.
+    static func assetName(displayName: String) -> String {
         let pool = gender(forDisplayName: displayName) == .feminine ? femininePortraits : masculinePortraits
-        guard pool.isEmpty == false else { return nil }
         return pool[StableHash.of(displayName) % pool.count]
     }
 
@@ -77,17 +73,43 @@ enum ResidentPortraitCatalog {
         return raw.trimmingCharacters(in: CharacterSet.letters.inverted).lowercased()
     }
 
-    private static func urls(_ strings: [String]) -> [URL] {
-        strings.compactMap(URL.init(string:))
+    // MARK: - Decoded-bitmap warm-up
+
+    /// Display-ready bitmaps for all 12 portraits, decoded once off the main thread. With these warm,
+    /// the first roster paint draws portraits with zero decode work — nothing appears late.
+    private static let bitmaps = OSAllocatedUnfairLock<[String: UIImage]>(initialState: [:])
+    @MainActor private static var warmTask: Task<Void, Never>?
+
+    /// Idempotent; safe to call from launch warm-up and again from the welcome gate.
+    @MainActor
+    static func warmUp() async {
+        if warmTask == nil {
+            warmTask = Task.detached(priority: .userInitiated) {
+                for name in allAssetNames {
+                    guard let image = UIImage(named: name) else { continue }
+                    let prepared = await image.byPreparingForDisplay() ?? image
+                    bitmaps.withLock { $0[name] = prepared }
+                }
+            }
+        }
+        await warmTask?.value
+    }
+
+    @MainActor
+    static func startWarmUp() {
+        Task { await warmUp() }
+    }
+
+    static func decodedImage(named name: String) -> UIImage? {
+        bitmaps.withLock { $0[name] }
     }
 }
 
-/// Circular resident portrait fill: captured photo wins, then the remote elderly portrait, with the
-/// bundled asset shown while loading / if the network image fails. Callers apply their own frame,
-/// clip shape, and stroke.
+/// Circular resident portrait fill: captured photo wins, then the bundled portrait (pre-decoded when
+/// warm; the same pixels either way, so nothing ever swaps). A neutral silhouette shows only for a
+/// provisional resident who has no portrait yet. Callers apply their own frame, clip shape, and stroke.
 struct ResidentPortraitFill: View {
-    var remoteURL: URL?
-    var assetName: String
+    var assetName: String?
     var customImage: UIImage?
 
     var body: some View {
@@ -95,20 +117,32 @@ struct ResidentPortraitFill: View {
             Image(uiImage: customImage)
                 .resizable()
                 .scaledToFill()
-        } else if let remoteURL {
-            AsyncImage(url: remoteURL) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
-            } placeholder: {
-                Image(assetName)
-                    .resizable()
-                    .scaledToFill()
-            }
-        } else {
+        } else if let assetName, let bitmap = ResidentPortraitCatalog.decodedImage(named: assetName) {
+            Image(uiImage: bitmap)
+                .resizable()
+                .scaledToFill()
+        } else if let assetName {
             Image(assetName)
                 .resizable()
                 .scaledToFill()
+        } else {
+            ResidentPortraitPlaceholder()
         }
+    }
+}
+
+private struct ResidentPortraitPlaceholder: View {
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                BrandTheme.creamMid
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(BrandTheme.textTertiary.opacity(0.7))
+                    .frame(width: geo.size.width * 0.62, height: geo.size.height * 0.62)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

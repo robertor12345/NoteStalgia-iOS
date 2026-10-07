@@ -115,12 +115,15 @@ enum GroupSessionPlaylistCompiler {
         let rankedGenres = genreScores.sorted { $0.value > $1.value }.map(\.key)
         let topGenres = Set(rankedGenres.prefix(4))
 
+        // Only titles with bundled audio — discovery stub playlists carry placeholder names that
+        // would otherwise be listed as "now playing" while a different track is heard.
+        let audible = Set(ResidentPlaybackTrackCatalog.allUniqueTitles)
         var candidates: [GroupSessionTrack] = []
         for patient in roster {
             for group in patient.genrePlaylistGroups where topGenres.contains(group.genre) {
                 let genreWeight = genreScores[group.genre] ?? 1
                 for playlist in group.playlists {
-                    for title in playlist.trackTitles {
+                    for title in playlist.trackTitles where audible.contains(title) {
                         candidates.append(
                             GroupSessionTrack(
                                 id: UUID(),
@@ -135,6 +138,21 @@ enum GroupSessionPlaylistCompiler {
             }
         }
 
+        // Every top genre contributes at least its catalog stem, even if no resident playlist names it.
+        for genre in rankedGenres.prefix(4) {
+            for title in ResidentPlaybackTrackCatalog.titles(for: genre) {
+                candidates.append(
+                    GroupSessionTrack(
+                        id: UUID(),
+                        title: title,
+                        genre: genre,
+                        sourceResidentName: "Home favourites",
+                        score: (genreScores[genre] ?? 1) * 0.5
+                    )
+                )
+            }
+        }
+
         var bestByTitle: [String: GroupSessionTrack] = [:]
         for track in candidates {
             if let existing = bestByTitle[track.title], existing.score >= track.score { continue }
@@ -146,24 +164,12 @@ enum GroupSessionPlaylistCompiler {
         return Array(ordered.prefix(maxTracks))
     }
 
+    /// One audible stem per genre (catalog order) when the roster offers nothing to rank.
     private static func fallbackTracks(from roster: [CarePatientProfile] = []) -> [GroupSessionTrack] {
-        if let patient = roster.first,
-           let group = patient.genrePlaylistGroups.first,
-           let playlist = group.playlists.first {
-            return playlist.trackTitles.prefix(8).map { title in
-                GroupSessionTrack(
-                    id: UUID(),
-                    title: title,
-                    genre: group.genre,
-                    sourceResidentName: patient.displayName,
-                    score: 1
-                )
+        ResidentMusicGenre.allCases.compactMap { genre in
+            ResidentPlaybackTrackCatalog.titles(for: genre).first.map { title in
+                GroupSessionTrack(id: UUID(), title: title, genre: genre, sourceResidentName: "Home favourites", score: 1)
             }
         }
-        return [
-            GroupSessionTrack(id: UUID(), title: "Soft piano · morning", genre: .classical, sourceResidentName: "Roster blend", score: 1),
-            GroupSessionTrack(id: UUID(), title: "50s lounge — brushed drums", genre: .jazz, sourceResidentName: "Roster blend", score: 1),
-            GroupSessionTrack(id: UUID(), title: "Gathering hum", genre: .gospel, sourceResidentName: "Roster blend", score: 1),
-        ]
     }
 }

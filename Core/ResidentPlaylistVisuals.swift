@@ -131,6 +131,9 @@ struct ResidentPlaylistBackdropView: View {
     let genre: ResidentMusicGenre
     let trackTitle: String
     let trackIndex: Int
+    /// Reports when the media is opaque on screen (still or clip decoded) — until then the
+    /// layer is transparent and whatever sits behind it still shows.
+    var onMediaReadyChange: ((Bool) -> Void)? = nil
 
     @StateObject private var videoLooper = DiscoverySnippetVideoLooper()
     @State private var playlistMediaReady = false
@@ -190,7 +193,13 @@ struct ResidentPlaylistBackdropView: View {
             restartVideo()
             prefetchNeighborSceneImages()
         }
-        .onDisappear { videoLooper.stop() }
+        .onChange(of: playlistMediaReady) { _, ready in
+            onMediaReadyChange?(ready)
+        }
+        .onDisappear {
+            videoLooper.stop()
+            onMediaReadyChange?(false)
+        }
     }
 
     private func prefetchNeighborSceneImages() {
@@ -233,6 +242,7 @@ struct ResidentPlaylistPanelBackdropView: View {
     var mediaFillScale: CGFloat = 0.90
     /// 0 = compact orb; 1 = full-page. Drives the circle→page shape morph.
     var pageExpansion: CGFloat = 0
+    var onMediaReadyChange: ((Bool) -> Void)? = nil
 
     var body: some View {
         OrbInteriorMediaPanel(
@@ -244,7 +254,8 @@ struct ResidentPlaylistPanelBackdropView: View {
             ResidentPlaylistBackdropView(
                 genre: genre,
                 trackTitle: trackTitle,
-                trackIndex: trackIndex
+                trackIndex: trackIndex,
+                onMediaReadyChange: onMediaReadyChange
             )
         }
     }

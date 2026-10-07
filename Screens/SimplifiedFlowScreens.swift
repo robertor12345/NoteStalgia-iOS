@@ -50,13 +50,28 @@ private struct SupervisorAuthPanel: View {
             SupervisorPinResetView(state: state, auth: auth, horizontalSizeClass: horizontalSizeClass)
         } else {
             supervisorSignInContent
+                // A stale "Enter your work email." should not linger once they start fixing it.
+                // PIN edits only clear it below six digits — the sixth digit itself submits.
+                .onChange(of: auth.supervisorEmail) { _, _ in
+                    clearSignInError()
+                }
+                .onChange(of: auth.supervisorPIN) { _, pin in
+                    if pin.count < SupervisorAuth.pinDigitCount {
+                        clearSignInError()
+                    }
+                }
         }
+    }
+
+    private func clearSignInError() {
+        guard auth.supervisorSignInError != nil else { return }
+        auth.supervisorSignInError = nil
     }
 
     private var signedInContent: some View {
         VStack(spacing: SignInPageLayout.stackSpacing) {
             FadeInLine(
-                text: "Signed in — open the resident roster or sign out.",
+                text: "Signed in — open the resident roster or log out.",
                 delay: 0.06
             )
             .multilineTextAlignment(.center)
@@ -65,11 +80,13 @@ private struct SupervisorAuthPanel: View {
             PrimaryButton(title: "One-to-one calm") {
                 state.enterOneToOneCalmFlow()
             }
+            .accessibilityIdentifier("home.oneToOne")
             .padding(.horizontal, 24)
 
-            SecondaryButton(title: "Sign out") {
+            SecondaryButton(title: "Log out") {
                 state.signOutSupervisor()
             }
+            .accessibilityIdentifier("home.logout")
             .padding(.horizontal, 24)
         }
     }
@@ -88,7 +105,8 @@ private struct SupervisorAuthPanel: View {
                     labeledField(
                         title: "Work email",
                         content: {
-                            TextField("name@sunrise-care.co.uk", text: $auth.supervisorEmail)
+                            TextField("Work email", text: $auth.supervisorEmail, prompt: BrandTheme.fieldPrompt("name@sunrise-care.co.uk"))
+                                .accessibilityIdentifier("signin.email")
                                 .textContentType(.emailAddress)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -111,7 +129,7 @@ private struct SupervisorAuthPanel: View {
 
             if let error = auth.supervisorSignInError, !error.isEmpty {
                 Text(error)
-                    .font(SignInPageLayout.captionFont)
+                    .font(.footnote)
                     .foregroundStyle(BrandTheme.nebulaSalmon)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
@@ -120,16 +138,20 @@ private struct SupervisorAuthPanel: View {
             }
 
             PrimaryButton(title: "Continue", action: attemptSignIn)
+                .accessibilityIdentifier("signin.continue")
                 .padding(.horizontal, 24)
 
             Button {
                 state.beginSupervisorPinReset()
             } label: {
                 Text("Forgot PIN?")
-                    .font(.system(size: SignInPageLayout.points(4.5), weight: .medium, design: .default))
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(BrandTheme.gold)
+                    // 44pt touch target without moving the form: hit area only, no layout height.
+                    .expandedHitArea(vertical: 14, horizontal: 16)
             }
-            .buttonStyle(.plain)
+            .accessibilityIdentifier("signin.forgotPin")
+            .buttonStyle(ChimingPlainButtonStyle())
             .padding(.top, 4)
             .accessibilityLabel("Forgot PIN")
             .accessibilityHint("Reset your supervisor PIN with your work email")
@@ -217,9 +239,11 @@ private struct SupervisorPinResetView: View {
                 PrimaryButton(title: "Back to sign in") {
                     state.finishSupervisorPinReset()
                 }
+                .accessibilityIdentifier("pinReset.backToSignIn")
                 .padding(.horizontal, 24)
             } else {
                 PrimaryButton(title: primaryActionTitle, action: submitCurrentStep)
+                .accessibilityIdentifier("pinReset.primary")
                     .padding(.horizontal, 24)
 
                 Button {
@@ -229,7 +253,7 @@ private struct SupervisorPinResetView: View {
                         .font(SignInPageLayout.captionFont.weight(.medium))
                         .foregroundStyle(BrandTheme.textSecondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ChimingPlainButtonStyle())
                 .padding(.top, 4)
             }
         }
@@ -297,7 +321,8 @@ private struct SupervisorPinResetView: View {
             labeledField(
                 title: "Work email",
                 content: {
-                    TextField("name@sunrise-care.co.uk", text: $auth.pinResetEmail)
+                    TextField("Work email", text: $auth.pinResetEmail, prompt: BrandTheme.fieldPrompt("name@sunrise-care.co.uk"))
+                    .accessibilityIdentifier("pinReset.email")
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -311,7 +336,8 @@ private struct SupervisorPinResetView: View {
             labeledField(
                 title: "Verification code",
                 content: {
-                    TextField("000000", text: $auth.pinResetCode)
+                    TextField("Verification code", text: $auth.pinResetCode, prompt: BrandTheme.fieldPrompt("000000"))
+                    .accessibilityIdentifier("pinReset.code")
                         .keyboardType(.numberPad)
                         .textContentType(.oneTimeCode)
                         .textInputAutocapitalization(.never)
@@ -451,6 +477,7 @@ struct CareHomePickerView: View {
                                     }
                             }
                         }
+                        .accessibilityIdentifier("homePicker.\(home.name)")
                         .buttonStyle(ChimingPlainButtonStyle())
                     }
                     .padding(.horizontal, 4)
@@ -473,7 +500,8 @@ struct SupervisorWelcomeView: View {
     @State private var greetingVisible = false
     @State private var loaderVisible = false
     @State private var didAnimateEntrance = false
-    @State private var didScheduleExit = false
+    /// Shown only when the readiness gate runs past `RosterWarmUp.longWaitHintDelay`.
+    @State private var showsLongerWaitHint = false
 
     private var displayName: String {
         state.currentSupervisorAccount()?.displayName ?? "Supervisor"
@@ -498,6 +526,13 @@ struct SupervisorWelcomeView: View {
                     .opacity(greetingVisible ? 1 : 0)
                     .offset(y: greetingVisible ? 0 : 14)
                     .scaleEffect(greetingVisible ? 1 : 0.97)
+
+                // Space is reserved so the greeting never shifts when the hint fades in.
+                Text("Preparing the roster…")
+                    .font(BrandTheme.orbHintFont())
+                    .orbOverlayText(muted: true)
+                    .opacity(showsLongerWaitHint ? 1 : 0)
+                    .accessibilityHidden(!showsLongerWaitHint)
             }
             .padding(.horizontal, 28)
         }
@@ -515,13 +550,21 @@ struct SupervisorWelcomeView: View {
                     greetingVisible = true
                 }
             }
-            guard !didScheduleExit else { return }
-            didScheduleExit = true
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 2_200_000_000)
-                guard state.phase == .supervisorWelcome else { return }
-                state.transitionToPhase(.carePatientList)
+        }
+        // Moves on when the roster is genuinely ready (seeded, portraits decoded, presentation
+        // cached) — never before the minimum dwell, never after the cap. Cancelled with the view.
+        .task {
+            let start = Date()
+            let hint = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(RosterWarmUp.longWaitHintDelay))
+                guard !Task.isCancelled else { return }
+                withAnimation(CalmMotion.softFade) { showsLongerWaitHint = true }
             }
+            _ = await RosterWarmUp.awaitRosterReady(state: state, start: start)
+            hint.cancel()
+            guard !Task.isCancelled, state.phase == .supervisorWelcome else { return }
+            if let jump = DemoLaunchOptions.jump, state.performDemoJump(jump) { return }
+            state.transitionToPhase(.carePatientList)
         }
     }
 
@@ -612,6 +655,7 @@ struct MoodSelectView: View {
     @ObservedObject var state: SessionPOCState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.flowContainerSize) private var flowContainerSize
+    @Environment(\.flowAmbientPaused) private var flowAmbientPaused
 
     var body: some View {
         ScreenFadeIn {
@@ -632,7 +676,7 @@ struct MoodSelectView: View {
                             .padding(.horizontal)
                     }
 
-                    TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: false)) { timeline in
+                    TimelineView(.animation(minimumInterval: 1 / OrbRenderBudget.contentFramesPerSecond, paused: flowAmbientPaused)) { timeline in
                         let t = timeline.date.timeIntervalSinceReferenceDate
                         Group {
                             if BrandLayout.isRegularWidth(horizontalSizeClass)
@@ -661,6 +705,7 @@ struct MoodSelectView: View {
                         state.beginSession()
                         state.phase = .processingFast
                     }
+                    .accessibilityIdentifier("mood.begin")
                     .disabled(state.selectedMoods.isEmpty)
                     .opacity(state.selectedMoods.isEmpty ? 0.45 : 1)
                     .padding(.horizontal, 24)
@@ -674,14 +719,15 @@ struct MoodSelectView: View {
     @ViewBuilder
     private func moodOrbButtons(phase t: TimeInterval) -> some View {
         ForEach(Array(state.moodOptions.enumerated()), id: \.offset) { index, mood in
+            let isSelected = state.selectedMoods.contains(mood)
             OrbMoodNavOrb(
                 title: mood,
                 index: index,
-                phase: t,
-                isSelected: state.selectedMoods.contains(mood)
+                isSelected: isSelected
             ) {
                 state.toggleMoodSelection(mood)
             }
+            .modifier(MoodOrbFloat(index: index, phase: t, isSelected: isSelected))
             .animation(.spring(response: 0.4, dampingFraction: 0.78), value: state.selectedMoods)
         }
     }
@@ -704,6 +750,7 @@ struct InsightView: View {
                     ) {
                         state.returnToResidentProfile()
                     }
+                    .accessibilityIdentifier("insight.returnToPlaylists")
                     .padding(.bottom, 32)
                     .safeAreaPadding(.bottom, 16)
                 }
@@ -712,7 +759,8 @@ struct InsightView: View {
         } else {
             ScreenFadeIn {
                 CenteredScrollScreen(
-                    backAccessibilityLabel: "Back to profile",
+                    backTitle: "Skip",
+                    backAccessibilityLabel: "Skip for now — saves the session and returns to the profile",
                     onBack: { state.skipCareFeedback() },
                     onLogout: { state.signOutSupervisor() }
                 ) {
@@ -726,11 +774,13 @@ struct InsightView: View {
                         PrimaryButton(title: "Jot a note & nudge the next session") {
                             state.phase = .careSessionFeedback
                         }
+                        .accessibilityIdentifier("insight.note")
                         .padding(.horizontal, 24)
 
                         SecondaryButton(title: "Skip for now — back to profile") {
                             state.skipCareFeedback()
                         }
+                        .accessibilityIdentifier("insight.skip")
                         .padding(.horizontal, 24)
                     }
                     .padding(.vertical, 28)

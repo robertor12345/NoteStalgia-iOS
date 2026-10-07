@@ -90,10 +90,12 @@ final class AmbientAudioSession: ObservableObject {
 
     func pausePlayback() {
         player?.pause()
+        DemoAudioLog.record("music.pause", ["player": logID])
     }
 
     func resumePlayback() {
         player?.play()
+        DemoAudioLog.record("music.resume", ["player": logID])
     }
 
     func stop() {
@@ -141,14 +143,23 @@ final class AmbientAudioSession: ObservableObject {
         }
 
         avPlayer.play()
+        DemoAudioLog.record("music.start", [
+            "player": logID,
+            "file": remoteSource.lastPathComponent.removingPercentEncoding ?? remoteSource.lastPathComponent,
+            "volume": Double(avPlayer.volume),
+        ])
     }
 
     private func loopToStart(expecting generation: UInt) {
         guard generation == playbackGeneration, let player else { return }
+        DemoAudioLog.record("music.loop", ["player": logID])
         player.seek(to: .zero) { [weak player] _ in
             player?.play()
         }
     }
+
+    /// Stable per-instance id for `DemoAudioLog` (several sessions can be alive at once).
+    private lazy var logID = String(UInt(bitPattern: ObjectIdentifier(self).hashValue), radix: 16)
 
     private func handleStatus(
         _ item: AVPlayerItem,
@@ -203,6 +214,9 @@ final class AmbientAudioSession: ObservableObject {
     }
 
     private func tearDownPlaybackOnly() {
+        if currentItem != nil {
+            DemoAudioLog.record("music.stop", ["player": logID])
+        }
         tearDownObservers()
         reactiveAnalyzer.detach(clearPublished: false)
         currentItem?.audioMix = nil
@@ -217,5 +231,6 @@ final class AmbientAudioSession: ObservableObject {
 
     private func applyMute() {
         player?.volume = effectiveVolume
+        DemoAudioLog.record("music.volume", ["player": logID, "volume": Double(effectiveVolume)])
     }
 }

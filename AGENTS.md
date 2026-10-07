@@ -44,6 +44,8 @@ Instructions for Claude Code (loaded via `CLAUDE.md`) and any other coding agent
 | Metrics → prefs | `ResidentSurfaceSessionMetrics.swift`, `SessionPOCState.residentPlaylistTitles` |
 | Bundled MP3s | `App/Resources/Music/` |
 | Genre icons | `App/Assets.xcassets/Genre*.imageset/` |
+| Resident portraits | `App/Assets.xcassets/Portrait{Woman,Man}01–06.imageset/`, `Core/ResidentPortraitCatalog.swift` |
+| Demo recording | `tools/demo/` (scripts + README), `DemoUITests/` (scripted walkthroughs), `Core/DemoLaunchOptions.swift` |
 
 ## Android parity checklist
 

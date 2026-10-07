@@ -68,6 +68,7 @@ struct ImmersiveSessionView: View {
     @Environment(\.flowOrbShellSize) private var flowOrbShellSize
     @StateObject private var ambientAudio = AmbientAudioSession()
     @State private var hrTimer: Timer?
+    @State private var holdsFullPageCover = false
 
     private var orbSize: CGSize {
         if flowOrbShellSize.width > 1, flowOrbShellSize.height > 1 {
@@ -116,6 +117,7 @@ struct ImmersiveSessionView: View {
                     ) {
                         ambientAudio.isMuted.toggle()
                     }
+                    .accessibilityIdentifier("immersive.mute")
                     Spacer()
                 }
                 .padding(.horizontal, BrandTheme.contentGutter)
@@ -137,6 +139,7 @@ struct ImmersiveSessionView: View {
                     PrimaryButton(title: "End session") {
                         state.finishSessionWithSettling()
                     }
+                    .accessibilityIdentifier("immersive.end")
                     .padding(.horizontal, BrandTheme.contentGutter)
                     .padding(.top, 20)
                     .padding(.bottom, 8)
@@ -150,6 +153,7 @@ struct ImmersiveSessionView: View {
                     ) {
                         state.finishSessionWithSettling()
                     }
+                    .accessibilityIdentifier("immersive.returnToPlaylists")
                     .padding(.horizontal, BrandTheme.contentGutter)
                     .padding(.bottom, 28)
                     .safeAreaPadding(.bottom, 16)
@@ -170,10 +174,32 @@ struct ImmersiveSessionView: View {
                 }
             }
         }
+        .onAppear {
+            // The staff branch is covered edge-to-edge by the video, its loading poster or the
+            // offline fallback — all opaque — so the orb + sparkles behind it are invisible for the
+            // whole session. Pause their draw loops; nothing on screen changes.
+            if !state.isResidentSession { setFullPageCover(true) }
+        }
+        .onChange(of: state.phaseContentVisible) { _, visible in
+            // Release as the screen starts fading out so the shell is already moving when the
+            // next screen appears.
+            if !visible { setFullPageCover(false) }
+        }
         .onDisappear {
             hrTimer?.invalidate()
             hrTimer = nil
             ambientAudio.stop()
+            setFullPageCover(false)
+        }
+    }
+
+    private func setFullPageCover(_ covers: Bool) {
+        guard covers != holdsFullPageCover else { return }
+        holdsFullPageCover = covers
+        if covers {
+            AmbientInteractionPause.beginFullPageCover()
+        } else {
+            AmbientInteractionPause.endFullPageCover()
         }
     }
 }

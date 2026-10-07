@@ -6,3 +6,6 @@ DerivedData/
 .DS_Store
 .orb-ref-frames/
 *.mov
+*.mp4
+.demo-work/
+NoteStalgia-Walkthrough*.srt
