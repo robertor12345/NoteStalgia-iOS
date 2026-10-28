@@ -139,6 +139,31 @@ enum BrandTheme {
     }
 
     static let contentGutter: CGFloat = 22
+
+    // MARK: - Data display (handover notes, observation cards, dashboards)
+    //
+    // Three steps of surface: the card, an inset tile lifted a step from it, and hairlines between
+    // rows. The status tints are each ≥ 7:1 as text on the card surfaces (WCAG AA needs 4.5:1), and
+    // the meter track is visible on its own so a bar reads as a bar before it fills.
+
+    /// Card edge — a touch stronger than before so cards separate from the orb behind them.
+    static let cardBorder = gold.opacity(0.34)
+    /// Inset tile inside a card (grouped numbers, quoted notes).
+    static let surfaceInset = Color.white.opacity(0.06)
+    /// Edge of an inset tile or an unselected chip.
+    static let insetBorder = Color.white.opacity(0.16)
+    /// Separator between rows inside a card.
+    static let hairline = Color.white.opacity(0.14)
+    /// Track behind meters and rating bars.
+    static let meterTrack = Color.white.opacity(0.22)
+    /// Good, settled, improving.
+    static let statusPositive = Color(red: 0.55, green: 0.90, blue: 0.80)
+    /// Neither — in line with usual, no data.
+    static let statusNeutral = logoLavenderBlue
+    /// Middle of a 1–10 scale, worth a look.
+    static let statusCaution = Color(red: 1.0, green: 0.86, blue: 0.50)
+    /// Low, declining, distress nearby.
+    static let statusAttention = Color(red: 0.98, green: 0.66, blue: 0.62)
 }
 
 // MARK: - Sign-in surfaces (home Face ID — large type for resident / staff iPads)

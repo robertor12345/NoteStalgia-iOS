@@ -69,6 +69,97 @@ Ordered by impact / risk.
 - [ ] Staff “suggested liked songs” menus should only offer `allUniqueTitles` from the catalog
       (already filtered in places — verify after remap).
 
+### Done — Set-up wizard UX review (28 Oct 2026)
+
+Reviewed on the iPad and iPhone simulators against the deployed Worker. Found and fixed: two buttons both labelled
+"Back" (top-left left the wizard, bottom-left went to the previous step), a tick on the *current* step, "Continue
+set-up" always restarting at step 1, errors rendered at the top of a long page where the button that raised them
+was off screen, errors that stayed after the field was fixed, stepper clipped at the iPad's edge, stand-alone inset
+tiles that washed out over the orb, dividers after the last row (unequal space inside cards), fixed-width chip grids
+with ragged gaps, the keyboard covering the bar and the focused field on a phone, and work silently dropped when
+moving between steps. Now: one guarded navigation path (`Core/Onboarding/OnboardingWizard.swift`), a single pinned
+bar (previous as text, "Next: <step>" as the primary, banner above it), resume at the first step still to do,
+`OnboardingCallout`, `InsightChipFlow` for chip rows, hairlines between rows only, a keyboard-aware bar with
+"Done" in the keyboard accessory row, and the admin / data screens designed phone-first (rule in `AGENTS.md`).
+Not re-reviewed yet under the new phone-first rule: the roster, profile history, Care at home insights and the
+group planner; the home admin dashboard itself looked sound on a phone but was not restructured.
+Known limit: the final keyboard clearance under the last field on a phone was not re-verified by screenshot (the
+simulator kept flipping to hardware-keyboard mode); the earlier software-keyboard capture showed the bar stepping
+aside correctly.
+
+### Done — Paged set-up wizard and input validation (28 Oct 2026)
+
+Two requests from the admin review. **Less scrolling, more pages:** the six long steps became six sections of
+18 short pages with four side journeys (add a home, invite one, invite several, check the spreadsheet); see the
+README rows "Set-up wizard is paged" and "Set-up wizard navigation". Phone-first fixes that came with it: captions
+can no longer truncate (`fixedSize`), a field and its button stack on a phone and sit side by side on the iPad
+(`OnboardingFieldWithAction`), buttons beside fields match the field's height, the Organisation set-up button on
+the home picker lines up with the home rows, the spreadsheet template is a sentence instead of a raw CSV, the
+review rows stack name over details, toggle rows no longer reserve 44 pt of empty space (the hit area is
+expanded instead). **Input validation:** one rule set in the app (`Core/Onboarding/InputRules.swift`, with
+`OnboardingValidation.swift` building each form's problems and `OnboardingField` showing them) and the Worker
+(`src/lib/validate.ts`), both tested; required fields, character filters, length caps, inline messages. Worker
+deployed; 107 Worker tests and 16 Swift tests (`NoteStalgiaTests`, a new unit-test target) pass. Walkthrough Part
+I (`testStoryPartI_Onboarding`) and its narration were rewritten for the paged flow and the new required fields
+(address page, iPad label).
+Open: weak PINs are accepted (`111111`, `123456`); the home address isn't collected when a home is added;
+validation messages are English only; Android has none of this (see the parity checklist in `AGENTS.md`).
+
+### Done — Organisation & home onboarding (28 Oct 2026; plan slice A + most of B)
+
+`docs/ONBOARDING_PLAN.md` implemented on the Worker and the iPad (backend only — the links are hidden without
+`-NoteStalgiaAPIBaseURL`):
+
+- **Worker** (`../NoteStalgia-Backend/worker`): migration `0004_onboarding.sql` (tenant / home / account status
+  and profile columns; `org_requests`, `invites`, `domain_claims`, `consents`, `audit_log`, `devices`);
+  `src/routes/onboarding.ts` (public `POST /auth/org-request`, `/org-request/verify`, `/org-activate`,
+  `GET /auth/invite/preview`, `POST /auth/invite/accept`; operator `/operator/org-requests` list / approve /
+  decline, `/operator/tenants/:id/suspend|restore` behind the seed-token guard); `src/routes/org.ts`
+  (`/orgs/me` GET/PUT, domains by email code, `/homes` GET/POST/PUT/archive, `/invites` + bulk / resend / revoke,
+  `/orgs/me/accounts`, `/accounts/:id` PUT / suspend / restore / remove / pin-reset, `/devices`,
+  `/orgs/me/audit`); `lib/codes.ts` (ORG-/INV- human codes, sha256 at rest), `lib/email.ts` (Resend or no-op;
+  `exposeCodes`), `lib/ratelimit.ts`, `lib/audit.ts`, `lib/onboarding.ts`; sign-in refuses suspended / removed
+  accounts, lapsed temporary cover and suspended tenants; `scripts/org-requests.ts` (`npm run operator`);
+  `POST /admin/seed { reset: { onboardingDemo: true } }` removes self-onboarded organisations (the demo reset
+  does this); contract paths + schemas in `contracts/openapi.yaml`; `test/onboarding.test.ts` (17 tests).
+- **iOS**: `Core/Onboarding/` (`OnboardingModels` DTOs, `OnboardingClient`, `OnboardingStore` — not forwarded by
+  the coordinator, `OnboardingFlow` coordinator extension, `ResidentCSVImport`), `Screens/OnboardingScreens.swift`
+  (`OrgRequestView`, `OrgCodeView`, `OrgSetupView` with six sections of short pages and a pinned previous / Next bar), phases
+  `.orgRequest` / `.orgCode` / `.orgSetup`, two sign-in links, an org admin with no homes lands in set-up,
+  "Organisation set-up" on the home picker and the admin dashboard, `AuthSession.activateOrganisation` /
+  `acceptInvite` / `refreshCurrentSession` (new homes reach the claims through a token refresh, then
+  `sync.activate` watches them), `APIClient.delete`.
+- **Deployed**: migration applied and Worker deployed with `EXPOSE_CODES=1` + `AUTO_APPROVE=1` (demo only).
+  Verified on the iPad simulator against it: request → code → approved → activate → set-up (organisation, home,
+  invite with code tile, this iPad, ready, audit) → dashboard.
+- **Walkthrough**: `testStoryPartI_Onboarding` (`i_onboarding`, flow 10 "A new organisation", narration
+  `v7_onb_*`) added to the v7 pipeline; `reset-backend.sh` removes the demo organisation first.
+
+Closed on 28 Oct 2026 (second pass): DNS-TXT domain verification (`lib/dns.ts`, DoH lookup, record shown in the
+set-up and in `/orgs/me` pending domains), per-home export (`GET /orgs/me/export`, JSON / residents CSV / sessions
+CSV, share sheet on the iPad, audited), the real-mail deployment path (`npm run deploy -- --live` stores
+`RESEND_API_KEY`, optional `CQC_API_KEY`, deploys with `EXPOSE_CODES` / `AUTO_APPROVE` off and `EMAIL_FROM` set),
+CQC register checks when a key exists (`lib/cqc.ts`), seat warnings on invites, trial expiry at sign-in and
+refresh plus `POST /operator/tenants/:id/plan` (`npm run operator -- plan`), refresh refused for suspended /
+removed / lapsed accounts and blocked tenants, 403 messages shown on the sign-in screen, and the dashboard
+set-up card (`OrgSetupDashboardCard`) that collapses to "Set-up complete". 86 Worker tests.
+
+Deliberately left for production (not POC work): session **retention** enforcement (deleting server-side needs
+session tombstones in the sync contract — today only residents carry `deleted_at`), DSAR export across tenants,
+SSO / SCIM, MDM integration, the operator web console. **Android**: nothing — invite acceptance (`INV-` code →
+PIN → roster) is the first piece when Android gets an API client; see the parity checklist in `AGENTS.md`.
+**Phase fade guard** (found by the Part I recording, which stalled four times at "log out → I have an invite
+or activation code": the new screen's tree was built and reported visible, yet nothing was drawn or exposed to
+accessibility). Three layers of protection now: the phase layer in `FlowRootView` uses `.transition(.identity)`
+(the old `.asymmetric(insertion: .opacity, …)` insertion could be caught mid-flight by the fade's own animation
+under recording load), `ScreenFadeIn` re-asserts its reveal 0.7 s after appearing if the state write was dropped,
+and `transitionToPhase` always restores `phaseContentVisible` once it has swapped the phase, with a 1.5 s
+watchdog (`ensurePhaseContentVisible`) after every phase change. With demo logging on, `visible`, `watchdog`,
+`fadeInFallback` and `keyboard` events land in `demo-audio-log.jsonl` for the next investigation. **Recording**:
+the v7 video (`NoteStalgia-Walkthrough-v7.mp4`, ~20.8 min, ten flows) is rebuilt from the `i_onboarding` take;
+`edge-tts` had to be upgraded again before the narration would synthesise; the previous nine-flow cut is kept
+at `.demo-work/NoteStalgia-Walkthrough-v7-before-partI.mp4`.
+
 ### Done — Usable POC backend (Cloudflare free tier), song catalogue search, discovery model (Oct 2026)
 
 - [x] **`../NoteStalgia-Backend`**: Hono Worker + D1 + nightly Cron, 55 vitest tests on the Workers runtime,
@@ -176,6 +267,42 @@ Ordered by impact / risk.
       preparing and returns to the planner with the selection intact; the session clock starts at the reveal.
       The v7 Part H take predates this and shows the picks arriving live (left as is by choice).
       Android: no group sessions on the model yet.
+- [x] **UX / accessibility round 6, every page (28 Oct 2026)**: `docs/UX_REVIEW_2026-10-28.md`. Log out moved
+      top-right (`FlowTopStaffNavBar` + the group session bar). New `Core/BrandDataDisplay.swift` (section
+      header, inset tile, stat tile, meter + rating row, rating tone + legend, status chip, hairline, quote
+      block, key/value row, accessible segmented choice, selectable chip) and the `BrandTheme` data tokens
+      (`cardBorder`, `surfaceInset`, `insetBorder`, `hairline`, `meterTrack`, `status*`). Applied to the session
+      summary, observation steps, context tags, feedback sliders, group check-in, roster and profile observation
+      tiles, comfort notes, "for next time" meters, session history cards, admin dashboard (KPI accent, group
+      programme tiles, wing meters + chips, trend chips, hairlines, trend charts in a grid on iPad), Care at home
+      home + insights, planner (pinned Start, zero chips hidden, tiles, hairlines, glyph label), group session
+      (headers, hairlines, reason icon, transport label halos), search sheet (44 pt Add, labels), immersive
+      vitals tiles, discovery / mood captions with the orb halo. Android: the status tints,
+      pinned Start, zero-chip hiding and "14 days" copy are behaviour the Android app mirrors — TODO there.
+- [x] **Round 6b — the review's open items (28 Oct 2026)**: PIN caret only on the focused field + first-field
+      focus on the Care at home forms; roster display-mode picker on `BrandSegmentedChoice`; home leads get
+      **Open the roster** on the dashboard (`openRosterFromAdminDashboard`, Back returns via
+      `returnToAdminDashboardFromRoster`); planner residents in three sections (benefit · seen recently ·
+      better one-to-one, collapsed); **Who stood out?** on the last group check-in step →
+      `GroupSessionRecord.participantNotes` (`GroupParticipantNote` / `GroupParticipantState`, optional on the
+      wire, documented in `contracts/openapi.yaml`; `WireSchema.version` unchanged — additive) read by the
+      profile line, planner status line, per-person engagement and the one-to-one nudge; VoiceOver on the
+      resident surface (glyph label/value/hint, Next/Previous song custom actions, hidden backdrop, dock hints,
+      "Now playing" announcement). Android TODO: planner sections, participant notes in the record and the
+      heuristics above, plus the round-6 items.
+- [ ] **Organisation & home onboarding — planned, not started (28 Oct 2026)**: `docs/ONBOARDING_PLAN.md`.
+      Request a workspace → email code → operator approval → activation (org admin + PIN + DPA) → iPad wizard
+      (organisation + domains · homes + wings · staff invites by single-use code · residents by CSV through the
+      existing sync push · device guidance · ready checklist) → ongoing team / audit / export. Data model,
+      contract routes, phases A/B/C and the open product questions are in the doc. Android after iOS slice A.
+- [x] **Playing glyph: smaller, translucent, draggable (28 Oct 2026)**: `ResidentProfileView.heroDiskScale`
+      (0.6) shrinks the hero disk while `ResidentGlyphButton.equalizerDiameter` keeps the ring at the former
+      154 × hull-scale; the disk draws at 60% opacity (ring outside the modifier, opaque). `heroDragGesture`
+      (simultaneous on the hero, global coordinates) commits `heroDragOffset`, live drag in `heroDragLive`,
+      both clamped by the ring's canvas; `heroDragInProgress` makes the surface's song swipe stand aside; the
+      periphery is laid out around `hub + heroDragOffset`; the offset resets on genre change / stop. The hero's
+      bars reach twice discovery's (`HeroTuning.barReach`, `outwardPad(for:barReach:)` sizes the canvas; the
+      drag clamp and the periphery clear that canvas). Android TODO: same behaviours on the resident surface.
 - [x] **v7 demo video (27 Oct 2026)**: `NoteStalgia-Walkthrough-v7.mp4` + `.srt` (13 min, nine flows) — what's new
       since v6, recorded against the deployed Worker with ≥ 3 s after every tap: live sign-in and sync, the
       Group activities card, Find a song they love, real-time re-ranking after a staff pick, cover art on the

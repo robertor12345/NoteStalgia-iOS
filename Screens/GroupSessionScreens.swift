@@ -98,16 +98,17 @@ struct GroupSessionView: View {
             .accessibilityIdentifier("group.end")
             .buttonStyle(ChimingPlainButtonStyle())
 
-            FlowSmallLogoutButton {
-                audio.stop()
-                state.signOutSupervisor()
-            }
-
             Spacer()
 
             Text("Group mode")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BrandTheme.textSecondary)
+                .orbOverlayTextStyle(intensity: 0.7)
+
+            FlowSmallLogoutButton {
+                audio.stop()
+                state.signOutSupervisor()
+            }
         }
         .padding(.horizontal, BrandTheme.contentGutter)
         .padding(.top, 0)
@@ -139,9 +140,7 @@ struct GroupSessionView: View {
     private func nowPlayingCard(_ track: GroupSessionTrack) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Now playing")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: "Now playing", systemImage: "music.note")
 
                 HStack(spacing: 14) {
                     // The sleeve for a catalogue song, the genre glyph for a bundled stem.
@@ -157,11 +156,15 @@ struct GroupSessionView: View {
                             .foregroundStyle(BrandTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                         if let reason = track.reason {
-                            Text(reason)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(BrandTheme.goldDeep)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("group.reason")
+                            Label {
+                                Text(reason)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } icon: {
+                                Image(systemName: "sparkles")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BrandTheme.goldDeep)
+                            .accessibilityIdentifier("group.reason")
                         }
                     }
                 }
@@ -208,9 +211,7 @@ struct GroupSessionView: View {
     private var trackList: some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Group playlist")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: "Group playlist", systemImage: "list.bullet")
 
                 ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
                     Button {
@@ -239,10 +240,12 @@ struct GroupSessionView: View {
                         .padding(.vertical, 8)
                     }
                     .accessibilityIdentifier("group.track.\(track.title)")
+                    .accessibilityLabel("\(track.title), \(track.sourceResidentName)\(index == currentIndex ? ", now playing" : "")")
+                    .accessibilityAddTraits(index == currentIndex ? .isSelected : [])
                     .buttonStyle(ChimingPlainButtonStyle())
 
                     if index < tracks.count - 1 {
-                        Divider().opacity(0.25)
+                        BrandHairline()
                     }
                 }
             }
@@ -304,8 +307,8 @@ private struct GroupTransportButton: View {
                         .foregroundStyle(BrandTheme.textPrimary)
                 }
                 Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(BrandTheme.textSecondary)
+                    .font(.caption.weight(.medium))
+                    .orbOverlayText(muted: true)
             }
         }
         .buttonStyle(ChimingPlainButtonStyle())
@@ -358,14 +361,14 @@ struct GroupSessionFeedbackView: View {
 
                     if let summary = state.groupSessionDurationSummary() {
                         BrandCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Session captured")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text(summary)
-                                    .font(.body)
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 12) {
+                                BrandSectionHeader(title: "Session captured", systemImage: "waveform")
+                                BrandInsetTile {
+                                    Text(summary)
+                                        .font(.body)
+                                        .foregroundStyle(BrandTheme.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -382,6 +385,7 @@ struct GroupSessionFeedbackView: View {
                             Text(currentStep.title)
                                 .font(.title2.weight(.semibold))
                                 .foregroundStyle(BrandTheme.textPrimary)
+                                .accessibilityAddTraits(.isHeader)
                             Text(currentStep.prompt)
                                 .font(.body)
                                 .foregroundStyle(BrandTheme.textSecondary)
@@ -415,6 +419,9 @@ struct GroupSessionFeedbackView: View {
                                         )
                                 }
                                 .padding(.top, 4)
+
+                                participantsSection
+                                    .padding(.top, 6)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -456,12 +463,76 @@ struct GroupSessionFeedbackView: View {
         HStack(spacing: 8) {
             ForEach(GroupSessionFeedbackStep.allCases) { step in
                 Capsule()
-                    .fill(step.rawValue <= state.groupSessionFeedbackStep ? BrandTheme.gold : BrandTheme.brown.opacity(0.12))
-                    .frame(height: 4)
+                    .fill(step.rawValue <= state.groupSessionFeedbackStep ? BrandTheme.gold : BrandTheme.meterTrack)
+                    .frame(height: 5)
             }
         }
         .padding(.horizontal, 4)
         .animation(CalmMotion.subtle, value: state.groupSessionFeedbackStep)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progress")
+        .accessibilityValue("Step \(state.groupSessionFeedbackStep + 1) of \(GroupSessionFeedbackStep.allCases.count)")
+    }
+
+    /// Optional, on the last step: one tap per resident — engaged, unsettled, left early — so the
+    /// profile line and the planner get a per-person signal, not only the room's score.
+    private var participantsSection: some View {
+        let participants = state.groupSessionParticipantsForCheckIn()
+        return VStack(alignment: .leading, spacing: 10) {
+            BrandSectionHeader(
+                title: "Who stood out?",
+                systemImage: "person.2",
+                subtitle: "Optional. Tap a name to note engaged, unsettled or left early; tap again to change or clear."
+            )
+            InsightChipFlow(spacing: 8) {
+                ForEach(participants) { resident in
+                    participantChip(resident)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func participantChip(_ resident: CarePatientProfile) -> some View {
+        let note = state.groupSessionFeedbackDraft.participantNote(for: resident.id)
+        let tint = note.map(participantTint) ?? BrandTheme.textSecondary
+        return Button {
+            state.cycleGroupParticipantNote(for: resident.id)
+        } label: {
+            HStack(spacing: 6) {
+                if let note {
+                    Image(systemName: note.systemImage)
+                        .font(.caption.weight(.bold))
+                        .accessibilityHidden(true)
+                }
+                Text(resident.displayName)
+                    .font(.subheadline.weight(.medium))
+                if let note {
+                    Text("· \(note.label)")
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .foregroundStyle(note == nil ? BrandTheme.textPrimary : tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: 36)
+            .background(Capsule().fill(note == nil ? BrandTheme.surfaceInset : tint.opacity(0.18)))
+            .overlay(Capsule().stroke(note == nil ? BrandTheme.insetBorder : tint.opacity(0.65), lineWidth: 1))
+            .expandedHitArea(vertical: 4)
+        }
+        .buttonStyle(ChimingPlainButtonStyle())
+        .accessibilityLabel("\(resident.displayName), \(note?.label ?? "no note")")
+        .accessibilityHint("Cycles engaged, unsettled, left early, then clears")
+        .accessibilityIdentifier("group.participant.\(resident.displayName)")
+    }
+
+    private func participantTint(_ note: GroupParticipantState) -> Color {
+        switch note {
+        case .engaged: return BrandTheme.statusPositive
+        case .unsettled: return BrandTheme.statusAttention
+        case .leftEarly: return BrandTheme.statusCaution
+        }
     }
 
     private var backLabel: String {

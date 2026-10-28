@@ -145,8 +145,10 @@ struct SongSearchSheet: View {
                         Label("Preview · Apple Music", systemImage: "arrow.up.right.square")
                             .font(.caption2)
                             .foregroundStyle(BrandTheme.goldDeep.opacity(0.9))
+                            .expandedHitArea(vertical: 6)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(ref.title) in Apple Music")
                 }
             }
             Spacer(minLength: 8)
@@ -155,14 +157,16 @@ struct SongSearchSheet: View {
                 state.addSuggestedLikedTrack(for: patient.id, ref: ref)
             }
             .buttonStyle(.plain)
-            .font(.caption.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(added ? BrandTheme.textSecondary : BrandTheme.textPrimary)
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(added ? BrandTheme.creamMid.opacity(0.7) : BrandTheme.logoCyan.opacity(0.22)))
-            .overlay(Capsule().stroke(BrandTheme.logoCyan.opacity(added ? 0.2 : 0.55), lineWidth: 1))
+            .padding(.vertical, 9)
+            .background(Capsule().fill(added ? BrandTheme.surfaceInset : BrandTheme.logoCyan.opacity(0.22)))
+            .overlay(Capsule().stroke(added ? BrandTheme.insetBorder : BrandTheme.logoCyan.opacity(0.6), lineWidth: 1))
+            .expandedHitArea(vertical: 6, horizontal: 4)
             .disabled(added)
             .accessibilityIdentifier("search.add.\(ref.id)")
+            .accessibilityLabel(added ? "\(ref.title) already added" : "Add \(ref.title) to suggested liked songs")
         }
         .padding(.vertical, 6)
     }

@@ -25,6 +25,8 @@ final class SessionPOCState: ObservableObject {
     let vitals = ImmersiveSessionVitalsStore()
     /// Care at home drafts — observed directly by the household screens, not forwarded (see `auth`).
     let householdUI = HouseholdFlowStore()
+    /// Organisation onboarding drafts and loaded admin data — observed directly, not forwarded.
+    let onboarding = OnboardingStore()
     /// Backend sync (only active with `-NoteStalgiaAPIBaseURL`); observes the stores, never forwarded.
     lazy var sync: SyncEngine = MainActor.assumeIsolated { SyncEngine(careData: careData, groupSession: groupSession) }
     /// Backend recommendations (surface queues, discovery plan); read at play time, not forwarded.
@@ -64,8 +66,13 @@ final class SessionPOCState: ObservableObject {
             if phase != oldValue { DemoAudioLog.record("phase", ["phase": "\(phase)"]) }
         }
     }
-    @Published private(set) var phaseContentVisible = true
+    @Published private(set) var phaseContentVisible = true {
+        didSet {
+            if phaseContentVisible != oldValue { DemoAudioLog.record("visible", ["visible": phaseContentVisible, "phase": "\(phase)"]) }
+        }
+    }
     private var phaseTransitionTask: Task<Void, Never>?
+    private var phaseTransitionID = UUID()
 
     // MARK: - Supervisor auth (passthrough — storage lives in `auth`)
 
@@ -204,7 +211,11 @@ final class SessionPOCState: ObservableObject {
     @Published var residentStaffReturnPhase: FlowPhase = .carePatientList
 
     /// Staff handoff veil before resident calm surface opens.
-    @Published var residentHandoffActive = false
+    @Published var residentHandoffActive = false {
+        didSet {
+            if residentHandoffActive != oldValue { DemoAudioLog.record("handoff", ["active": residentHandoffActive]) }
+        }
+    }
 
     // MARK: - New-resident discovery (passthrough — storage lives in `newResidentDiscovery`)
 
@@ -426,18 +437,37 @@ final class SessionPOCState: ObservableObject {
     func transitionToPhase(_ newPhase: FlowPhase) {
         guard phase != newPhase else { return }
         phaseTransitionTask?.cancel()
+        let transitionID = UUID()
+        phaseTransitionID = transitionID
         phaseTransitionTask = Task { @MainActor in
             withAnimation(.easeOut(duration: 0.38)) {
                 phaseContentVisible = false
             }
             try? await Task.sleep(nanoseconds: 400_000_000)
+            // Cancelled before the swap (sign-out, sign-in, a newer transition): whoever cancelled
+            // owns the phase from here.
             guard !Task.isCancelled else { return }
             phase = newPhase
             try? await Task.sleep(nanoseconds: 60_000_000)
-            guard !Task.isCancelled else { return }
+            // Once this transition has swapped the phase it always brings the content back unless a
+            // newer transition has taken over; a stray cancel after the swap must never leave the
+            // screen hidden (seen once in a scripted run: sign-out → tap → blank orb).
+            guard phaseTransitionID == transitionID else { return }
             withAnimation(CalmMotion.softFade) {
                 phaseContentVisible = true
             }
+        }
+    }
+
+    /// Watchdog for the root view: content that is still hidden a moment after a phase change with
+    /// no transition in flight is shown, whatever hid it.
+    func ensurePhaseContentVisible() {
+        // 1.5 s after a phase swap any honest transition has long finished (0.4 s + 0.06 s); the
+        // resident handoff overlay manages its own reveal.
+        guard !phaseContentVisible, !residentHandoffActive else { return }
+        DemoAudioLog.record("watchdog", ["phase": "\(phase)"])
+        withAnimation(CalmMotion.softFade) {
+            phaseContentVisible = true
         }
     }
 
@@ -749,7 +779,13 @@ final class SessionPOCState: ObservableObject {
             }
         }
 
-        if account.role == .household, let homeId = account.homeIds.first {
+        if APIConfig.isConfigured, account.role == .orgAdmin, account.homeIds.isEmpty {
+            // A freshly activated organisation has no homes yet: straight into set-up.
+            currentHomeId = nil
+            onboarding.beginSetup()
+            phase = .orgSetup
+            Task { @MainActor in await loadOrganisation() }
+        } else if account.role == .household, let homeId = account.homeIds.first {
             currentHomeId = homeId
             // A registered resident may not be in `carePatients` yet if the launch seed is still
             // merging the stored household data — the welcome gate waits for it, so only an
@@ -896,6 +932,22 @@ final class SessionPOCState: ObservableObject {
         transitionToPhase(.careHomeAdminDashboard)
     }
 
+    /// Home leads reach the roster — and from it profiles and the group activities planner — from
+    /// their dashboard; before this a home with no supervisor account had an unreachable roster.
+    func openRosterFromAdminDashboard() {
+        rosterSearchQuery = ""
+        rosterSelectedWingId = nil
+        rosterBrowsingAllResidents = false
+        selectedCarePatientId = nil
+        transitionToPhase(.carePatientList)
+    }
+
+    /// Back from the roster for a home lead lands on their dashboard, not the start screen.
+    func returnToAdminDashboardFromRoster() {
+        selectedCarePatientId = nil
+        transitionToPhase(.careHomeAdminDashboard)
+    }
+
     var isCareHomeAdmin: Bool {
         currentSupervisorAccount()?.role.isHomeAdmin == true
     }
@@ -938,6 +990,7 @@ final class SessionPOCState: ObservableObject {
         supervisorPIN = ""
         supervisorSignInError = nil
         cancelSupervisorPinReset()
+        onboarding.resetAll()
         rosterSearchQuery = ""
         rosterSelectedWingId = nil
         rosterBrowsingAllResidents = false
@@ -1140,8 +1193,8 @@ final class SessionPOCState: ObservableObject {
               let idx = carePatients.firstIndex(where: { $0.id == pid }) else {
             return "That profile is no longer available."
         }
-        let name = newResidentProfileNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return "Enter the resident’s name." }
+        let name = InputRules.tidy(newResidentProfileNameDraft)
+        if let problem = InputRules.personName(name, required: true, label: "The resident’s name") { return problem }
         let ageTrim = newResidentProfileAgeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let age = Int(ageTrim), (55 ... 105).contains(age) else {
             return "Enter an age between 55 and 105."
@@ -1681,7 +1734,8 @@ final class SessionPOCState: ObservableObject {
             activityTitle: groupSession.plannedActivity?.title,
             theme: groupSession.plannedActivity?.theme ?? .wholeHome,
             homeId: currentHomeId,
-            authorAccountId: signedInSupervisorId
+            authorAccountId: signedInSupervisorId,
+            participantNotes: groupSessionFeedbackDraft.participantNotes
         )
         groupSessionRecords.insert(rec, at: 0)
         resetGroupSessionState()
@@ -1691,6 +1745,19 @@ final class SessionPOCState: ObservableObject {
     /// Who the running session counts for: the planned participants, or the whole home.
     private func groupSessionParticipantIds() -> [UUID] {
         groupSession.plannedActivity?.participantIds ?? residentsInCurrentHome().map(\.id)
+    }
+
+    /// The residents the check-in can note, A–Z.
+    func groupSessionParticipantsForCheckIn() -> [CarePatientProfile] {
+        let ids = Set(groupSessionParticipantIds())
+        return carePatients.filter { ids.contains($0.id) }.sorted { $0.displayName < $1.displayName }
+    }
+
+    /// Tap on a name at the check-in: engaged → unsettled → left early → clear.
+    func cycleGroupParticipantNote(for residentId: UUID) {
+        let current = groupSessionFeedbackDraft.participantNote(for: residentId)
+        let next: GroupParticipantState? = current.map { $0.next } ?? .engaged
+        groupSessionFeedbackDraft.setParticipantNote(next, for: residentId)
     }
 
     func skipGroupSessionFeedback() {
@@ -2140,6 +2207,13 @@ enum FlowPhase: Int, CaseIterable, Identifiable {
     case householdInsights = 30
     /// Group activities: choose who joins (with recommendations) before the session starts.
     case careGroupPlanner = 31
+    // Organisation onboarding (backend only)
+    /// Request a workspace: form, verification code, approval.
+    case orgRequest = 32
+    /// "I have an invite or activation code": email + code + PIN.
+    case orgCode = 33
+    /// The org admin's six-step set-up (organisation, homes, team, residents, iPads, ready).
+    case orgSetup = 34
 
     var id: Int { rawValue }
 }

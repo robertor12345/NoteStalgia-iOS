@@ -111,6 +111,8 @@ struct PrimaryButton: View {
 
 struct SecondaryButton: View {
     let title: String
+    /// Lets a button sit beside a text field at exactly the field's height.
+    var minContentHeight: CGFloat = 0
     var action: () -> Void
 
     var body: some View {
@@ -122,6 +124,7 @@ struct SecondaryButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 12)
+                .frame(minHeight: minContentHeight > 0 ? minContentHeight + 24 : nil)
                 .background { OrbSkyCapsuleFill() }
                 .clipShape(Capsule(style: .continuous))
         }
@@ -229,6 +232,8 @@ struct FlowTopStaffNavBar: View {
     var onLogout: (() -> Void)?
 
     var body: some View {
+        // Back leads, Log out trails: the destructive-ish action sits away from the navigation
+        // control, where every staff iPad app keeps its account action.
         HStack(spacing: 8) {
             if let onBack {
                 FlowSmallBackButton(
@@ -237,10 +242,10 @@ struct FlowTopStaffNavBar: View {
                     action: onBack
                 )
             }
+            Spacer(minLength: 0)
             if let onLogout {
                 FlowSmallLogoutButton(action: onLogout)
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
         .padding(.top, 0)

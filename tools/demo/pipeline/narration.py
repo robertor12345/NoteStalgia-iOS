@@ -317,10 +317,11 @@ EXTRA = {
 SCRIPT.update({
     "intro7": (None, "",
         "NoteStalgia, version seven. Since the last walkthrough the iPad has gained a real backend, a song catalogue "
-        "with Apple previews and cover art, and a recommender that learns in real time. This video shows only what is "
-        "new, with a pause after every tap so you can follow along."),
+        "with Apple previews and cover art, a recommender that learns in real time, and a way for a new care "
+        "organisation to set itself up without anyone from our side. This video shows only what is new, with a pause "
+        "after every tap so you can follow along."),
     "outro7": (None, "",
-        "Thanks for watching. We'd love your feedback on these four questions. Everything you have seen runs on the "
+        "Thanks for watching. We'd love your feedback on these five questions. Everything you have seen runs on the "
         "iPad against a live backend, with demo residents and demo data."),
     "v7_open": (0,
         "Same orb, same calm opening — but every tap now talks to a live server.",
@@ -471,6 +472,126 @@ SCRIPT.update({
 })
 EXTRA.update({
     "v7_added": [(12.0, "v7_added2")],
+})
+
+
+# ---- v7 · Part I: a new organisation sets itself up (testStoryPartI_Onboarding, flow 9) ----
+SCRIPT.update({
+    "v7_onb_open": (9,
+        "New: a care organisation can set itself up — no engineer, no seed script.",
+        "Finally, something new at the very start. Until now a care organisation existed only because we seeded it. "
+        "Now a registered manager can request a workspace from the sign-in screen and set everything up on the iPad."),
+    "v7_onb_request": (9,
+        "Organisation, your name, work email, role, how many homes, the CQC provider ID.",
+        "The request asks for the organisation, the requester's name and work email, their role, how many homes they "
+        "run, and optionally their CQC provider ID. An email domain another organisation has already verified is "
+        "refused, by name."),
+    "v7_onb_send": (9,
+        "Consent is stored as a versioned record, then the request goes to the server.",
+        "The consent line is stored as a versioned record with the time and the address it came from, and the request "
+        "goes to the server."),
+    "v7_onb_verify": (9,
+        "A six-digit code to the work email — ten minutes, five attempts.",
+        "A six digit code goes to the work email. It expires in ten minutes and allows five attempts. On this demo "
+        "backend the code is shown on screen; in production it only ever arrives by email."),
+    "v7_onb_approved": (9,
+        "Approved: an ORG- activation code, single use, seven days.",
+        "Verified, and approved. A real deployment waits for a NoteStalgia operator to check the organisation by hand; "
+        "the demo approves at once. Either way the requester receives an activation code that works once and expires "
+        "in seven days."),
+    "v7_onb_code": (9,
+        "One screen for activation and invites: email, code, a name, a PIN chosen here.",
+        "One screen handles both activation codes and staff invites. Dana enters her name, chooses a six digit PIN, "
+        "which is hashed with a secret the iPad never sees, and acknowledges how resident data is handled."),
+    "v7_onb_activate": (9,
+        "One transaction: organisation, admin account, consents, the first audit entry.",
+        "Activation creates the organisation, her admin account, the consent records and the first audit entry in one "
+        "database transaction, and signs her in."),
+    "v7_onb_setup": (9,
+        "Six sections, one short page at a time: nothing to scroll past, so no step is missed.",
+        "She lands in the set-up, and it is deliberately a short page at a time. Six sections run along the top: "
+        "organisation, homes, team, residents, iPads, ready. Each section is a few small pages, so nothing sits below "
+        "the fold waiting to be missed. This first page is the organisation's name, trading name and registration."),
+    "v7_onb_address": (9,
+        "The head-office address: required, and kept in the United Kingdom.",
+        "Next, where the organisation is based. The address is required, because it appears on exports, and the data "
+        "region is shown here too."),
+    "v7_onb_required": (9,
+        "Leave a required field empty and it says so, under the field itself.",
+        "Tapping Next with the fields empty does not just fail. Each missing field is marked, in words and an icon, "
+        "right under it, and the bar counts what needs attention."),
+    "v7_onb_domains": (9,
+        "Email domains: verified by a code to the domain, or a DNS record.",
+        "The email domains page. Dana's own domain is already verified, so staff on it are sent to staff sign-in and "
+        "family carers can't register with it. More domains are proved by an emailed code or a DNS record."),
+    "v7_onb_defaults": (9,
+        "Defaults every home inherits: PIN re-prompt, who may invite, retention.",
+        "The defaults page: how long before a shared iPad asks for a PIN again, whether home leads may invite staff, "
+        "and how long session records are kept."),
+    "v7_onb_home": (9,
+        "A home has wings; the roster groups residents by them.",
+        "Homes. Adding one is three small pages: its name, optional CQC location and beds, then its wings, then who "
+        "leads it. Names only take real characters, the bed count is a number from one to two thousand, and a home "
+        "lead can be invited right here or Dana can lead it herself."),
+    "v7_onb_homeAdded": (9,
+        "The home is in — the admin's access and this iPad's sync follow on the next token.",
+        "The home appears with its counts. Behind the scenes the server re-issues Dana's token so it carries the new "
+        "home, and the iPad starts syncing it."),
+    "v7_onb_team": (9,
+        "Invites by email: role, homes, optional end date for agency cover.",
+        "The team. Staff never register themselves. An invite is two pages: who, with an email that has to be a real "
+        "address, and what they can do: the role, the homes and, for agency cover, an end date after which the "
+        "account stops working. A whole list can be pasted at once."),
+    "v7_onb_invited": (9,
+        "An INV- code: hashed at rest, single use, seven days; a resend voids the old one.",
+        "The invite is pending, with a code that is stored only as a hash, works once and expires in seven days. "
+        "Resending issues a new one and voids the old. The code is shown here only because this is the demo backend."),
+    "v7_onb_residents": (9,
+        "Residents from a spreadsheet, or one at a time through discovery.",
+        "Residents. They can be imported from a spreadsheet with a name, room, wing, age or date of birth, "
+        "nationality and favourite genre, or added one at a time through the discovery pass."),
+    "v7_onb_preview": (9,
+        "Every row is checked: unknown wings fall back, bad ages are skipped, duplicates flagged.",
+        "Every row is checked on its own page before anything is written. An unknown wing falls back to the first one, "
+        "an age outside the range or a name with digits in it is skipped, and a name already on the roster is flagged."),
+    "v7_onb_imported": (9,
+        "Three residents on the roster, pushed through the same sync as any other edit.",
+        "Three residents are on the roster, marked discovery not yet run, and pushed through the same sync as any "
+        "other edit."),
+    "v7_onb_devices": (9,
+        "Shared iPads: Guided Access, auto-lock, no personal accounts, managed deployment.",
+        "The iPads. Guidance for shared tablets on the floor: Guided Access during sessions, auto-lock, no personal "
+        "accounts, and managed deployment through Apple Business Manager."),
+    "v7_onb_registered": (9,
+        "This iPad now belongs to Willowbank Lodge.",
+        "Registering the iPad needs a label, and says so if it is missing. It records which home the tablet belongs to, "
+        "so one found in the wrong wing can be identified."),
+    "v7_onb_ready": (9,
+        "A live checklist, first-week nudges and the audit trail.",
+        "The last section: a live checklist of what is in place, a nudge about the invite still waiting, and the audit "
+        "trail, append only, with who did what and when."),
+    "v7_onb_dashboard": (9,
+        "Set-up done: the new home's dashboard, empty until the first sessions.",
+        "Finishing lands on the new home's dashboard, empty until staff run their first sessions. Organisation set-up "
+        "stays one tap away."),
+    "v7_onb_roster": (9,
+        "The roster shows the imported residents, ready for their first discovery.",
+        "The roster shows the imported residents with bundled portraits, each ready for a first discovery pass."),
+    "v7_onb_join": (9,
+        "Sam joins with the invite code: the email must match, then a PIN of their own.",
+        "Now Sam, the invited supervisor. Log out, tap I have an invite or activation code, and enter the email and "
+        "the code. A wrong email reads exactly like a wrong code, so nothing about who was invited leaks."),
+    "v7_onb_preview2": (9,
+        "The invite shows what it unlocks before a PIN is chosen.",
+        "The invite is previewed before anything is created: which organisation, which role, which homes."),
+    "v7_onb_accept": (9,
+        "Accepting creates the account and signs in; the home becomes active.",
+        "Accepting creates Sam's account with the chosen PIN, records the consent, marks the home active and signs "
+        "Sam in."),
+    "v7_onb_samRoster": (9,
+        "Sam's roster — the residents Dana imported, already synced.",
+        "Sam's roster: the residents Dana imported a minute ago, already synced to this account. From here, everything "
+        "you saw earlier applies."),
 })
 
 

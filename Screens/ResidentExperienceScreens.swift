@@ -322,8 +322,23 @@ struct ResidentProfileView: View {
     @State private var playlistMediaReady = false
     /// Whether this view currently holds an `AmbientInteractionPause` full-page cover.
     @State private var holdsFullPageCover = false
+    /// Where the resident has dragged the playing glyph, relative to its hub (kept while the
+    /// playlist plays; cleared when it stops or another genre takes over).
+    @State private var heroDragOffset: CGSize = .zero
+    /// The drag in progress, on top of `heroDragOffset`.
+    @State private var heroDragLive: CGSize = .zero
+    /// True while a finger is moving the glyph, so the surface's song swipe stands aside.
+    @State private var heroDragInProgress = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The playing glyph's disk is 60% of its former size; the equaliser keeps the former
+    /// diameter, so the ring reads as a halo around a smaller sleeve.
+    private static let heroDiskScale: CGFloat = 0.6
+
+    private static func heroEqualizerDiameter(hullScale: CGFloat) -> CGFloat {
+        154 * hullScale
+    }
 
     private var currentTrackTitle: String? {
         guard remainingTrackTitles.indices.contains(activeTrackIndex) else { return nil }
@@ -417,6 +432,8 @@ struct ResidentProfileView: View {
                     .position(x: mediaAnchor.x, y: mediaAnchor.y)
                     .transition(.opacity.animation(.easeInOut(duration: 0.45)))
                     .allowsHitTesting(false)
+                    // Decorative: the sleeve / scene behind the glyphs says nothing the glyph does not.
+                    .accessibilityHidden(true)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -460,6 +477,9 @@ struct ResidentProfileView: View {
             stopPlayback()
         }
         .onChange(of: selectedPlayingGenre) { old, new in
+            // A new playlist (or none) starts from the hub again.
+            heroDragOffset = .zero
+            heroDragLive = .zero
             if new == nil {
                 collapsePlaybackMedia()
                 clearComfortAffirmation()
@@ -513,8 +533,11 @@ struct ResidentProfileView: View {
     private var residentGlyphCanvas: some View {
         GeometryReader { geo in
             let hullScale = BrandLayout.hullScale(for: geo.size)
-            let heroDiskDiameter = 154 * hullScale
+            // The ring's diameter: the periphery clears this, not the smaller disk inside it.
+            let heroDiskDiameter = Self.heroEqualizerDiameter(hullScale: hullScale)
             let hub = GlyphFloatLayout.musicGlyphHub(in: geo.size)
+            // The side glyphs arrange themselves around wherever the playing glyph was left.
+            let heroHub = CGPoint(x: hub.x + heroDragOffset.width, y: hub.y + heroDragOffset.height)
             // Resolved once per layout pass — the timeline below ticks at up to 60fps and would
             // otherwise re-look-up the patient and re-filter genres for every glyph, every frame.
             let genres = genresOnFile
@@ -524,10 +547,11 @@ struct ResidentProfileView: View {
                 guard selectedPlayingGenre != nil else { return [] }
                 let others = inactiveGenres
                 guard others.isEmpty == false else { return [] }
+                // Clear the bars' full reach, not just the ring the disk sits in.
                 return GlyphFloatLayout.focusedInactivePeriphery(
                     inactiveCount: others.count,
-                    heroDiameter: heroDiskDiameter,
-                    hub: hub,
+                    heroDiameter: OrbRadialBarEqualizerView.canvasDiameter(for: heroDiskDiameter, barReach: OrbRadialBarEqualizerView.HeroTuning.barReach),
+                    hub: heroHub,
                     in: geo.size
                 )
             }()
@@ -568,6 +592,7 @@ struct ResidentProfileView: View {
                             phase: t,
                             canvasSize: geo.size,
                             diskDiameter: disk,
+                            equalizerDiameter: heroDiskDiameter,
                             emphasis: emphasis,
                             action: { playGenreImmediately(genre) }
                         )
@@ -585,22 +610,62 @@ struct ResidentProfileView: View {
     private var playlistSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 36, coordinateSpace: .local)
             .onEnded { value in
-                let count = remainingTrackTitles.count
-                guard count > 1 else { return }
+                // A drag that began on the playing glyph moved the glyph; it is not a song swipe.
+                guard !heroDragInProgress else { return }
                 if value.translation.width <= -50 {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        activeTrackIndex = (activeTrackIndex + 1) % count
-                    }
-                    state.recordResidentTrackChange(direction: "next")
-                    clearComfortAffirmation()
+                    stepTrack(1)
                 } else if value.translation.width >= 50 {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        activeTrackIndex = (activeTrackIndex - 1 + count) % count
-                    }
-                    state.recordResidentTrackChange(direction: "previous")
-                    clearComfortAffirmation()
+                    stepTrack(-1)
                 }
             }
+    }
+
+    // MARK: Moving the playing glyph
+
+    /// The resident can drag the playing glyph anywhere on the surface. The offset is kept while
+    /// that playlist plays; the side glyphs re-arrange around it once the finger lifts.
+    private func heroDragGesture(baseCenter: CGPoint, diskDiameter: CGFloat, canvasSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .onChanged { value in
+                heroDragInProgress = true
+                heroDragLive = value.translation
+            }
+            .onEnded { value in
+                let proposed = CGSize(
+                    width: heroDragOffset.width + value.translation.width,
+                    height: heroDragOffset.height + value.translation.height
+                )
+                heroDragOffset = clampedHeroOffset(proposed, around: baseCenter, diskDiameter: diskDiameter, in: canvasSize)
+                heroDragLive = .zero
+                // Let the surface's own drag recogniser finish before the swipe guard lifts.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    heroDragInProgress = false
+                }
+            }
+    }
+
+    /// Keeps the glyph's centre on screen: clear of the staff button at the top and the sun / cloud
+    /// dock at the bottom, and never past the side edges.
+    private func clampedHeroOffset(_ offset: CGSize, around center: CGPoint, diskDiameter: CGFloat, in size: CGSize) -> CGSize {
+        let half = diskDiameter / 2
+        let minX = half + 16
+        let maxX = size.width - half - 16
+        let minY = half + 72
+        let maxY = size.height - half - 150
+        let x = min(max(center.x + offset.width, minX), max(minX, maxX))
+        let y = min(max(center.y + offset.height, minY), max(minY, maxY))
+        return CGSize(width: x - center.x, height: y - center.y)
+    }
+
+    /// Next (+1) or previous (−1) song in the active playlist — the swipe and the VoiceOver actions.
+    private func stepTrack(_ direction: Int) {
+        let count = remainingTrackTitles.count
+        guard count > 1 else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            activeTrackIndex = (activeTrackIndex + direction + count) % count
+        }
+        state.recordResidentTrackChange(direction: direction > 0 ? "next" : "previous")
+        clearComfortAffirmation()
     }
 
     private func playCurrentTrack() {
@@ -634,6 +699,9 @@ struct ResidentProfileView: View {
         residentAudio.onItemEnd = { advanceAfterTrackEnd() }
         residentAudio.onFailure = { skipUnplayableTrack(ref) }
         residentAudio.startFresh(streamURL: ref.audioURL, fallbackURL: ref.isBundled ? AmbientAudioSession.quickStartStreamURL : nil)
+        if UIAccessibility.isVoiceOverRunning {
+            UIAccessibility.post(notification: .announcement, argument: "Now playing \(ref.title)")
+        }
     }
 
     /// A preview finished: continue with the next queued song (no resident input needed).
@@ -816,8 +884,9 @@ struct ResidentProfileView: View {
     ) -> (CGPoint, CGFloat, CGFloat) {
         let idleDisk: CGFloat = 92 * hullScale
         let idleIcon: CGFloat = 42 * hullScale
-        let heroDisk: CGFloat = 154 * hullScale
-        let heroIcon: CGFloat = 66 * hullScale
+        // The disk at 60% of the ring's diameter; the ring itself keeps `heroEqualizerDiameter`.
+        let heroDisk: CGFloat = Self.heroEqualizerDiameter(hullScale: hullScale) * Self.heroDiskScale
+        let heroIcon: CGFloat = 66 * hullScale * Self.heroDiskScale
         let sideDisk: CGFloat = 68 * hullScale
         let sideIcon: CGFloat = 30 * hullScale
 
@@ -888,6 +957,7 @@ struct ResidentProfileView: View {
         phase: TimeInterval,
         canvasSize: CGSize,
         diskDiameter: CGFloat,
+        equalizerDiameter: CGFloat,
         emphasis: ResidentGlyphEmphasis,
         action: @escaping () -> Void
     ) -> some View {
@@ -902,7 +972,20 @@ struct ResidentProfileView: View {
         let motionScale: CGFloat =
             emphasis == .sideStrip ? 0.58 : emphasis == .hero ? 0.82 : 1
         let Δ = CGSize(width: rawΔ.width * motionScale, height: rawΔ.height * motionScale)
-        let pos = CGPoint(x: baseCenter.x + Δ.width, y: baseCenter.y + Δ.height)
+        // The playing glyph carries wherever the resident has dragged it (committed + in progress).
+        // Clamped by the equaliser's full extent, so the ring stays on screen, not just the disk.
+        let clampDiameter = emphasis == .hero
+            ? OrbRadialBarEqualizerView.canvasDiameter(for: equalizerDiameter, barReach: OrbRadialBarEqualizerView.HeroTuning.barReach)
+            : diskDiameter
+        let drag: CGSize = emphasis == .hero
+            ? clampedHeroOffset(
+                CGSize(width: heroDragOffset.width + heroDragLive.width, height: heroDragOffset.height + heroDragLive.height),
+                around: baseCenter,
+                diskDiameter: clampDiameter,
+                in: canvasSize
+            )
+            : .zero
+        let pos = CGPoint(x: baseCenter.x + Δ.width + drag.width, y: baseCenter.y + Δ.height + drag.height)
         let rot = GlyphFloatLayout.rotationDynamics(index: index, phase: phase)
         let driftScale = GlyphFloatLayout.scalePulse(index: index, phase: phase)
         let roleScale: CGFloat =
@@ -911,15 +994,30 @@ struct ResidentProfileView: View {
         // The button itself (disk, blurs, shadows, artwork, hero equalizer) is `Equatable` and only
         // re-evaluated when its genre / size / role changes; the per-tick drift is applied here as
         // plain transforms, in the same order as before.
-        return ResidentGlyphButton(
+        let isPlaying = selectedPlayingGenre == genre
+        let glyph = ResidentGlyphButton(
             genre: genre,
             index: index,
             diskDiameter: diskDiameter,
+            equalizerDiameter: emphasis == .hero ? equalizerDiameter : nil,
             emphasis: emphasis,
-            isSelectedPlaying: selectedPlayingGenre == genre,
+            isSelectedPlaying: isPlaying,
+            nowPlayingTitle: isPlaying ? currentTrackTitle : nil,
             action: action
         )
         .equatable()
+        // The playing glyph can be dragged around the surface. VoiceOver cannot make the
+        // one-finger swipe that changes song, so it also offers Next / Previous as custom actions.
+        return Group {
+            if isPlaying {
+                glyph
+                    .simultaneousGesture(heroDragGesture(baseCenter: baseCenter, diskDiameter: clampDiameter, canvasSize: canvasSize))
+                    .accessibilityAction(named: "Next song") { stepTrack(1) }
+                    .accessibilityAction(named: "Previous song") { stepTrack(-1) }
+            } else {
+                glyph
+            }
+        }
         .position(x: pos.x, y: pos.y)
         .rotationEffect(.degrees(rot))
         .scaleEffect(driftScale * roleScale, anchor: .center)
@@ -934,24 +1032,33 @@ private struct ResidentGlyphButton: View, Equatable {
     let genre: ResidentMusicGenre
     let index: Int
     let diskDiameter: CGFloat
+    /// The hero's equaliser is sized from this, not from the (smaller) disk, so the ring keeps
+    /// its former size around a smaller sleeve. Nil = same as the disk.
+    var equalizerDiameter: CGFloat? = nil
     let emphasis: ResidentGlyphEmphasis
     let isSelectedPlaying: Bool
+    /// Read to VoiceOver as the glyph's value while this playlist plays.
+    var nowPlayingTitle: String? = nil
     let action: () -> Void
 
     static func == (lhs: ResidentGlyphButton, rhs: ResidentGlyphButton) -> Bool {
         lhs.genre == rhs.genre
             && lhs.index == rhs.index
             && lhs.diskDiameter == rhs.diskDiameter
+            && lhs.equalizerDiameter == rhs.equalizerDiameter
             && lhs.emphasis == rhs.emphasis
             && lhs.isSelectedPlaying == rhs.isSelectedPlaying
+            && lhs.nowPlayingTitle == rhs.nowPlayingTitle
     }
 
     var body: some View {
         let endR = diskDiameter * 0.62
-        let eqRibbon = emphasis == .hero ? OrbRadialBarEqualizerView.outwardPad(for: diskDiameter) : 0
-        let glyphStackSquare = diskDiameter + eqRibbon * 2
-        let barCanvas = OrbRadialBarEqualizerView.canvasDiameter(for: diskDiameter)
-        let barOrbRadius = OrbRadialBarEqualizerView.orbRadius(for: diskDiameter)
+        let ringDiameter = equalizerDiameter ?? diskDiameter
+        let heroReach = OrbRadialBarEqualizerView.HeroTuning.barReach
+        let eqRibbon = emphasis == .hero ? OrbRadialBarEqualizerView.outwardPad(for: ringDiameter, barReach: heroReach) : 0
+        let glyphStackSquare = ringDiameter + eqRibbon * 2
+        let barCanvas = OrbRadialBarEqualizerView.canvasDiameter(for: ringDiameter, barReach: heroReach)
+        let barOrbRadius = OrbRadialBarEqualizerView.orbRadius(for: ringDiameter)
 
         return Button(action: action) {
             ZStack {
@@ -1006,6 +1113,9 @@ private struct ResidentGlyphButton: View, Equatable {
                 )
             }
             .frame(width: diskDiameter, height: diskDiameter)
+            // The playing disk sits at 60% opacity so the sleeve behind it shows through; the
+            // equaliser ring below is outside this modifier and stays fully opaque.
+            .opacity(emphasis == .hero ? 0.6 : 1)
             .background {
                 if emphasis == .hero {
                     OrbRadialBarEqualizerView(
@@ -1017,7 +1127,7 @@ private struct ResidentGlyphButton: View, Equatable {
                         liveAudioGain: OrbRadialBarEqualizerView.LiveMusicTuning.liveAudioGain,
                         liveLevelExponent: OrbRadialBarEqualizerView.LiveMusicTuning.liveLevelExponent,
                         barAmplitudeFloor: OrbRadialBarEqualizerView.LiveMusicTuning.barAmplitudeFloor,
-                        barReach: OrbRadialBarEqualizerView.LiveMusicTuning.barReach,
+                        barReach: heroReach,
                         neighbourMix: OrbRadialBarEqualizerView.LiveMusicTuning.neighbourMix
                     )
                     .allowsHitTesting(false)
@@ -1029,8 +1139,12 @@ private struct ResidentGlyphButton: View, Equatable {
             .allowsHitTesting(true)
         }
         .buttonStyle(ChimingPlainButtonStyle())
-        .accessibilityLabel(genre.accessibilityLabel)
-        .accessibilityAddTraits(isSelectedPlaying ? .isSelected : [])
+        .accessibilityLabel("\(genre.accessibilityLabel) playlist")
+        .accessibilityValue(isSelectedPlaying ? "Now playing\(nowPlayingTitle.map { ", \($0)" } ?? "")" : "")
+        .accessibilityHint(isSelectedPlaying
+            ? "Playing now. Drag to move it. Swipe up or down for the next and previous song."
+            : "Plays the \(genre.accessibilityLabel) playlist")
+        .accessibilityAddTraits(isSelectedPlaying ? [.isSelected, .playsSound] : [.playsSound])
         .accessibilityIdentifier("surface.glyph.\(genre.rawValue)")
         // Keep the control's hit target to the disk — not the larger equalizer layout box.
         .frame(width: diskDiameter, height: diskDiameter)
@@ -1361,6 +1475,9 @@ private struct PlaylistComfortChoiceButton: View {
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(choice.accessibilityLabel)
+        .accessibilityHint(choice == .feelsGood
+            ? "Marks this song as enjoyed, so it comes up sooner next time."
+            : "Moves on and drops this song from today's playlist.")
         .accessibilityIdentifier(choice == .feelsGood ? "surface.like" : "surface.skip")
         .onChange(of: affirmationTick) { _, _ in
             guard affirmationChoice == choice else { return }

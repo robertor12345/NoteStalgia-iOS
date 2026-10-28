@@ -39,17 +39,20 @@
 		3A60DB345203E625B8D49606 /* GroupSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EC002C1122183DC8FFB2E0 /* GroupSessionModels.swift */; };
 		3C4675CD6C85224F3452BF25 /* AuthFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3074886654E88C00D47242 /* AuthFlow.swift */; };
 		3F28B710FF28BFD481148812 /* SceneImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992C564F19EBC31E9AC3B4C8 /* SceneImageCache.swift */; };
+		41037A5A58C511352A0F508F /* InputRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811B875EEB5841A4E03E7D46 /* InputRules.swift */; };
 		41089DA84EB00806297A777A /* SessionBottomConfigMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33318E6AF994344DE2264088 /* SessionBottomConfigMenu.swift */; };
 		41DE539B1605F262F329DDBC /* PatientFaceIDLinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF40DF8F235D4897A5681BC3 /* PatientFaceIDLinkStore.swift */; };
 		448384A4C145DFF695A93B66 /* CaptureScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EE6925280DAA00A9924D3D /* CaptureScreens.swift */; };
 		4A98C6DAE6A310A1C0154F71 /* Velvet Highway.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = EA9195D74AD97A0E701643C3 /* Velvet Highway.mp3 */; };
 		4AD2377334E11E617CAEA16D /* Collection+Safe.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED355FDEB23C79F3EA4169CC /* Collection+Safe.swift */; };
+		4D0D4038CD3BBFFC2BD99ADB /* OnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD853E6402CF2698EDC944B /* OnboardingStore.swift */; };
 		4E78BEB19C8F8335EF6F4D7F /* MusicReactiveBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 061F0191C70D8CD595592058 /* MusicReactiveBus.swift */; };
 		4EFF6F21E45F5CC78B967B72 /* StreamAudioCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE5D8F4A7817756396BCFF4 /* StreamAudioCache.swift */; };
 		5270E839CE9A8AF73F021884 /* SessionPOCState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24F0E3B65BF5289378C685C /* SessionPOCState.swift */; };
 		539D8BB0D13E3F59C86C98B9 /* DiscoveryEraMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */; };
 		58DB7569B4DB62EB4ABC01E1 /* ExperienceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E147C0264ECDF103E99D97A /* ExperienceScreens.swift */; };
 		60AC56A7B9226EFB3A2DD879 /* PatientFaceIDSignInControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDF5AF16686875DB0B53E60 /* PatientFaceIDSignInControls.swift */; };
+		6A978F7E588ADFC3E3DE588E /* ResidentCSVImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B06A1F59550F48E25B524BD /* ResidentCSVImport.swift */; };
 		6D86D5A4ABEE1FD644AD9271 /* ScrollContentEdgeFade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B49A44F89439AE6A04D10A7 /* ScrollContentEdgeFade.swift */; };
 		70962D0FB4753EDBC105A201 /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B8857F999401E5C9CB9D1CF /* APIConfig.swift */; };
 		70D05D5386FD1A9BD956BCD0 /* Pine Smoke Drift (1).mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3E1FDF7A48B5719F505ABEBB /* Pine Smoke Drift (1).mp3 */; };
@@ -61,13 +64,16 @@
 		78B60B4A87D07DA5FDE4D713 /* MusicReactiveAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0C8A365CE9C2EFDA256189 /* MusicReactiveAnalyzer.swift */; };
 		79220441CDBCD87D83DBF52A /* ResidentSurfaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */; };
 		7A906392048571DC49437ED9 /* RosterWarmUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45AE278F9A61D57C87BD290 /* RosterWarmUp.swift */; };
+		7ABD6711238151F466F1B37F /* OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A296764301A145B92E268AB /* OnboardingModels.swift */; };
 		7BBDE61652D19C68BA6B94C6 /* Pine Smoke Drift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F2A608469742D5A52BB4ED61 /* Pine Smoke Drift.mp3 */; };
 		7C2DBB6BC638C2C4C16ABC5B /* AmbientInteractionPause.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645E52D08B060E81A5F4C277 /* AmbientInteractionPause.swift */; };
 		7E37F5F21622D19C045750AD /* GroupSessionScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC3F0B319DC8A9D35957B9A /* GroupSessionScreens.swift */; };
 		7EAE9119329663A50CA4A8FF /* GroupActivityPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC5E2E6BEF3E4E4821520174 /* GroupActivityPlanner.swift */; };
 		7F9E29DC438DEC87666A6983 /* TrackRef.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26D00E69CF6554972B21217F /* TrackRef.swift */; };
+		811F280E416EF96E870FC51B /* OnboardingValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA5A09C641708ED9DCB441C /* OnboardingValidation.swift */; };
 		8176D05F4C3584772E8B4B4F /* GroupActivityFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8BE5B85364B1D190077BB5D /* GroupActivityFlow.swift */; };
 		81C7F498498E9A3EC993CE12 /* SessionSentimentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15C694C356E0EB461D31D73 /* SessionSentimentStore.swift */; };
+		81EAB03CF94516B2BEF9D718 /* OnboardingWizard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBB3317820F2C59757A3E75 /* OnboardingWizard.swift */; };
 		828854696DC30499CB5FCF25 /* Principal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265563D540E7A2ACECBDFBDC /* Principal.swift */; };
 		8337625ED3E619EA1321444B /* DiscoveryScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5A9D4FF7238E5685832515 /* DiscoveryScreens.swift */; };
 		83A1B9F5568E5B2CC316DE62 /* ITunesDirectSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7134A4BA9021687F65A06A51 /* ITunesDirectSearch.swift */; };
@@ -82,6 +88,7 @@
 		9A6BDF3182D77CBCE94778B1 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76678FEFB675530F13EB6547 /* APIClient.swift */; };
 		9E1E5D9D6661986DF9F23830 /* ImageDownscaling.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35093FF297C5AB86C27B6B5 /* ImageDownscaling.swift */; };
 		9F9073B9CE7487A2D33E20CD /* NewResidentDiscoveryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725922FBF83A684E32E1C3CA /* NewResidentDiscoveryStore.swift */; };
+		A0017A0D87EE6D7694553B45 /* OrgSetupScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A4F41F37071E9796BA7EDB6 /* OrgSetupScreens.swift */; };
 		A184A084DF2B9EAD6643AA6B /* SyncPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F00D36BC45DC51B3F58E07E /* SyncPage.swift */; };
 		A3E689E4967D591072D5857B /* SupervisorCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E019BE75130A742395614A4 /* SupervisorCredentialStore.swift */; };
 		A577FC187E5B0697CCD521F3 /* GroupActivityPlannerScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15EC295E2E12BB61BFCACB20 /* GroupActivityPlannerScreens.swift */; };
@@ -99,7 +106,10 @@
 		B4B7416822794DD52567A3BD /* ReferenceOrbNebulaRender.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA18FDA494AA5DB9AF7319F /* ReferenceOrbNebulaRender.swift */; };
 		B4FC569A1E2BE2699294C16B /* CareHomeAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6557C281671AA42E18D424E7 /* CareHomeAnalytics.swift */; };
 		B80D21DEF1227E3864D45B31 /* HouseholdScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4112815F5C7076B302ADFD73 /* HouseholdScreens.swift */; };
+		B8B40BABF1928F0D2633F0B8 /* InputRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9FC6C8636CC186021F0853 /* InputRulesTests.swift */; };
+		BCC4753FD1D37FC0CCBED02F /* OnboardingScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82273F8463F0FE8123AEBB41 /* OnboardingScreens.swift */; };
 		BFD49F18D60DBB0201205FE3 /* BundledAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688824863BB9DA9977E5E56F /* BundledAudio.swift */; };
+		C12BD4D4AA2DE138A5DBDC51 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EFC9CE953656FF19A47817 /* OnboardingFlow.swift */; };
 		C17F53244BC42AD2B4F032E2 /* TouchRipple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494513B683F1354BD77085EF /* TouchRipple.swift */; };
 		C1B5E297F2D2FD15069E163E /* DemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */; };
 		C76E63C483EFC6FD2B6DE7BF /* CareHomeAdminScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF42203AC4A30DC54AAAAE8C /* CareHomeAdminScreens.swift */; };
@@ -117,11 +127,13 @@
 		D391236AAD42331074539C03 /* OrbFrameMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7069049D1C9AFE70AFBF56BF /* OrbFrameMonitor.swift */; };
 		D4BDDFA2DC23C6B0C3D96F6A /* ResidentExperienceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0171AB6386A5B0D685AE8 /* ResidentExperienceScreens.swift */; };
 		D5F8DA71EF6AFCCFF6676A76 /* NoteStalgiaOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5B813D50C80B05C4BDA95E /* NoteStalgiaOrbView.swift */; };
+		D6BF4F6CDD7FBB045DC5854D /* BrandDataDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C303864A8BA734AAD2B37BAD /* BrandDataDisplay.swift */; };
 		D84D9AF1DBB1C3928E4CC51F /* DemoAudioLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */; };
 		DF9AAD10BDC467C367E982C1 /* OrbHeartbeat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6777C1D1D1A4834A251DA4DE /* OrbHeartbeat.swift */; };
 		E19D0C7450B16B90DF67FCE9 /* CareRosterUIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D02D7DC5D72572A5909480 /* CareRosterUIStore.swift */; };
 		E5703A7D91124E99EF9A1691 /* SongSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1242E7DCE8919767AF46AE13 /* SongSearchSheet.swift */; };
 		F3A795C4B697292297FB9C45 /* GoldAmbientSparklesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BEA93FFD064D5D3BC21EB0 /* GoldAmbientSparklesView.swift */; };
+		F3C66B3FF2BFAA64C7BB5A13 /* OnboardingClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C23986604733341BBCC6618 /* OnboardingClient.swift */; };
 		F4B054FD5A920C3E5C4EB0E3 /* DemoWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */; };
 		F4CFA9483CCA5D19B107BD14 /* OrbReferenceMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00AA2762A0271C8A6372D4CB /* OrbReferenceMotion.swift */; };
 		F522E5BC9B4E78DDFB079415 /* CareTenancyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A944D80479F51DD56CB787E /* CareTenancyModels.swift */; };
@@ -131,6 +143,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		000E37AEB76B35BFCF94DE94 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 293809E39FAE41092E4512DD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C73F9EAA29C63CBBC2627FAA;
+			remoteInfo = "NoteStalgia-iOS";
+		};
 		EEC326D2B02E0F1418F149C5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 293809E39FAE41092E4512DD /* Project object */;
@@ -157,6 +176,8 @@
 		265563D540E7A2ACECBDFBDC /* Principal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Principal.swift; sourceTree = "<group>"; };
 		26D00E69CF6554972B21217F /* TrackRef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRef.swift; sourceTree = "<group>"; };
 		29EC002C1122183DC8FFB2E0 /* GroupSessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupSessionModels.swift; sourceTree = "<group>"; };
+		2B06A1F59550F48E25B524BD /* ResidentCSVImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentCSVImport.swift; sourceTree = "<group>"; };
+		2BD853E6402CF2698EDC944B /* OnboardingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStore.swift; sourceTree = "<group>"; };
 		2E147C0264ECDF103E99D97A /* ExperienceScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperienceScreens.swift; sourceTree = "<group>"; };
 		2F09B7F7065FA4FBD329FF3D /* ResidentPlaylistVisuals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentPlaylistVisuals.swift; sourceTree = "<group>"; };
 		330B27717F10A4E4252D9709 /* HouseholdCareFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdCareFlow.swift; sourceTree = "<group>"; };
@@ -167,6 +188,7 @@
 		3A944D80479F51DD56CB787E /* CareTenancyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareTenancyModels.swift; sourceTree = "<group>"; };
 		3AA8A7D314D94998B58BB867 /* OrbShellConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbShellConfiguration.swift; sourceTree = "<group>"; };
 		3AE5D8F4A7817756396BCFF4 /* StreamAudioCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamAudioCache.swift; sourceTree = "<group>"; };
+		3C23986604733341BBCC6618 /* OnboardingClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingClient.swift; sourceTree = "<group>"; };
 		3C5A1F7D6CFB1042EA787C45 /* OrbRenderBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbRenderBudget.swift; sourceTree = "<group>"; };
 		3D2C1CCCE549453E39C27B62 /* CalmExperienceFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalmExperienceFeedback.swift; sourceTree = "<group>"; };
 		3E1FDF7A48B5719F505ABEBB /* Pine Smoke Drift (1).mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Pine Smoke Drift (1).mp3"; sourceTree = "<group>"; };
@@ -208,9 +230,13 @@
 		7CA02E9B51F9354254CD4D76 /* ResidentProfileSeeds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentProfileSeeds.swift; sourceTree = "<group>"; };
 		7E019BE75130A742395614A4 /* SupervisorCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupervisorCredentialStore.swift; sourceTree = "<group>"; };
 		7E322417A87DCBD7D750B2C8 /* MusicCatalogClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicCatalogClient.swift; sourceTree = "<group>"; };
+		811B875EEB5841A4E03E7D46 /* InputRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputRules.swift; sourceTree = "<group>"; };
+		82273F8463F0FE8123AEBB41 /* OnboardingScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreens.swift; sourceTree = "<group>"; };
 		83F2D53CBA4C1A1965FB5805 /* LaunchIntroOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchIntroOverlay.swift; sourceTree = "<group>"; };
 		88D02D7DC5D72572A5909480 /* CareRosterUIStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareRosterUIStore.swift; sourceTree = "<group>"; };
 		89CB0633B698D0C549C1D75B /* OrbContentMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbContentMotion.swift; sourceTree = "<group>"; };
+		8A296764301A145B92E268AB /* OnboardingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingModels.swift; sourceTree = "<group>"; };
+		8A4F41F37071E9796BA7EDB6 /* OrgSetupScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgSetupScreens.swift; sourceTree = "<group>"; };
 		8F00D36BC45DC51B3F58E07E /* SyncPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPage.swift; sourceTree = "<group>"; };
 		8FC262E7C97631F8EA58E1DB /* CenteredScrollScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenteredScrollScreen.swift; sourceTree = "<group>"; };
 		91BC864FE5949576A98B67C3 /* AppAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSession.swift; sourceTree = "<group>"; };
@@ -223,11 +249,13 @@
 		A1F5D587236F479A7116F526 /* NoteStalgiaLogoImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStalgiaLogoImage.swift; sourceTree = "<group>"; };
 		A317F2DFDC71F9C399CD4BD0 /* NoteStalgiaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStalgiaApp.swift; sourceTree = "<group>"; };
 		A5A596CF4765246D1EADB5D5 /* FlowContainerSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowContainerSize.swift; sourceTree = "<group>"; };
+		A7ADA23736A998142DD944E8 /* NoteStalgiaTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteStalgiaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryEraMedia.swift; sourceTree = "<group>"; };
 		A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoWalkthroughUITests.swift; sourceTree = "<group>"; };
 		A8A6F422C7F6732D2142B4C2 /* TrackArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackArtworkView.swift; sourceTree = "<group>"; };
 		A8BE5B85364B1D190077BB5D /* GroupActivityFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupActivityFlow.swift; sourceTree = "<group>"; };
 		A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentSurfaceStore.swift; sourceTree = "<group>"; };
+		ACA5A09C641708ED9DCB441C /* OnboardingValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingValidation.swift; sourceTree = "<group>"; };
 		AE863506720CC8170BD83954 /* UIImage+SyncJPEG.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+SyncJPEG.swift"; sourceTree = "<group>"; };
 		B00F5132BEFFF09FCEF9D499 /* DiscoveryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryModels.swift; sourceTree = "<group>"; };
 		B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAudioLog.swift; sourceTree = "<group>"; };
@@ -238,6 +266,7 @@
 		BFADE22ECDA1B31306992177 /* ResidentMusicModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentMusicModel.swift; sourceTree = "<group>"; };
 		C24F0E3B65BF5289378C685C /* SessionPOCState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPOCState.swift; sourceTree = "<group>"; };
 		C2D4E751998837BDBB0CEBB5 /* Models+Wire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models+Wire.swift"; sourceTree = "<group>"; };
+		C303864A8BA734AAD2B37BAD /* BrandDataDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandDataDisplay.swift; sourceTree = "<group>"; };
 		C35093FF297C5AB86C27B6B5 /* ImageDownscaling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaling.swift; sourceTree = "<group>"; };
 		C45AE278F9A61D57C87BD290 /* RosterWarmUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterWarmUp.swift; sourceTree = "<group>"; };
 		C7A56F33E38CBA4DBE4E1EDC /* OrbOverlayTextStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbOverlayTextStyle.swift; sourceTree = "<group>"; };
@@ -253,9 +282,11 @@
 		E1A28D3AD15887A6A74EAB62 /* Drift Between Rooms.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Drift Between Rooms.mp3"; sourceTree = "<group>"; };
 		E1A394CA6D9D8BFA22CBB12D /* NoteStalgia-iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "NoteStalgia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E65A4F953AF74899E2090FC2 /* FlowRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowRootView.swift; sourceTree = "<group>"; };
+		E7EFC9CE953656FF19A47817 /* OnboardingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
 		E9BEFF6CA463A3080D77FB94 /* BrandTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandTheme.swift; sourceTree = "<group>"; };
 		EA8748A39AAF8CB838D2852E /* ResidentSurfaceSessionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentSurfaceSessionMetrics.swift; sourceTree = "<group>"; };
 		EA9195D74AD97A0E701643C3 /* Velvet Highway.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Velvet Highway.mp3"; sourceTree = "<group>"; };
+		EB9FC6C8636CC186021F0853 /* InputRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputRulesTests.swift; sourceTree = "<group>"; };
 		EC0C8A365CE9C2EFDA256189 /* MusicReactiveAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicReactiveAnalyzer.swift; sourceTree = "<group>"; };
 		EC5E2E6BEF3E4E4821520174 /* GroupActivityPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupActivityPlanner.swift; sourceTree = "<group>"; };
 		ED355FDEB23C79F3EA4169CC /* Collection+Safe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Collection+Safe.swift"; sourceTree = "<group>"; };
@@ -265,9 +296,18 @@
 		F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLaunchOptions.swift; sourceTree = "<group>"; };
 		FBF0BEC44066D39427758EE8 /* CalmMotionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalmMotionViews.swift; sourceTree = "<group>"; };
 		FF42203AC4A30DC54AAAAE8C /* CareHomeAdminScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareHomeAdminScreens.swift; sourceTree = "<group>"; };
+		FFBB3317820F2C59757A3E75 /* OnboardingWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWizard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		17316A07E13401BC64F30E08 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				EB9FC6C8636CC186021F0853 /* InputRulesTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		244EF73ED1BED0B8E9982A96 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -288,6 +328,7 @@
 				669987283A7B56B0B12D7D41 /* DemoUITests */,
 				EA289CFA4C086243CC579BF1 /* Flow */,
 				8ECF1C4609A8D112383020F7 /* Screens */,
+				17316A07E13401BC64F30E08 /* Tests */,
 				9607007A455895D04AF95F9E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -314,6 +355,8 @@
 				D2BB02C5033336FE30FF866D /* LeafBreezeLayer.swift */,
 				BF1798C67F9434A0BBF7A26C /* NatureSessionImagery.swift */,
 				D68383A8CEA8B0E2CEC2270B /* NatureVideoCompilationView.swift */,
+				82273F8463F0FE8123AEBB41 /* OnboardingScreens.swift */,
+				8A4F41F37071E9796BA7EDB6 /* OrgSetupScreens.swift */,
 				39D0171AB6386A5B0D685AE8 /* ResidentExperienceScreens.swift */,
 				33318E6AF994344DE2264088 /* SessionBottomConfigMenu.swift */,
 				7C02A04293FCAA86377E964E /* SimplifiedFlowScreens.swift */,
@@ -336,6 +379,7 @@
 			children = (
 				E1A394CA6D9D8BFA22CBB12D /* NoteStalgia-iOS.app */,
 				CE1511773F37AAA3C175FF38 /* NoteStalgiaDemoUITests.xctest */,
+				A7ADA23736A998142DD944E8 /* NoteStalgiaTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -346,6 +390,7 @@
 				706F5B3C05618C27B2BEE70C /* AmbientAudioSession.swift */,
 				645E52D08B060E81A5F4C277 /* AmbientInteractionPause.swift */,
 				91BC864FE5949576A98B67C3 /* AppAudioSession.swift */,
+				C303864A8BA734AAD2B37BAD /* BrandDataDisplay.swift */,
 				E9BEFF6CA463A3080D77FB94 /* BrandTheme.swift */,
 				688824863BB9DA9977E5E56F /* BundledAudio.swift */,
 				3D2C1CCCE549453E39C27B62 /* CalmExperienceFeedback.swift */,
@@ -419,6 +464,7 @@
 				494513B683F1354BD77085EF /* TouchRipple.swift */,
 				A8A6F422C7F6732D2142B4C2 /* TrackArtworkView.swift */,
 				EE24D423A6B6ACD0F44648C9 /* API */,
+				C649EEC4B4F1EFC96FDEA68E /* Onboarding */,
 				F6609592BDB6EEB977A69655 /* Sync */,
 			);
 			path = Core;
@@ -436,6 +482,21 @@
 				EA9195D74AD97A0E701643C3 /* Velvet Highway.mp3 */,
 			);
 			path = Music;
+			sourceTree = "<group>";
+		};
+		C649EEC4B4F1EFC96FDEA68E /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				811B875EEB5841A4E03E7D46 /* InputRules.swift */,
+				3C23986604733341BBCC6618 /* OnboardingClient.swift */,
+				E7EFC9CE953656FF19A47817 /* OnboardingFlow.swift */,
+				8A296764301A145B92E268AB /* OnboardingModels.swift */,
+				2BD853E6402CF2698EDC944B /* OnboardingStore.swift */,
+				ACA5A09C641708ED9DCB441C /* OnboardingValidation.swift */,
+				FFBB3317820F2C59757A3E75 /* OnboardingWizard.swift */,
+				2B06A1F59550F48E25B524BD /* ResidentCSVImport.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		EA289CFA4C086243CC579BF1 /* Flow */ = {
@@ -481,6 +542,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		82E75E63E280399CD58285B6 /* NoteStalgiaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 760E3AAC12CB8D4D3E12C333 /* Build configuration list for PBXNativeTarget "NoteStalgiaTests" */;
+			buildPhases = (
+				C9679E6C1FF7C311195B5BB4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8306D0139CE91AD74795077B /* PBXTargetDependency */,
+			);
+			name = NoteStalgiaTests;
+			packageProductDependencies = (
+			);
+			productName = NoteStalgiaTests;
+			productReference = A7ADA23736A998142DD944E8 /* NoteStalgiaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		A4CED8CA9A9AE2A4A48DC1F2 /* NoteStalgiaDemoUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3DCC4BB03EDF7E1D59AD7EC7 /* Build configuration list for PBXNativeTarget "NoteStalgiaDemoUITests" */;
@@ -526,6 +605,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					82E75E63E280399CD58285B6 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					A4CED8CA9A9AE2A4A48DC1F2 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -553,6 +636,7 @@
 			targets = (
 				C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */,
 				A4CED8CA9A9AE2A4A48DC1F2 /* NoteStalgiaDemoUITests */,
+				82E75E63E280399CD58285B6 /* NoteStalgiaTests */,
 			);
 		};
 /* End PBXProject section */
@@ -588,6 +672,7 @@
 				A7F5FD2D44E692F440939C01 /* AppRootView.swift in Sources */,
 				3C4675CD6C85224F3452BF25 /* AuthFlow.swift in Sources */,
 				25FDB47050F5F1DC25D606F8 /* AuthSession.swift in Sources */,
+				D6BF4F6CDD7FBB045DC5854D /* BrandDataDisplay.swift in Sources */,
 				36F77A13F8D7151D05B0F0FB /* BrandTheme.swift in Sources */,
 				BFD49F18D60DBB0201205FE3 /* BundledAudio.swift in Sources */,
 				252A3125B1D81EDDBC432A5C /* CalmExperienceFeedback.swift in Sources */,
@@ -629,6 +714,7 @@
 				83A1B9F5568E5B2CC316DE62 /* ITunesDirectSearch.swift in Sources */,
 				9E1E5D9D6661986DF9F23830 /* ImageDownscaling.swift in Sources */,
 				A8F8321C7C964652CAEA8A15 /* ImmersiveSessionVitalsStore.swift in Sources */,
+				41037A5A58C511352A0F508F /* InputRules.swift in Sources */,
 				AE1F361E7D1F75C3B60C9FC5 /* KeychainStore.swift in Sources */,
 				AE324250DA9718FF77814321 /* LaunchIntroOverlay.swift in Sources */,
 				01D21B0C829F85DF5D6EC28B /* LeafBreezeLayer.swift in Sources */,
@@ -645,6 +731,13 @@
 				CD6D3F54BA34E250C399E3CB /* NoteStalgiaLogoImage.swift in Sources */,
 				D5F8DA71EF6AFCCFF6676A76 /* NoteStalgiaOrbView.swift in Sources */,
 				B04991572213BE35EB07EB8B /* NoteStalgiaOrbVisuals.swift in Sources */,
+				F3C66B3FF2BFAA64C7BB5A13 /* OnboardingClient.swift in Sources */,
+				C12BD4D4AA2DE138A5DBDC51 /* OnboardingFlow.swift in Sources */,
+				7ABD6711238151F466F1B37F /* OnboardingModels.swift in Sources */,
+				BCC4753FD1D37FC0CCBED02F /* OnboardingScreens.swift in Sources */,
+				4D0D4038CD3BBFFC2BD99ADB /* OnboardingStore.swift in Sources */,
+				811F280E416EF96E870FC51B /* OnboardingValidation.swift in Sources */,
+				81EAB03CF94516B2BEF9D718 /* OnboardingWizard.swift in Sources */,
 				D10B25E09D486559829A45E2 /* OrbContentMotion.swift in Sources */,
 				D391236AAD42331074539C03 /* OrbFrameMonitor.swift in Sources */,
 				DF9AAD10BDC467C367E982C1 /* OrbHeartbeat.swift in Sources */,
@@ -656,12 +749,14 @@
 				FFE46080094D1CE8A5B2736F /* OrbRenderBudget.swift in Sources */,
 				B314930D3EF15DCD3785D95A /* OrbRingEqualizer.swift in Sources */,
 				968D460CE28FBA5154D66EE5 /* OrbShellConfiguration.swift in Sources */,
+				A0017A0D87EE6D7694553B45 /* OrgSetupScreens.swift in Sources */,
 				18DC7A586024264ED5950C33 /* PatientBiometricAuth.swift in Sources */,
 				41DE539B1605F262F329DDBC /* PatientFaceIDLinkStore.swift in Sources */,
 				60AC56A7B9226EFB3A2DD879 /* PatientFaceIDSignInControls.swift in Sources */,
 				828854696DC30499CB5FCF25 /* Principal.swift in Sources */,
 				FE25296BA280548A8F91BBF9 /* RecommendationStore.swift in Sources */,
 				B4B7416822794DD52567A3BD /* ReferenceOrbNebulaRender.swift in Sources */,
+				6A978F7E588ADFC3E3DE588E /* ResidentCSVImport.swift in Sources */,
 				D4BDDFA2DC23C6B0C3D96F6A /* ResidentExperienceScreens.swift in Sources */,
 				36483CCFAF9DEDBA7581FAB3 /* ResidentMusicModel.swift in Sources */,
 				0819AFD48A91300D4B0F6DD7 /* ResidentNationality.swift in Sources */,
@@ -695,6 +790,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C9679E6C1FF7C311195B5BB4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B8B40BABF1928F0D2633F0B8 /* InputRulesTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E9BD9DB6B74387CD4DFEA6F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -710,6 +813,11 @@
 			isa = PBXTargetDependency;
 			target = C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */;
 			targetProxy = EEC326D2B02E0F1418F149C5 /* PBXContainerItemProxy */;
+		};
+		8306D0139CE91AD74795077B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C73F9EAA29C63CBBC2627FAA /* NoteStalgia-iOS */;
+			targetProxy = 000E37AEB76B35BFCF94DE94 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -816,6 +924,25 @@
 			};
 			name = Release;
 		};
+		669ABE8AC4F3452858C31495 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notestalgia.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NoteStalgia-iOS.app/NoteStalgia-iOS";
+			};
+			name = Release;
+		};
 		9F0C5971598512DE54D2A57B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -893,6 +1020,25 @@
 			};
 			name = Release;
 		};
+		B7780D7AAB3720669EC64832 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notestalgia.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NoteStalgia-iOS.app/NoteStalgia-iOS";
+			};
+			name = Debug;
+		};
 		C7AFF711159FC29155B0502A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -929,6 +1075,15 @@
 			buildConfigurations = (
 				3A0CC39D06C8BA4F757B2C19 /* Debug */,
 				C7AFF711159FC29155B0502A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		760E3AAC12CB8D4D3E12C333 /* Build configuration list for PBXNativeTarget "NoteStalgiaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B7780D7AAB3720669EC64832 /* Debug */,
+				669ABE8AC4F3452858C31495 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

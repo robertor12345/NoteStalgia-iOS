@@ -8,6 +8,8 @@ struct GroupParticipationSummary: Equatable {
     var lastTitle: String?
     var lastDaysAgo: Int?
     var lastEngagement: Int?
+    /// What staff noted about this resident at the last group's check-in, if anything.
+    var lastNote: GroupParticipantState? = nil
 
     var line: String {
         var parts: [String] = []
@@ -17,7 +19,14 @@ struct GroupParticipationSummary: Equatable {
         if let lastTitle, let lastDaysAgo {
             let when = lastDaysAgo == 0 ? "today" : lastDaysAgo == 1 ? "yesterday" : "\(lastDaysAgo) days ago"
             var last = "last: \(lastTitle), \(when)"
-            if let lastEngagement { last += " · engagement \(lastEngagement)/10" }
+            if let lastEngagement { last += " · room engagement \(lastEngagement)/10" }
+            if let lastNote {
+                switch lastNote {
+                case .engaged: last += " · they were engaged"
+                case .unsettled: last += " · they were unsettled"
+                case .leftEarly: last += " · they left early"
+                }
+            }
             parts.append(last)
         }
         return parts.joined(separator: " · ")
@@ -47,7 +56,8 @@ enum GroupActivityReadModels {
             count14d: mine.filter { $0.date >= windowStart }.count,
             lastTitle: last.map { $0.activityTitle ?? "Whole-home playlist" },
             lastDaysAgo: last.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) },
-            lastEngagement: last?.engagementRating
+            lastEngagement: last?.engagementRating,
+            lastNote: last?.participantNote(for: patientId)
         )
     }
 

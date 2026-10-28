@@ -71,7 +71,7 @@ struct DiscoveryCalibrationView: View {
                         TrackArtworkView(ref: ref, size: 36, cornerRadius: 8)
                         Text("\(ref.title)\(ref.caption.isEmpty ? "" : " · \(ref.caption)")")
                             .font(.footnote.weight(.medium))
-                            .foregroundStyle(BrandTheme.textSecondary.opacity(0.85))
+                            .orbOverlayText(muted: true, intensity: 0.8)
                             .lineLimit(1)
                             .accessibilityIdentifier("discovery.caption")
                             .accessibilityLabel("Now auditioning \(ref.title)\(ref.caption.isEmpty ? "" : " by \(ref.caption)")")

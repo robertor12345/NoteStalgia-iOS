@@ -435,12 +435,26 @@ extension OrbRadialBarEqualizerView {
         static let neighbourMix: CGFloat = 0.1
     }
 
+    /// The resident surface's playing glyph: bars twice the discovery length.
+    enum HeroTuning {
+        static let barReach: CGFloat = LiveMusicTuning.barReach * 2
+    }
+
     static func outwardPad(for diskDiameter: CGFloat) -> CGFloat {
         diskDiameter * 0.30
     }
 
+    /// Room for bars of a given reach (a fraction of the orb radius), plus a little for the stroke.
+    static func outwardPad(for diskDiameter: CGFloat, barReach: CGFloat) -> CGFloat {
+        diskDiameter * 0.5 * barReach + diskDiameter * 0.04
+    }
+
     static func canvasDiameter(for diskDiameter: CGFloat) -> CGFloat {
         diskDiameter + outwardPad(for: diskDiameter) * 2
+    }
+
+    static func canvasDiameter(for diskDiameter: CGFloat, barReach: CGFloat) -> CGFloat {
+        diskDiameter + outwardPad(for: diskDiameter, barReach: barReach) * 2
     }
 
     static func orbRadius(for diskDiameter: CGFloat) -> CGFloat {

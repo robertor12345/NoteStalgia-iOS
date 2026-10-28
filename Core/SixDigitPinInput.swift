@@ -86,7 +86,10 @@ struct SixDigitPinInput<FocusValue: Hashable>: View {
     @ViewBuilder
     private func pinCell(at index: Int) -> some View {
         let digit = digit(at: index)
-        let isActive = index == min(pin.count, PinInputSpec.digitCount - 1)
+        // Only the field that has keyboard focus shows a caret cell — two PIN inputs on one form
+        // used to both highlight their first cell.
+        let hasFocus = focus.wrappedValue == focusValue
+        let isActive = hasFocus && index == min(pin.count, PinInputSpec.digitCount - 1)
         let strokeColor: Color = {
             if isError { return BrandTheme.nebulaSalmon }
             if isActive { return BrandTheme.gold.opacity(0.82) }

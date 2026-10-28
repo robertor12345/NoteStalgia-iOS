@@ -35,7 +35,7 @@ struct CareHomeAdminDashboardView: View {
                             title: "Positive session impact",
                             subtitle: "Residents trending up vs their recent sessions",
                             residents: dashboard.positiveHighlights,
-                            accent: BrandTheme.nebulaTeal
+                            accent: BrandTheme.statusPositive
                         )
                     }
                     if !dashboard.attentionNeeded.isEmpty {
@@ -43,7 +43,7 @@ struct CareHomeAdminDashboardView: View {
                             title: "Needs attention",
                             subtitle: "Overdue visits or declining observed wellbeing",
                             residents: dashboard.attentionNeeded,
-                            accent: BrandTheme.nebulaSalmon
+                            accent: BrandTheme.statusAttention
                         )
                     }
                     recentSessionsSection
@@ -111,34 +111,56 @@ struct CareHomeAdminDashboardView: View {
         let g = state.groupProgrammeSummary()
         return BrandCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Group programme")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .accessibilityIdentifier("admin.groupProgramme")
-                Text("Group activities over the same \(GroupActivityPlanner.windowDays) days, alongside the one-to-ones above.")
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(alignment: .top, spacing: 12) {
-                    groupStat("Sessions", "\(g.sessions14d)")
-                    groupStat("Reached", "\(g.residentsReached) of \(g.activeResidents)")
-                    groupStat("Engagement", g.averageEngagement.map { String(format: "%.1f/10", $0) } ?? "—")
-                    groupStat("Morale", g.averageMorale.map { String(format: "%.1f/10", $0) } ?? "—")
+                BrandSectionHeader(
+                    title: "Group programme",
+                    systemImage: "person.3",
+                    subtitle: "Group activities over the same \(GroupActivityPlanner.windowDays) days, alongside the one-to-ones above.",
+                    identifier: "admin.groupProgramme"
+                )
+                let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
+                LazyVGrid(columns: columns, spacing: 10) {
+                    BrandStatTile(value: "\(g.sessions14d)", label: "Sessions")
+                    BrandStatTile(value: "\(g.residentsReached) of \(g.activeResidents)", label: "Residents reached")
+                    BrandStatTile(
+                        value: g.averageEngagement.map { String(format: "%.1f", $0) } ?? "—",
+                        label: "Engagement",
+                        detail: "out of 10",
+                        tint: g.averageEngagement.map { BrandRatingTone.tint(outOfTen: $0) }
+                    )
+                    BrandStatTile(
+                        value: g.averageMorale.map { String(format: "%.1f", $0) } ?? "—",
+                        label: "Morale",
+                        detail: "out of 10",
+                        tint: g.averageMorale.map { BrandRatingTone.tint(outOfTen: $0) }
+                    )
                 }
                 if let best = g.bestActivity {
-                    Text("Lands best: \(best.title) · \(String(format: "%.1f", best.averageEngagement))/10 engagement over \(best.sessions) session\(best.sessions == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(BrandTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    BrandInsetTile {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundStyle(BrandTheme.statusCaution)
+                                .accessibilityHidden(true)
+                            Text("Lands best: \(best.title) · \(String(format: "%.1f", best.averageEngagement))/10 engagement over \(best.sessions) session\(best.sessions == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(BrandTheme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
                 }
                 if g.noGroupCount > 0 {
                     let names = g.noGroupNames.joined(separator: ", ")
                     let more = g.noGroupCount - g.noGroupNames.count
                     let tail = names.isEmpty ? "." : " — \(names)\(more > 0 ? " and \(more) more." : ".")"
-                    Text("\(g.noGroupCount) resident\(g.noGroupCount == 1 ? "" : "s") who would welcome a group \(g.noGroupCount == 1 ? "has" : "have") had none this fortnight\(tail)")
-                        .font(.caption)
-                        .foregroundStyle(BrandTheme.nebulaSalmon)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Label {
+                        Text("\(g.noGroupCount) resident\(g.noGroupCount == 1 ? "" : "s") who would welcome a group \(g.noGroupCount == 1 ? "has" : "have") had none in \(GroupActivityPlanner.windowDays) days\(tail)")
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "exclamationmark.circle.fill")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(BrandTheme.statusAttention)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,28 +168,16 @@ struct CareHomeAdminDashboardView: View {
         .padding(.horizontal, 4)
     }
 
-    private func groupStat(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(BrandTheme.textSecondary)
-            Text(value)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(BrandTheme.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var wingSection: some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Impact by wing")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text("Where calm sessions are landing across the home.")
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                ForEach(dashboard.wingBreakdown) { wing in
+                BrandSectionHeader(
+                    title: "Impact by wing",
+                    systemImage: "building.2",
+                    subtitle: "Where calm sessions are landing across the home."
+                )
+                ForEach(Array(dashboard.wingBreakdown.enumerated()), id: \.element.id) { index, wing in
+                    if index > 0 { BrandHairline() }
                     DashboardWingImpactRow(wing: wing)
                 }
             }
@@ -184,19 +194,14 @@ struct CareHomeAdminDashboardView: View {
     ) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(accent.opacity(0.85))
-                        .frame(width: 8, height: 8)
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textSecondary)
-                }
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                ForEach(residents) { resident in
+                BrandSectionHeader(
+                    title: title,
+                    systemImage: accent == BrandTheme.statusAttention ? "exclamationmark.circle" : "arrow.up.right.circle",
+                    tint: accent,
+                    subtitle: subtitle
+                )
+                ForEach(Array(residents.enumerated()), id: \.element.id) { index, resident in
+                    if index > 0 { BrandHairline() }
                     DashboardResidentImpactRow(resident: resident)
                 }
             }
@@ -210,10 +215,9 @@ struct CareHomeAdminDashboardView: View {
             if !dashboard.recentSessions.isEmpty {
                 BrandCard {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Recent sessions")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTheme.textSecondary)
-                        ForEach(dashboard.recentSessions) { session in
+                        BrandSectionHeader(title: "Recent sessions", systemImage: "clock")
+                        ForEach(Array(dashboard.recentSessions.enumerated()), id: \.element.id) { index, session in
+                            if index > 0 { BrandHairline() }
                             DashboardRecentSessionRow(session: session)
                         }
                     }
@@ -226,12 +230,26 @@ struct CareHomeAdminDashboardView: View {
 
     private var adminActions: some View {
         VStack(spacing: 12) {
+            PrimaryButton(title: "Open the roster") {
+                state.openRosterFromAdminDashboard()
+            }
+            .accessibilityIdentifier("admin.openRoster")
+            .padding(.horizontal, 24)
+            Text("Residents, their profiles and the group activities planner for \(dashboard.homeName).")
+                .font(.caption)
+                .orbOverlayText(muted: true)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
             if canSwitchHome {
                 SecondaryButton(title: "Switch care home") {
                     state.switchHome()
                 }
                 .accessibilityIdentifier("admin.switchHome")
                 .padding(.horizontal, 24)
+            }
+            if state.usesBackend, state.currentSupervisorAccount()?.role == .orgAdmin {
+                OrgSetupDashboardCard(state: state, onboarding: state.onboarding)
+                    .padding(.top, 8)
             }
         }
     }
@@ -244,32 +262,35 @@ struct DashboardTrendGraphsStrip: View {
     var title = "Home trends"
     var subtitle = "Tap a chart to expand — tap again to collapse."
     @State private var expandedId: String?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// On iPad the compact cards share the card's width in a grid (three across, or two by two for
+    /// four series) — the third chart used to clip in a horizontal scroll. The scroll stays for phone width.
+    private var fitsAcross: Bool {
+        BrandLayout.isRegularWidth(horizontalSizeClass)
+    }
 
     var body: some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: title, systemImage: "chart.line.uptrend.xyaxis", subtitle: subtitle)
 
-                HorizontalScrollEdgeFade(coordinateSpace: "adminTrendGraphs") {
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(series) { item in
-                            DashboardTrendGraphCard(
-                                series: item,
-                                isExpanded: expandedId == item.id,
-                                compact: true
-                            ) {
-                                withAnimation(CalmMotion.gentle) {
-                                    expandedId = expandedId == item.id ? nil : item.id
-                                }
-                            }
-                        }
+                if fitsAcross {
+                    let columns = Array(
+                        repeating: GridItem(.flexible(), spacing: 10, alignment: .top),
+                        count: series.count <= 3 ? max(series.count, 1) : 2
+                    )
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                        compactCards(flexible: true)
                     }
                     .padding(.vertical, 2)
+                } else {
+                    HorizontalScrollEdgeFade(coordinateSpace: "adminTrendGraphs") {
+                        HStack(alignment: .top, spacing: 10) {
+                            compactCards(flexible: false)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
 
                 if let expandedId,
@@ -289,12 +310,30 @@ struct DashboardTrendGraphsStrip: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+
+    @ViewBuilder
+    private func compactCards(flexible: Bool) -> some View {
+        ForEach(series) { item in
+            DashboardTrendGraphCard(
+                series: item,
+                isExpanded: expandedId == item.id,
+                compact: true,
+                flexible: flexible
+            ) {
+                withAnimation(CalmMotion.gentle) {
+                    expandedId = expandedId == item.id ? nil : item.id
+                }
+            }
+        }
+    }
 }
 
 private struct DashboardTrendGraphCard: View {
     let series: CareHomeTrendSeries
     var isExpanded: Bool
     var compact: Bool
+    /// Compact card that shares the row's width instead of a fixed 168 pt.
+    var flexible: Bool = false
     var onTap: () -> Void
 
     private var accent: Color {
@@ -357,20 +396,22 @@ private struct DashboardTrendGraphCard: View {
                 }
             }
             .padding(compact ? 10 : 14)
-            .frame(width: compact ? 168 : nil, alignment: .leading)
+            .frame(width: compact && !flexible ? 168 : nil, alignment: .leading)
+            .frame(maxWidth: flexible ? .infinity : nil, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(BrandTheme.creamMid.opacity(compact ? 0.55 : 0.35))
+                    .fill(BrandTheme.surfaceInset)
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(accent.opacity(isExpanded ? 0.45 : 0.22), lineWidth: 1)
+                            .stroke(isExpanded ? accent.opacity(0.6) : BrandTheme.insetBorder, lineWidth: isExpanded ? 1.5 : 1)
                     }
             }
         }
         .accessibilityIdentifier("admin.trend.\(series.id)")
         .buttonStyle(ChimingPlainButtonStyle())
-        .accessibilityLabel("\(series.title) trend chart")
-        .accessibilityHint(isExpanded ? "Collapse chart" : "Expand chart")
+        .accessibilityLabel("\(series.title) trend chart\(series.latestSummary.map { ", \($0)" } ?? "")")
+        .accessibilityHint(isExpanded ? "Collapses the chart" : "Expands the chart")
+        .accessibilityAddTraits(isExpanded ? .isSelected : [])
     }
 }
 
@@ -438,7 +479,7 @@ private struct DashboardTrendChart: View {
                         path.move(to: CGPoint(x: 0, y: y))
                         path.addLine(to: CGPoint(x: geo.size.width, y: y))
                     }
-                    .stroke(BrandTheme.textSecondary.opacity(showFullXAxis ? 0.16 : 0.1), lineWidth: 1)
+                    .stroke(BrandTheme.textSecondary.opacity(showFullXAxis ? 0.24 : 0.16), lineWidth: 1)
                 }
 
                 if showArea, plotted.count > 1 {
@@ -560,21 +601,58 @@ struct DashboardKPICardView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BrandTheme.textSecondary)
             Text(card.value)
-                .font(.title2.weight(.semibold))
+                .font(.title2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(BrandTheme.textPrimary)
             Text(card.detail)
                 .font(.caption2)
                 .foregroundStyle(BrandTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(BrandTheme.cream.opacity(0.92))
+        .background(BrandTheme.cream.opacity(0.94))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(BrandTheme.gold.opacity(0.22), lineWidth: 1)
+                .stroke(BrandTheme.cardBorder, lineWidth: 1)
         )
-        .opacity(1)
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(BrandTheme.logoLavenderBlue.opacity(0.85))
+                .frame(height: 3)
+                .padding(.horizontal, 16)
+                .padding(.top, 1)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(card.title), \(card.value), \(card.detail)")
+    }
+}
+
+/// Status chip for a resident's or a home's trend: icon + word, so the tint is never the only cue.
+struct DashboardTrendChip: View {
+    let trend: CareHomeImpactTrend
+
+    var body: some View {
+        BrandStatusChip(text: trend.label, systemImage: icon, tint: tint)
+    }
+
+    private var icon: String {
+        switch trend {
+        case .improving: return "arrow.up.right"
+        case .stable: return "equal"
+        case .declining: return "arrow.down.right"
+        case .noData: return "minus"
+        }
+    }
+
+    private var tint: Color {
+        switch trend {
+        case .improving: return BrandTheme.statusPositive
+        case .stable: return BrandTheme.statusNeutral
+        case .declining: return BrandTheme.statusAttention
+        case .noData: return BrandTheme.textSecondary
+        }
     }
 }
 
@@ -585,42 +663,30 @@ private struct DashboardWingImpactRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(wing.wingName)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(BrandTheme.textPrimary)
                 Spacer()
                 Text("\(wing.sessionCount) session\(wing.sessionCount == 1 ? "" : "s")")
-                    .font(.caption)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(BrandTheme.textSecondary)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(BrandTheme.creamDeep.opacity(0.5))
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [BrandTheme.nebulaTeal.opacity(0.7), BrandTheme.nebulaCyan.opacity(0.85)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: max(8, geo.size.width * wing.intensity))
-                }
-            }
-            .frame(height: 8)
-            HStack(spacing: 12) {
-                Text("\(wing.residentsReached) residents")
+            BrandMeterBar(fraction: wing.intensity, tint: BrandTheme.nebulaCyan)
+            HStack(spacing: 8) {
+                BrandStatusChip(text: "\(wing.residentsReached) residents", systemImage: "person.2")
                 if let calm = wing.averageCalmPercent {
-                    Text("avg \(calm)% at ease")
+                    BrandStatusChip(text: "\(calm)% at ease", systemImage: "leaf.fill", tint: CareAtEaseTone.tint(percent: calm))
                 }
                 if let wellbeing = wing.averageWellbeing {
-                    Text(String(format: "%.1f/10 wellbeing", wellbeing))
+                    BrandStatusChip(
+                        text: String(format: "%.1f/10 wellbeing", wellbeing),
+                        systemImage: "heart.fill",
+                        tint: BrandRatingTone.tint(outOfTen: wellbeing)
+                    )
                 }
             }
-            .font(.caption2)
-            .foregroundStyle(BrandTheme.textSecondary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -630,32 +696,24 @@ private struct DashboardResidentImpactRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(resident.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textPrimary)
-                Spacer()
-                Text(resident.trend.label)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(trendColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(resident.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BrandTheme.textPrimary)
+                    Text("\(resident.roomLabel.isEmpty ? resident.wingLabel : "\(resident.roomLabel) · \(resident.wingLabel)")")
+                        .font(.caption2)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                }
+                Spacer(minLength: 8)
+                DashboardTrendChip(trend: resident.trend)
             }
-            Text("\(resident.roomLabel.isEmpty ? resident.wingLabel : "\(resident.roomLabel) · \(resident.wingLabel)")")
-                .font(.caption2)
-                .foregroundStyle(BrandTheme.textSecondary)
             Text(resident.impactLine)
                 .font(.caption)
                 .foregroundStyle(BrandTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 6)
-    }
-
-    private var trendColor: Color {
-        switch resident.trend {
-        case .improving: return BrandTheme.nebulaTeal
-        case .stable: return BrandTheme.textSecondary
-        case .declining: return BrandTheme.nebulaSalmon
-        case .noData: return BrandTheme.textSecondary
-        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -667,26 +725,34 @@ struct DashboardRecentSessionRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(session.patientName)
-                    .font(.subheadline.weight(.medium))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(BrandTheme.textPrimary)
-                Spacer()
                 Text(dateLabel)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
+                Spacer(minLength: 8)
+                BrandStatusChip(
+                    text: "\(session.calmPercent)% at ease",
+                    systemImage: "leaf.fill",
+                    tint: CareAtEaseTone.tint(percent: session.calmPercent)
+                )
             }
-            Text("\(session.wingLabel) · \(session.moodSummary) · \(session.calmPercent)% at ease")
+            Text(session.moodSummary.isEmpty || session.moodSummary == "—" ? session.wingLabel : "\(session.wingLabel) · \(session.moodSummary)")
                 .font(.caption)
                 .foregroundStyle(BrandTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let impact = session.impactLine {
                 Text(impact)
                     .font(.caption2)
-                    .foregroundStyle(BrandTheme.textSecondary)
+                    .foregroundStyle(BrandTheme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 }
 

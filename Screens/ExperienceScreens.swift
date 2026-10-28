@@ -212,36 +212,22 @@ private struct ImmersiveVitalsReadout: View {
     var body: some View {
         VStack(spacing: 12) {
             Text("Music · nature video · heart rate")
-                .font(.caption2)
-                .foregroundStyle(BrandTheme.textSecondary)
+                .font(.caption.weight(.medium))
+                .orbOverlayText(muted: true)
                 .multilineTextAlignment(.center)
 
-            HStack(spacing: 24) {
-                VStack(spacing: 4) {
-                    Text("HR")
-                        .font(.caption2)
-                        .foregroundStyle(BrandTheme.textSecondary)
-                    Text("\(Int(vitals.mockHeartRateCurrent))")
-                        .font(.title2.monospacedDigit())
-                        .foregroundStyle(BrandTheme.textPrimary)
-                }
-                VStack(spacing: 4) {
-                    Text("Calm")
-                        .font(.caption2)
-                        .foregroundStyle(BrandTheme.textSecondary)
-                    Text("\(Int(vitals.calmScore * 100))%")
-                        .font(.title2.monospacedDigit())
-                        .foregroundStyle(BrandTheme.textPrimary)
-                }
+            BrandStatTileRow {
+                BrandStatTile(value: "\(Int(vitals.mockHeartRateCurrent))", label: "Heart rate", detail: "beats per minute", centered: true)
+                BrandStatTile(value: "\(Int(vitals.calmScore * 100))%", label: "Calm", tint: CareAtEaseTone.tint(percent: Int(vitals.calmScore * 100)), centered: true)
             }
-            .padding()
+            .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.92))
+                    .fill(BrandTheme.cream.opacity(0.94))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                    .stroke(BrandTheme.cardBorder, lineWidth: 1)
             )
         }
     }

@@ -22,6 +22,46 @@ struct GroupSessionTrack: Identifiable, Equatable {
     }
 }
 
+/// How one resident was in the room — optional, noted by staff at the check-in. The room's four
+/// ratings stay the session's score; this is the per-person line the profile and planner read.
+enum GroupParticipantState: String, Codable, CaseIterable, Identifiable {
+    case engaged
+    case unsettled
+    case leftEarly
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .engaged: return "Engaged"
+        case .unsettled: return "Unsettled"
+        case .leftEarly: return "Left early"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .engaged: return "face.smiling"
+        case .unsettled: return "exclamationmark.triangle"
+        case .leftEarly: return "figure.walk"
+        }
+    }
+
+    /// Tap cycles engaged → unsettled → left early → none.
+    var next: GroupParticipantState? {
+        switch self {
+        case .engaged: return .unsettled
+        case .unsettled: return .leftEarly
+        case .leftEarly: return nil
+        }
+    }
+}
+
+struct GroupParticipantNote: Equatable, Codable {
+    var residentId: UUID
+    var state: GroupParticipantState
+}
+
 struct GroupSessionRecord: Identifiable, Equatable, Codable {
     let id: UUID
     let date: Date
@@ -42,6 +82,12 @@ struct GroupSessionRecord: Identifiable, Equatable, Codable {
     /// Home the session happened in and who ran it — filled when the record is written (synced to the backend).
     var homeId: UUID? = nil
     var authorAccountId: UUID? = nil
+    /// Who stood out, per resident (optional; absent on records written before the check-in asked).
+    var participantNotes: [GroupParticipantNote]? = nil
+
+    func participantNote(for residentId: UUID) -> GroupParticipantState? {
+        participantNotes?.first { $0.residentId == residentId }?.state
+    }
 }
 
 struct GroupSessionFeedbackDraft: Equatable, Codable {
@@ -50,6 +96,17 @@ struct GroupSessionFeedbackDraft: Equatable, Codable {
     var lucidity: Int?
     var engagement: Int?
     var note: String = ""
+    var participantNotes: [GroupParticipantNote]? = nil
+
+    func participantNote(for residentId: UUID) -> GroupParticipantState? {
+        participantNotes?.first { $0.residentId == residentId }?.state
+    }
+
+    mutating func setParticipantNote(_ state: GroupParticipantState?, for residentId: UUID) {
+        var notes = (participantNotes ?? []).filter { $0.residentId != residentId }
+        if let state { notes.append(GroupParticipantNote(residentId: residentId, state: state)) }
+        participantNotes = notes.isEmpty ? nil : notes
+    }
 }
 
 enum GroupSessionFeedbackStep: Int, CaseIterable, Identifiable {

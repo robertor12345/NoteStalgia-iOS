@@ -171,6 +171,39 @@ private struct SupervisorAuthPanel: View {
             .padding(.top, 2)
             .accessibilityLabel("Create a Care at home account")
             .accessibilityHint("For family members and private carers supporting one person at home")
+
+            // Organisation onboarding needs the backend; offline the links would lead nowhere.
+            if state.usesBackend {
+                Button {
+                    state.beginOrgRequest()
+                } label: {
+                    Text("Setting up a care home or organisation? Request a workspace")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(BrandTheme.gold)
+                        .multilineTextAlignment(.center)
+                        .expandedHitArea(vertical: 14, horizontal: 16)
+                }
+                .accessibilityIdentifier("signin.requestWorkspace")
+                .buttonStyle(ChimingPlainButtonStyle())
+                .padding(.top, 2)
+                .accessibilityLabel("Request a workspace for a care home or organisation")
+                .accessibilityHint("Verifies your work email, then an activation code is sent")
+
+                Button {
+                    state.beginOrgCode()
+                } label: {
+                    Text("I have an invite or activation code")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(BrandTheme.gold)
+                        .multilineTextAlignment(.center)
+                        .expandedHitArea(vertical: 14, horizontal: 16)
+                }
+                .accessibilityIdentifier("signin.haveCode")
+                .buttonStyle(ChimingPlainButtonStyle())
+                .padding(.top, 2)
+                .accessibilityLabel("I have an invite or activation code")
+                .accessibilityHint("Codes start with ORG- or INV-")
+            }
         }
     }
 
@@ -501,6 +534,15 @@ struct CareHomePickerView: View {
                         .buttonStyle(ChimingPlainButtonStyle())
                     }
                     .padding(.horizontal, 4)
+
+                    if state.usesBackend, state.currentSupervisorAccount()?.role == .orgAdmin {
+                        SecondaryButton(title: "Organisation set-up") {
+                            state.openOrgSetup(resume: true)
+                        }
+                        .accessibilityIdentifier("homePicker.orgSetup")
+                        .padding(.horizontal, 4)
+                        .padding(.top, 6)
+                    }
                 }
                 .padding(.vertical, 28)
             }
@@ -690,8 +732,8 @@ struct MoodSelectView: View {
 
                     if state.isCareStaffSession, let patient = state.carePatient(id: state.activeCarePatientId) {
                         Text("With \(patient.displayName) — mood tags are just for today.")
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.goldDeep)
+                            .font(.subheadline.weight(.medium))
+                            .orbOverlayText(muted: true)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }

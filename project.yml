@@ -71,12 +71,28 @@ targets:
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
 
+  # Pure-logic tests (input rules); mirrors the Worker's test/validate.test.ts.
+  NoteStalgiaTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: NoteStalgia-iOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.notestalgia.ios.tests
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+
 schemes:
   NoteStalgia-iOS:
     build:
       targets:
         NoteStalgia-iOS: all
         NoteStalgiaDemoUITests: [test]
+        NoteStalgiaTests: [test]
     run:
       config: Debug
       commandLineArguments:
@@ -85,4 +101,5 @@ schemes:
     test:
       config: Debug
       targets:
+        - NoteStalgiaTests
         - NoteStalgiaDemoUITests

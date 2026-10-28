@@ -9,7 +9,7 @@ enum SupervisorAuth {
         let code = pin.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !normalizedEmail.isEmpty else { return (nil, "Enter your email.") }
-        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid email address.") }
+        guard InputRules.isValidEmail(normalizedEmail) else { return (nil, "Enter a valid email address.") }
         guard code.count == pinDigitCount else {
             return (nil, "Enter your \(pinDigitCount)-digit PIN.")
         }
@@ -49,7 +49,7 @@ enum SupervisorAuth {
         let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         guard !normalizedEmail.isEmpty else { return (nil, "Enter your email.") }
-        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid email address.") }
+        guard InputRules.isValidEmail(normalizedEmail) else { return (nil, "Enter a valid email address.") }
 
         if let household = HouseholdCareStore.account(email: normalizedEmail) {
             return (household.id, nil)

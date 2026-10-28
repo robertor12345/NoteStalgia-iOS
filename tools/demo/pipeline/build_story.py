@@ -393,13 +393,17 @@ def main(out_path, reuse_video=False):
     for start, secs, key, _ in schedule:
         data, _secs = N.speak(key)
         M.place(fx, data, start, gain=1.0, fade_in=0.01, fade_out=0.03)
-        i0 = max(0, int((start - DUCK_RAMP) * SR))
-        i1 = min(n_total, int((start + secs + 0.35) * SR))
+        # A line scheduled at the very end of the last take can start past the end of the mix
+        # (a take that stopped early); clamp every index to the envelope.
+        i0 = min(n_total, max(0, int((start - DUCK_RAMP) * SR)))
+        i1 = min(n_total, max(i0, int((start + secs + 0.35) * SR)))
         env[i0:i1] = np.minimum(env[i0:i1], DUCK)
         # soften the duck edges
         lo, hi = max(0, i0 - ramp), min(n_total, i1 + ramp)
-        env[lo:i0] = np.minimum(env[lo:i0], np.linspace(1.0, DUCK, i0 - lo, dtype=np.float32))
-        env[i1:hi] = np.minimum(env[i1:hi], np.linspace(DUCK, 1.0, hi - i1, dtype=np.float32))
+        if i0 > lo:
+            env[lo:i0] = np.minimum(env[lo:i0], np.linspace(1.0, DUCK, i0 - lo, dtype=np.float32))
+        if hi > i1:
+            env[i1:hi] = np.minimum(env[i1:hi], np.linspace(DUCK, 1.0, hi - i1, dtype=np.float32))
 
     mixed = music * env[:, None] + fx
     del music, fx, env

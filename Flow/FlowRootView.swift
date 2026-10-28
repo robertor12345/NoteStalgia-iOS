@@ -100,14 +100,19 @@ struct FlowRootView: View {
             state.resetAllForFreshAppLaunch()
             StreamAudioCache.prefetchLaunchEssentials()
         }
+        .onChange(of: launchComplete) { _, complete in
+            DemoAudioLog.record("launch", ["complete": complete])
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
+            DemoAudioLog.record("keyboard", ["visible": true])
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             if APIConfig.isConfigured { state.sync.pullIfDue() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
+            DemoAudioLog.record("keyboard", ["visible": false])
         }
         .onReceive(NotificationCenter.default.publisher(for: AmbientInteractionPause.didChangeNotification)) { note in
             interactionAmbientPaused = (note.userInfo?[AmbientInteractionPause.isPausedKey] as? Bool) ?? false
@@ -191,6 +196,12 @@ struct FlowRootView: View {
                 HouseholdInsightsView(state: state)
             case .careGroupPlanner:
                 GroupActivityPlannerView(state: state)
+            case .orgRequest:
+                OrgRequestView(state: state)
+            case .orgCode:
+                OrgCodeView(state: state)
+            case .orgSetup:
+                OrgSetupView(state: state)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -201,10 +212,20 @@ struct FlowRootView: View {
             enabled: style.floats && style.showsMenuEnvelope
         )
         .id(state.phase)
-        // Removal is instant so the previous screen never lingers behind the next one.
+        // Belt and braces for the fade: a phase whose content is still hidden 1.5 s after the swap is
+        // revealed by the watchdog (a transition that completes normally shows it after 60 ms).
+        .onChange(of: state.phase) { _, _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                state.ensurePhaseContentVisible()
+            }
+        }
+        // No transition at all: the fade is `phaseContentVisible`, so removal and insertion are
+        // instant and the previous screen never lingers behind the next one. An insertion transition
+        // here could be caught mid-flight by the fade's own animation under load and leave the new
+        // screen parked at opacity 0 (seen in recorded takes).
         // No global implicit animation here — it would interfere with screens that run their
         // own TimelineView / continuous motion (e.g. the resident calm surface glyphs).
-        .transition(.asymmetric(insertion: .opacity, removal: .identity))
+        .transition(.identity)
         .opacity(launchComplete && state.phaseContentVisible ? 1 : 0)
         .allowsHitTesting(launchComplete && !state.residentHandoffActive && state.phaseContentVisible)
     }
@@ -387,7 +408,7 @@ struct BrandCard<Content: View>: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                    .stroke(BrandTheme.cardBorder, lineWidth: 1)
             )
     }
 }

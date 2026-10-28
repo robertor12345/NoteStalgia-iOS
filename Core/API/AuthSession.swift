@@ -109,6 +109,46 @@ final class AuthSession {
         }
     }
 
+    // MARK: - Onboarding codes (ORG- activation, INV- invite)
+
+    struct CodeRedeemRequest: Encodable {
+        var email: String
+        var code: String
+        var pin: String
+        var displayName: String?
+        var acceptedVersions: [String: String]
+        var deviceId: String
+    }
+
+    /// Activates an approved workspace request and signs the new organisation admin in.
+    func activateOrganisation(email: String, code: String, pin: String, displayName: String?) async throws -> Principal {
+        let pair: TokenPair = try await APIClient.shared.post(
+            "auth/org-activate",
+            body: CodeRedeemRequest(email: email, code: code, pin: pin, displayName: displayName, acceptedVersions: OnboardingConsent.versions, deviceId: Self.deviceId),
+            authorized: false
+        )
+        await adopt(pair, pin: pin)
+        return pair.principal
+    }
+
+    /// Accepts a staff invite and signs the new account in.
+    func acceptInvite(email: String, code: String, pin: String, displayName: String?) async throws -> Principal {
+        let pair: TokenPair = try await APIClient.shared.post(
+            "auth/invite/accept",
+            body: CodeRedeemRequest(email: email, code: code, pin: pin, displayName: displayName, acceptedVersions: OnboardingConsent.versions, deviceId: Self.deviceId),
+            authorized: false
+        )
+        await adopt(pair, pin: pin)
+        return pair.principal
+    }
+
+    /// Re-issues the access token so its claims pick up new home assignments, then reloads `/me`.
+    func refreshCurrentSession() async -> Principal? {
+        guard let id = currentPrincipal?.accountId else { return nil }
+        _ = await refresh(accountId: id)
+        return await reloadPrincipal()
+    }
+
     // MARK: - Sign-out / refresh
 
     func signOut() async {

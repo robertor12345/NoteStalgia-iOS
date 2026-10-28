@@ -53,13 +53,28 @@ python3 tools/demo/pipeline/build_story.py         # → NoteStalgia-Walkthrough
 ### v7 — what's new since v6 (live backend)
 
 ```bash
-tools/demo/reset-backend.sh                   # model + ad-hoc songs cleared, demo residents re-seeded on the deployed Worker
-for s in testStoryPartE_LiveBackend:e_live testStoryPartF_OnlineDiscovery:f_discovery testStoryPartH_GroupSession:h_group testStoryPartG_GroupProgramme:g_admin; do
+tools/demo/reset-backend.sh                   # model + ad-hoc songs cleared, demo organisation removed, demo residents re-seeded
+for s in testStoryPartE_LiveBackend:e_live testStoryPartF_OnlineDiscovery:f_discovery testStoryPartH_GroupSession:h_group testStoryPartG_GroupProgramme:g_admin testStoryPartI_Onboarding:i_onboarding; do
   DEMO_AUDIO_DEVICE="" TEST_RUNNER_API_BASE_URL=https://notestalgia-api.fitraclesub.workers.dev \
     tools/demo/walkthrough.sh "${s%%:*}" "${s##*:}"
 done
-python3 tools/demo/pipeline/build_v7.py       # → NoteStalgia-Walkthrough-v7.mp4 + .srt (nine flows)
+python3 tools/demo/pipeline/build_v7.py       # → NoteStalgia-Walkthrough-v7.mp4 + .srt (ten flows)
 ```
+
+`-NoteStalgiaDemoSignInPIN 135790` pairs with `-NoteStalgiaDemoSignIn` for an account that is not a seeded demo one
+(an organisation created through onboarding). `testOnboardingJoinSmoke` is a one-minute check of Part I's tail
+(sign in as the org admin → roster → log out → "I have an invite or activation code") for when the long take is
+not needed.
+
+Part I (`i_onboarding`, flow 10 "A new organisation") walks the organisation onboarding end to end: request a
+workspace → verification code → activation → the paged set-up (organisation: details, address with its
+required-field message, domains, defaults; a home over three pages; an invite over two with its INV- code; the
+sample residents import; this iPad with its required label; the checklist and audit trail) → the new home's
+dashboard and roster → the invited
+supervisor joins with the code. It needs a Worker that exposes codes and approves at once (`EXPOSE_CODES=1`,
+`AUTO_APPROVE=1` on the demo deployment) and `reset-backend.sh` before every take: the reset removes every
+organisation created through self-service onboarding, so "Willowbank Care" / `dana@willowbank-care.co.uk` can be
+used again. Narration keys `v7_onb_*`.
 
 `build_v7.py` is `build_story.py` with its own flow list, cards and take names (narration keys `v7_*`,
 `intro7`, `outro7`). The takes are recorded **video-only** (`DEMO_AUDIO_DEVICE=""`): the app logs `title` +
@@ -148,6 +163,7 @@ Every interactive control carries one. `<…>` parts are the on-screen text (e.g
 | New resident | `newResident.choosePhoto`, `newResident.takePhoto`, `newResident.name`, `newResident.age`, `nationality.menu`, `newResident.save`; Back is "Discard" → confirmation dialog |
 | Group | planner `planner.activity.<id>` (e.g. `genre.classical`, `mixed`), `planner.suggestion.<id>` (Add), `planner.resident.<Display Name>`, `planner.clear`, `planner.start`, `planner.startAll`; session `group.activityLine`, `group.previous`, `group.playPause`, `group.next`, `group.track.<Title>`, `group.end`; check-in `rating.<n>`, `group.note`, `group.save`, `group.skip` |
 | Admin | `admin.trend.<series id>` (sessions / calm / wellbeing), `admin.groupProgramme` (Group programme card title), `admin.switchHome`, `admin.open` |
+| Organisation onboarding (backend only) | sign-in links `signin.requestWorkspace`, `signin.haveCode`; request `onboarding.request.org` / `.name` / `.email` / `.phone` / `.role` / `.homes` (segmented) / `.cqc` / `.notes` / `.consent` / `.submit`, verification `onboarding.code` (hint reads "Demo code: …" on the demo Worker), `onboarding.verify`, `onboarding.activationCode`, `onboarding.activate`; code screen `onboarding.codeEmail`, `onboarding.codeField`, `onboarding.codeName`, `onboarding.codePin`, `onboarding.codeConfirmPin`, `onboarding.terms`, `onboarding.redeem`; set-up `onboarding.section.1 … 6` (stepper circles), `onboarding.back` (previous page, a text button), `onboarding.next` ("Next: <page>"), `onboarding.addHome.start` / `onboarding.addHome` (open / commit the add-a-home journey), `onboarding.homes.skip`, `onboarding.invite.start` / `.startMany` (open the invite journeys), `onboarding.import.discard`, and `<field id>.error` (the message under a field that failed validation, e.g. `onboarding.org.address.error`), `onboarding.done` ("Finish set-up"), `onboarding.error` / `onboarding.notice` (the banner above the bar), `onboarding.keyboardDone`; leaving a step with unsent work raises an alert (Save and continue / Discard / Keep editing); organisation `onboarding.org.*`, `onboarding.domain.*` (`.method` segmented Email code / DNS record, `.new`, `.send`, `.code`, `.verify`, `.checkDns`); homes `onboarding.home.name` / `.cqc` / `.capacity` / `.newWing` / `.addWing` / `.lead` / `.leadEmail` / `.leadName`, `onboarding.addHome`, exports `onboarding.export.residents.<Home>` / `onboarding.export.json.<Home>` / `onboarding.export.share`; team `onboarding.invite.email` / `.name` / `.role` / `.home.<Home>` / `.temporary` / `.send` / `.bulk` / `.sendAll` / `.code` (the INV- tile) / `.resend.<email>` / `.revoke.<email>`, `onboarding.staff.toggle`; residents `onboarding.import.home.<Home>`, `onboarding.import.template`, `onboarding.import.sample`, `onboarding.import.pick`, `onboarding.import.apply`, `onboarding.import.roster`; iPads `onboarding.device.label`, `onboarding.device.register`; ready `onboarding.ready.roster`; admin dashboard / home picker `admin.orgSetup`, `homePicker.orgSetup` |
 | Care at home | sign-in link `signin.createHousehold`; sign-up `household.name`, `household.email`, `household.relationship` (Family member / Private carer), `household.pin`, `household.confirmPin`, `household.create`; resident setup `household.residentName`, `household.residentAge`, `nationality.menu`, `household.choosePhoto`, `household.takePhoto`, `household.startDiscovery`, `household.skipDiscovery`; home `household.openSurface`, `household.insights`, `household.profile`, `household.discovery`, `household.register`; insights empty state `household.insightsBack` |
 
 ## Other helpers

@@ -96,7 +96,7 @@ extension SessionPOCState {
             return message
         }
 
-        guard !name.isEmpty else { return fail("Enter your name.") }
+        if let problem = InputRules.personName(name, required: true, label: "Your name") { return fail(problem) }
         guard Self.looksLikeEmail(email) else { return fail("Enter a valid email address.") }
         if Self.isOrganisationEmail(email) {
             return fail("That is a \(CareTenancyMockData.organisation.name) work email — care-home staff sign in on the previous screen.")
@@ -142,8 +142,8 @@ extension SessionPOCState {
             return message
         }
         guard var account = currentHouseholdAccount() else { return fail("Sign in again to continue.") }
-        let name = ui.residentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return fail("Enter their name.") }
+        let name = InputRules.tidy(ui.residentName)
+        if let problem = InputRules.personName(name, required: true, label: "Their name") { return fail(problem) }
         let ageText = ui.residentAge.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let age = Int(ageText), (55 ... 105).contains(age) else {
             return fail("Enter an age between 55 and 105.")
@@ -254,12 +254,7 @@ extension SessionPOCState {
 
     // MARK: Helpers
 
-    private static func looksLikeEmail(_ email: String) -> Bool {
-        let parts = email.split(separator: "@")
-        guard parts.count == 2, !parts[0].isEmpty else { return false }
-        let domain = parts[1]
-        return domain.contains(".") && !domain.hasPrefix(".") && !domain.hasSuffix(".")
-    }
+    private static func looksLikeEmail(_ email: String) -> Bool { InputRules.isValidEmail(email) }
 
     private static func isOrganisationEmail(_ email: String) -> Bool {
         guard let domain = email.lowercased().split(separator: "@").last.map(String.init) else { return false }

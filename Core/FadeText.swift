@@ -96,6 +96,7 @@ struct FadeInNoteStalgiaWordmark: View {
 struct ScreenFadeIn<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @State private var visible = false
+    @State private var onScreen = false
 
     var body: some View {
         content()
@@ -103,10 +104,25 @@ struct ScreenFadeIn<Content: View>: View {
             .scaleEffect(visible ? 1 : 0.992)
             .offset(y: visible ? 0 : 6)
             .onAppear {
+                onScreen = true
                 withAnimation(CalmMotion.softFade) {
                     visible = true
                 }
+                // A state write inside onAppear can be dropped when the screen is inserted while the
+                // phase fade is still animating — seen under recording load, where a new phase stayed
+                // at opacity 0 (invisible to touch and to accessibility). Re-assert the reveal.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                    if onScreen, !visible {
+                        DemoAudioLog.record("fadeInFallback")
+                        withAnimation(CalmMotion.softFade) {
+                            visible = true
+                        }
+                    }
+                }
             }
-            .onDisappear { visible = false }
+            .onDisappear {
+                onScreen = false
+                visible = false
+            }
     }
 }

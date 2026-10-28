@@ -16,7 +16,7 @@ extension SessionPOCState {
         let email = supervisorEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let pin = supervisorPIN.trimmingCharacters(in: .whitespacesAndNewlines)
         if email.isEmpty { return fail("Enter your email.") }
-        if !email.contains("@") { return fail("Enter a valid email address.") }
+        if !InputRules.isValidEmail(email) { return fail("Enter a valid email address.") }
         if pin.count != SupervisorAuth.pinDigitCount { return fail("Enter your \(SupervisorAuth.pinDigitCount)-digit PIN.") }
 
         auth.isAuthenticating = true
@@ -51,8 +51,8 @@ extension SessionPOCState {
             ui.signUpError = message
             return message
         }
-        if name.isEmpty { return failSignUp("Enter your name.") }
-        if !email.contains("@") || !email.contains(".") { return failSignUp("Enter a valid email address.") }
+        if let problem = InputRules.personName(name, required: true, label: "Your name") { return failSignUp(problem) }
+        if !InputRules.isValidEmail(email) { return failSignUp("Enter a valid email address.") }
         if ui.signUpPIN.count != SupervisorAuth.pinDigitCount { return failSignUp("Choose a \(SupervisorAuth.pinDigitCount)-digit PIN.") }
         if ui.signUpPIN != ui.signUpConfirmPIN { return failSignUp("PINs don’t match. Enter the same PIN twice.") }
 
@@ -84,7 +84,7 @@ extension SessionPOCState {
         guard usesBackend else { return submitSupervisorPinResetEmail() }
         let email = supervisorPinResetEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if email.isEmpty { supervisorPinResetError = "Enter your email."; return }
-        if !email.contains("@") { supervisorPinResetError = "Enter a valid email address."; return }
+        if !InputRules.isValidEmail(email) { supervisorPinResetError = "Enter a valid email address."; return }
         auth.isAuthenticating = true
         defer { auth.isAuthenticating = false }
         do {
@@ -152,7 +152,7 @@ extension SessionPOCState {
 
     /// Routes a backend principal through the same sign-in path as the mock directory.
     @MainActor
-    private func adopt(_ principal: Principal) {
+    func adopt(_ principal: Principal) {
         mirrorHouseholdAccount(from: principal)
         signInAsAccount(principal.supervisorAccount)
     }

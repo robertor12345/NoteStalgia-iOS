@@ -69,12 +69,11 @@ private struct HouseholdSignUpForm: View {
                         Text("I am a")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(BrandTheme.textSecondary)
-                        Picker("I am a", selection: $household.signUpRelationship) {
-                            ForEach(HouseholdRelationship.allCases) { relationship in
-                                Text(relationship.label).tag(relationship)
-                            }
-                        }
-                        .pickerStyle(.segmented)
+                        BrandSegmentedChoice(
+                            title: "I am a",
+                            selection: $household.signUpRelationship,
+                            options: HouseholdRelationship.allCases.map { BrandChoiceOption(value: $0, label: $0.label) }
+                        )
                         .accessibilityIdentifier("household.relationship")
                         .chimeOnChange(of: household.signUpRelationship)
                     }
@@ -128,6 +127,12 @@ private struct HouseholdSignUpForm: View {
         .onChange(of: household.signUpEmail) { _, _ in clearError() }
         .onChange(of: household.signUpPIN) { _, _ in clearError() }
         .onChange(of: household.signUpConfirmPIN) { _, _ in clearError() }
+        .onAppear {
+            // Land in the first field once the screen has faded in.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if focused == nil { focused = .name }
+            }
+        }
     }
 
     private var pinShowsError: Bool {
@@ -265,6 +270,11 @@ private struct HouseholdResidentSetupForm: View {
         }
         .onChange(of: household.residentName) { _, _ in clearError() }
         .onChange(of: household.residentAge) { _, _ in clearError() }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                if focused == nil, household.residentName.isEmpty { focused = .name }
+            }
+        }
         .onChange(of: photoItem) { _, new in
             guard let new else { return }
             isLoadingPhoto = true
@@ -428,7 +438,7 @@ struct HouseholdHomeView: View {
 
     private var carerLine: String {
         guard let account = state.currentHouseholdAccount() else { return "Cared for at home" }
-        return "Cared for at home · \(account.relationship.label.lowercased()) \(account.displayName)"
+        return "\(account.displayName) · \(account.relationship.label.lowercased()) · cared for at home"
     }
 
     private func insightsSubtitle(_ resident: CarePatientProfile) -> String {
@@ -443,19 +453,40 @@ struct HouseholdHomeView: View {
     private func lastSessionCard(_ resident: CarePatientProfile) -> some View {
         if let last = state.recordsForPatient(resident.id).first {
             BrandCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Last session")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textSecondary)
-                    Text("\(relativeDay(last.date)) · \(last.moodSummary) · \(last.calmPercent)% at ease")
-                        .font(.body)
-                        .foregroundStyle(BrandTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let step = last.insightSuggestedNextStep {
-                        Text("Next: \(step)")
-                            .font(.callout)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        BrandSectionHeader(title: "Last session", systemImage: "clock")
+                        Text(relativeDay(last.date))
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(BrandTheme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    BrandStatTileRow {
+                        BrandStatTile(
+                            value: "\(last.calmPercent)%",
+                            label: "At ease",
+                            tint: CareAtEaseTone.tint(percent: last.calmPercent)
+                        )
+                        BrandStatTile(value: last.moodSummary, label: "Mood tags")
+                    }
+                    if let step = last.insightSuggestedNextStep {
+                        BrandInsetTile(accent: BrandTheme.statusCaution) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: "lightbulb.fill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(BrandTheme.statusCaution)
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Suggested next step")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(BrandTheme.textSecondary)
+                                    Text(step)
+                                        .font(.callout)
+                                        .foregroundStyle(BrandTheme.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -464,9 +495,7 @@ struct HouseholdHomeView: View {
         } else {
             BrandCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("No sessions yet")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textSecondary)
+                    BrandSectionHeader(title: "No sessions yet", systemImage: "clock")
                     Text("Open the calm surface and hand over the iPad. When you take it back, a few quick observations build their history.")
                         .font(.callout)
                         .foregroundStyle(BrandTheme.textSecondary)
@@ -588,17 +617,16 @@ struct HouseholdInsightsView: View {
             )
             .multilineTextAlignment(.center)
             if p.hasSessionData {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(trendColor(p.trend))
-                        .frame(width: 10, height: 10)
-                    Text("\(p.trend.label) — \(p.trendLine)")
+                VStack(spacing: 6) {
+                    DashboardTrendChip(trend: p.trend)
+                    Text(p.trendLine)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(BrandTheme.textSecondary)
+                        .orbOverlayText(muted: true)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 12)
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -615,20 +643,24 @@ struct HouseholdInsightsView: View {
     private func observationsCard(_ p: ResidentInsightsPresentation) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Your observations")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(
+                    title: "Your observations",
+                    systemImage: "heart.text.square",
+                    subtitle: p.observations.hasData ? "Averages of the 1–10 ratings you give after each session." : nil
+                )
                 if p.observations.hasData {
-                    Text("Averages of the 1–10 ratings you give after each session.")
+                    BrandInsetTile {
+                        VStack(alignment: .leading, spacing: 14) {
+                            observationRow("Mood / affect", p.observations.averageMood)
+                            observationRow("Alertness", p.observations.averageAlertness)
+                            observationRow("Emotional presentation", p.observations.averageEmotionalState)
+                            observationRow("Orientation", p.observations.averageLucidity)
+                        }
+                    }
+                    Text("Based on \(p.observations.sessionCount) rated session\(p.observations.sessionCount == 1 ? "" : "s") · \(BrandRatingTone.legend)")
                         .font(.caption)
-                        .foregroundStyle(BrandTheme.textSecondary)
-                    observationRow("Mood / affect", p.observations.averageMood)
-                    observationRow("Alertness", p.observations.averageAlertness)
-                    observationRow("Emotional presentation", p.observations.averageEmotionalState)
-                    observationRow("Orientation", p.observations.averageLucidity)
-                    Text("Based on \(p.observations.sessionCount) rated session\(p.observations.sessionCount == 1 ? "" : "s")")
-                        .font(.caption2)
-                        .foregroundStyle(BrandTheme.textSecondary)
+                        .foregroundStyle(BrandTheme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text("Rate a session when you take the iPad back and the averages appear here.")
                         .font(.caption)
@@ -642,71 +674,59 @@ struct HouseholdInsightsView: View {
     }
 
     private func observationRow(_ label: String, _ value: Double?) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(BrandTheme.textPrimary)
-                Spacer()
-                Text(value.map { String(format: "%.1f", $0) } ?? "—")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textPrimary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(BrandTheme.creamMid.opacity(0.9))
-                    Capsule()
-                        .fill(BrandTheme.logoCyan.opacity(0.75))
-                        .frame(width: geo.size.width * CGFloat(min(1, max(0, (value ?? 0) / 10))))
-                }
-            }
-            .frame(height: 8)
-        }
+        BrandRatingRow(
+            label: label,
+            valueText: value.map { String(format: "%.1f", $0) } ?? "—",
+            fraction: (value ?? 0) / 10,
+            tint: value.map { BrandRatingTone.tint(outOfTen: $0) } ?? BrandTheme.textSecondary,
+            spokenValue: value.map { String(format: "%.1f out of 10", $0) } ?? "no rating yet"
+        )
     }
 
     private func respondedToCard(_ p: ResidentInsightsPresentation) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("What they respond to")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: "What they respond to", systemImage: "music.note")
                 if p.genreHighlights.isEmpty, p.likedLine == nil {
                     Text("Genres and songs they choose on the calm surface show up here.")
                         .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    ForEach(p.genreHighlights) { item in
+                    ForEach(Array(p.genreHighlights.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { BrandHairline() }
                         HStack(spacing: 12) {
                             if let genre = item.genre {
                                 Image(genre.artworkAssetName)
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 30, height: 30)
+                                    .accessibilityHidden(true)
                             } else {
                                 Image(systemName: "music.note")
                                     .foregroundStyle(BrandTheme.gold)
                                     .frame(width: 30, height: 30)
+                                    .accessibilityHidden(true)
                             }
                             Text(item.name)
                                 .font(.body)
                                 .foregroundStyle(BrandTheme.textPrimary)
                             Spacer()
-                            Text("\(item.plays) play\(item.plays == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(BrandTheme.textSecondary)
+                            BrandStatusChip(text: "\(item.plays) play\(item.plays == 1 ? "" : "s")", systemImage: "play.fill")
                         }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
                     }
                     if let liked = p.likedLine {
                         Label("Liked · \(liked)", systemImage: "sun.max.fill")
                             .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
+                            .foregroundStyle(BrandTheme.statusCaution)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let skipped = p.skippedLine {
                         Label("Moved on from · \(skipped)", systemImage: "cloud.fill")
                             .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
+                            .foregroundStyle(BrandTheme.statusNeutral)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -718,14 +738,14 @@ struct HouseholdInsightsView: View {
 
     private func nextStepCard(_ step: String) -> some View {
         BrandCard {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Suggested next step", systemImage: "lightbulb.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.gold)
-                Text(step)
-                    .font(.body)
-                    .foregroundStyle(BrandTheme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 10) {
+                BrandSectionHeader(title: "Suggested next step", systemImage: "lightbulb.fill", tint: BrandTheme.statusCaution)
+                BrandInsetTile(accent: BrandTheme.statusCaution) {
+                    Text(step)
+                        .font(.body)
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -735,10 +755,9 @@ struct HouseholdInsightsView: View {
     private func recentSessionsCard(_ p: ResidentInsightsPresentation) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Recent sessions")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                ForEach(p.recentSessions) { session in
+                BrandSectionHeader(title: "Recent sessions", systemImage: "clock")
+                ForEach(Array(p.recentSessions.enumerated()), id: \.element.id) { index, session in
+                    if index > 0 { BrandHairline() }
                     DashboardRecentSessionRow(session: session)
                 }
             }
@@ -750,9 +769,7 @@ struct HouseholdInsightsView: View {
     private func emptyState(_ p: ResidentInsightsPresentation) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Insights appear after the first session")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: "Insights appear after the first session", systemImage: "chart.line.uptrend.xyaxis")
                 Text("Open \(firstName(p.residentName))’s calm surface, hand over the iPad, and rate the session when you take it back. Trends build from there.")
                     .font(.body)
                     .foregroundStyle(BrandTheme.textPrimary)
@@ -765,14 +782,6 @@ struct HouseholdInsightsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 4)
-    }
-
-    private func trendColor(_ trend: CareHomeImpactTrend) -> Color {
-        switch trend {
-        case .improving: return BrandTheme.nebulaTeal
-        case .declining: return BrandTheme.nebulaSalmon
-        case .stable, .noData: return BrandTheme.textSecondary
-        }
     }
 
     private func firstName(_ name: String) -> String {

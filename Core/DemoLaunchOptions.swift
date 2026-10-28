@@ -6,6 +6,7 @@ import Foundation
 ///
 /// ```
 /// -NoteStalgiaDemoSignIn max@sunrise-care.co.uk   sign in as a mock account when the title fades
+/// -NoteStalgiaDemoSignInPIN 135790                PIN for that account when it is not a seeded demo one
 /// -NoteStalgiaDemoSkipLaunch YES                  title screen lasts only as long as warm-up
 /// -NoteStalgiaDemoJump surface:Irene              after the welcome gate, jump straight to a scene
 /// -NoteStalgiaDemoFreezeGlyphDrift YES            resident glyphs hold still so scripted taps land
@@ -22,6 +23,14 @@ import Foundation
 enum DemoLaunchOptions {
     static let signInEmail: String? = {
         let value = UserDefaults.standard.string(forKey: "NoteStalgiaDemoSignIn")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? nil : value
+    }()
+
+    /// `-NoteStalgiaDemoSignInPIN 135790` — PIN for a `-NoteStalgiaDemoSignIn` account that is not a
+    /// seeded demo account (an organisation created through onboarding, for instance).
+    static let signInPIN: String? = {
+        let value = UserDefaults.standard.string(forKey: "NoteStalgiaDemoSignInPIN")?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return value.isEmpty ? nil : value
     }()
@@ -76,7 +85,7 @@ extension SessionPOCState {
         if APIConfig.isConfigured {
             // Demo accounts share the demo PIN; the server validates it.
             supervisorEmail = email
-            supervisorPIN = CareAccountDirectory.account(email: email)?.pin ?? HouseholdCare.demoPIN
+            supervisorPIN = DemoLaunchOptions.signInPIN ?? CareAccountDirectory.account(email: email)?.pin ?? HouseholdCare.demoPIN
             Task { @MainActor in _ = await signIn() }
             return true
         }

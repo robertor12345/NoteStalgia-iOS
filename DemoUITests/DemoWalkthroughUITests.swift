@@ -835,7 +835,302 @@ final class DemoWalkthroughUITests: XCTestCase {
         hold(2)
     }
 
+    /// Part I · a new organisation: request a workspace → verification code → activation → the paged
+    /// set-up (organisation, a home, an invite, the sample residents, this iPad, ready) → the new home's
+    /// dashboard and roster; then the invited supervisor joins with the INV- code. Run
+    /// tools/demo/reset-backend.sh first: it removes the demo organisation so the same name and emails
+    /// work every take. Needs a backend that exposes codes (EXPOSE_CODES / AUTO_APPROVE on the demo Worker).
+    func testStoryPartI_Onboarding() throws {
+        launch(autoSignIn: false, skipLaunch: true)
+        let request = app.buttons["signin.requestWorkspace"]
+        XCTAssertTrue(request.waitForExistence(timeout: 30), "Sign-in (with the workspace link) did not appear")
+        mark("v7_onb_open")
+        hold(9)
+        let org = app.textFields["onboarding.request.org"]
+        tapRevealing(request, org)
+        mark("v7_onb_request")
+        hold(7)
+        type(into: org, "Willowbank Care")
+        type(into: app.textFields["onboarding.request.name"], "Dana Reed")
+        type(into: app.textFields["onboarding.request.email"], "dana@willowbank-care.co.uk")
+        hold(1)
+        selectSegment("onboarding.request.homes", "2–5 homes")
+        hold(1)
+        type(into: app.textFields["onboarding.request.cqc"], "1-123456789")
+        hold(2)
+        mark("v7_onb_send")
+        tapAny("onboarding.request.consent")
+        hold(3)
+        scrollTo(app.buttons["onboarding.request.submit"]).tap()
+        let verifyField = app.textFields["onboarding.code"]
+        XCTAssertTrue(verifyField.waitForExistence(timeout: 25), "Verification step did not appear")
+        mark("v7_onb_verify")
+        hold(8)
+        // The demo Worker returns the code in the response and the hint under the field shows it.
+        let hint = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Demo code: '")).firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "Demo code hint missing — is EXPOSE_CODES on?")
+        let verifyCode = String(hint.label.dropFirst("Demo code: ".count)).trimmingCharacters(in: .whitespaces)
+        verifyField.tap()
+        hold(0.8)
+        for digit in verifyCode {
+            verifyField.typeText(String(digit))
+            hold(0.4)
+        }
+        let activate = app.buttons["onboarding.activate"]
+        XCTAssertTrue(activate.waitForExistence(timeout: 25), "Approval did not arrive — is AUTO_APPROVE on?")
+        mark("v7_onb_approved")
+        hold(11)
+        let name = app.textFields["onboarding.codeName"]
+        tapRevealing(activate, name)
+        mark("v7_onb_code")
+        hold(8)
+        type(into: name, "Dana Reed")
+        typePin("onboarding.codePin", "135790")
+        typePin("onboarding.codeConfirmPin", "135790")
+        hold(1)
+        tapAny("onboarding.terms")
+        hold(3)
+        mark("v7_onb_activate")
+        scrollTo(app.buttons["onboarding.redeem"]).tap()
+        // The wizard is one short page at a time. "Next: …" is the same button on every page of a section.
+        let next = app.buttons["onboarding.next"]
+        // Each page's header ("ORGANISATION · 4 OF 4 Defaults for every home …") is one combined element.
+        func pageHeader(containing title: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
+        }
+        XCTAssertTrue(next.waitForExistence(timeout: 60), "Set-up did not open")
+        mark("v7_onb_setup")
+        hold(16)
+        next.tap()
+
+        // Organisation · address: required, and each field says what it will accept.
+        let street = app.textFields["onboarding.org.address"]
+        XCTAssertTrue(street.waitForExistence(timeout: 15), "Address page did not appear")
+        mark("v7_onb_address")
+        hold(8)
+        next.tap()
+        let required = app.descendants(matching: .any).matching(identifier: "onboarding.org.address.error").firstMatch
+        XCTAssertTrue(required.waitForExistence(timeout: 10), "Required-field message did not appear")
+        mark("v7_onb_required")
+        hold(9)
+        type(into: street, "14 Willow Lane")
+        type(into: app.textFields["onboarding.org.town"], "Stockport")
+        // Lower case and no space: the field shapes it into a postcode as it is typed.
+        type(into: app.textFields["onboarding.org.postcode"], "sk11aa")
+        hold(3)
+        next.tap()
+
+        // Organisation · domains (Dana's own domain is already verified) and defaults.
+        XCTAssertTrue(app.buttons["onboarding.domain.send"].waitForExistence(timeout: 15), "Domains page did not appear")
+        mark("v7_onb_domains")
+        hold(11)
+        next.tap()
+        XCTAssertTrue(pageHeader(containing: "Defaults for every home").waitForExistence(timeout: 15), "Defaults page did not appear")
+        mark("v7_onb_defaults")
+        hold(11)
+        next.tap()
+
+        // Homes: an empty list, then the three small pages of "add a home".
+        let addHomeStart = app.buttons["onboarding.addHome.start"]
+        XCTAssertTrue(addHomeStart.waitForExistence(timeout: 15), "Homes step did not appear")
+        mark("v7_onb_home")
+        hold(9)
+        addHomeStart.tap()
+        let homeName = app.textFields["onboarding.home.name"]
+        XCTAssertTrue(homeName.waitForExistence(timeout: 15), "Home details page did not appear")
+        type(into: homeName, "Willowbank Lodge")
+        type(into: app.textFields["onboarding.home.capacity"], "40")
+        hold(2)
+        next.tap()
+        hold(6)   // wings
+        next.tap()
+        hold(5)   // who leads it
+        let addHome = app.buttons["onboarding.addHome"]
+        XCTAssertTrue(addHome.waitForExistence(timeout: 10), "Add home button missing")
+        addHome.tap()
+        XCTAssertTrue(app.staticTexts["Willowbank Lodge"].waitForExistence(timeout: 25), "Home did not appear")
+        mark("v7_onb_homeAdded")
+        hold(11)
+        next.tap()
+
+        // Team: invite one person over two pages; the code lands on the overview.
+        let inviteStart = app.buttons["onboarding.invite.start"]
+        XCTAssertTrue(inviteStart.waitForExistence(timeout: 15), "Team step did not appear")
+        mark("v7_onb_team")
+        hold(9)
+        inviteStart.tap()
+        let inviteEmail = app.textFields["onboarding.invite.email"]
+        XCTAssertTrue(inviteEmail.waitForExistence(timeout: 15), "Invite page did not appear")
+        type(into: inviteEmail, "sam@willowbank-care.co.uk")
+        type(into: app.textFields["onboarding.invite.name"], "Sam Jones")
+        hold(1)
+        next.tap()
+        hold(6)   // role, homes, end date
+        let send = app.buttons["onboarding.invite.send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 10), "Send invite button missing")
+        send.tap()
+        let codeTile = app.staticTexts["onboarding.invite.code"]
+        XCTAssertTrue(codeTile.waitForExistence(timeout: 25), "Invite code did not appear")
+        mark("v7_onb_invited")
+        scrollTo(codeTile)
+        hold(12)
+        // "Code I N V - A B C D - E F G H" → "INV-ABCD-EFGH"
+        let inviteCode = codeTile.label.replacingOccurrences(of: "Code ", with: "").replacingOccurrences(of: " ", with: "")
+        XCTAssertTrue(inviteCode.hasPrefix("INV-"), "Unexpected invite code label \(codeTile.label)")
+        next.tap()
+
+        // Residents: the sample spreadsheet, checked row by row, then imported.
+        let sample = app.buttons["onboarding.import.sample"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 15), "Residents step did not appear")
+        mark("v7_onb_residents")
+        hold(9)
+        scrollTo(sample).tap()
+        let apply = app.buttons["onboarding.import.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 10), "Import preview did not appear")
+        mark("v7_onb_preview")
+        hold(12)
+        apply.tap()
+        let imported = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'added to Willowbank Lodge'")).firstMatch
+        XCTAssertTrue(imported.waitForExistence(timeout: 10), "Import result missing")
+        mark("v7_onb_imported")
+        hold(9)
+        next.tap()
+
+        // iPads: guidance, then register this one (a label is required).
+        XCTAssertTrue(pageHeader(containing: "Set up the shared iPads").waitForExistence(timeout: 15), "iPads step did not appear")
+        mark("v7_onb_devices")
+        hold(11)
+        next.tap()
+        let label = app.textFields["onboarding.device.label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 15), "Register page did not appear")
+        let register = app.buttons["onboarding.device.register"]
+        register.tap()
+        let labelError = app.descendants(matching: .any).matching(identifier: "onboarding.device.label.error").firstMatch
+        XCTAssertTrue(labelError.waitForExistence(timeout: 10), "Label-required message did not appear")
+        hold(4)
+        type(into: label, "Willowbank Lodge day room")
+        register.tap()
+        XCTAssertTrue(app.buttons["Remove this iPad"].waitForExistence(timeout: 20), "iPad registration missing")
+        mark("v7_onb_registered")
+        hold(7)
+        next.tap()
+
+        // Ready: the checklist, then the audit trail and Finish.
+        XCTAssertTrue(pageHeader(containing: "in place").waitForExistence(timeout: 15), "Checklist page did not appear")
+        mark("v7_onb_ready")
+        hold(12)
+        next.tap()
+        let done = app.buttons["onboarding.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 15), "Audit page did not appear")
+        hold(8)
+        done.tap()
+        let openRoster = app.buttons["admin.openRoster"]
+        XCTAssertTrue(openRoster.waitForExistence(timeout: 60), "Dashboard did not appear")
+        mark("v7_onb_dashboard")
+        hold(10)
+        scrollTo(openRoster).tap()
+        XCTAssertTrue(app.buttons["roster.resident.Margaret Hale"].waitForExistence(timeout: 30), "Imported residents missing from the roster")
+        mark("v7_onb_roster")
+        hold(12)
+
+        // Sam joins with the invite code.
+        mark("v7_onb_join")
+        hold(2)
+        waitTap(app.buttons["chrome.logout"])
+        let haveCode = app.buttons["signin.haveCode"]
+        XCTAssertTrue(haveCode.waitForExistence(timeout: 20), "Sign-in did not come back")
+        hold(5)
+        let codeEmail = app.textFields["onboarding.codeEmail"]
+        tapRevealing(haveCode, codeEmail)
+        hold(3)
+        type(into: codeEmail, "sam@willowbank-care.co.uk")
+        type(into: app.textFields["onboarding.codeField"], inviteCode)
+        XCTAssertTrue(app.staticTexts["Willowbank Care"].waitForExistence(timeout: 15), "Invite preview did not appear")
+        mark("v7_onb_preview2")
+        hold(9)
+        type(into: app.textFields["onboarding.codeName"], "Sam Jones")
+        typePin("onboarding.codePin", "246810")
+        typePin("onboarding.codeConfirmPin", "246810")
+        tapAny("onboarding.terms")
+        hold(2)
+        mark("v7_onb_accept")
+        scrollTo(app.buttons["onboarding.redeem"]).tap()
+        XCTAssertTrue(app.buttons["roster.startDiscovery"].waitForExistence(timeout: 60), "Sam's roster did not appear")
+        mark("v7_onb_samRoster")
+        hold(12)
+        mark("end")
+        hold(2)
+    }
+
+    /// Smoke check for the tail of Part I without the 10-minute lead-in: an existing org admin signs in,
+    /// opens the roster, logs out and opens "I have an invite or activation code". Needs the Willowbank
+    /// organisation to exist (run Part I first; the reset removes it).
+    func testOnboardingJoinSmoke() throws {
+        app.launchArguments = ["-NoteStalgiaDemoAudioLog", "YES", "-NoteStalgiaDemoSkipLaunch", "YES",
+                               "-NoteStalgiaDemoSignIn", "dana@willowbank-care.co.uk", "-NoteStalgiaDemoSignInPIN", "135790"]
+        if let base = ProcessInfo.processInfo.environment["API_BASE_URL"], !base.isEmpty {
+            app.launchArguments += ["-NoteStalgiaAPIBaseURL", base]
+        }
+        app.launch()
+        let openRoster = app.buttons["admin.openRoster"]
+        XCTAssertTrue(openRoster.waitForExistence(timeout: 60), "Dashboard did not appear")
+        hold(3)
+        scrollTo(openRoster).tap()
+        XCTAssertTrue(app.buttons["roster.startDiscovery"].waitForExistence(timeout: 30), "Roster did not appear")
+        hold(6)
+        waitTap(app.buttons["chrome.logout"])
+        let haveCode = app.buttons["signin.haveCode"]
+        XCTAssertTrue(haveCode.waitForExistence(timeout: 20), "Sign-in did not come back")
+        hold(5)
+        let codeEmail = app.textFields["onboarding.codeEmail"]
+        tapRevealing(haveCode, codeEmail)
+        hold(2)
+    }
+
     // MARK: - Helpers
+
+    /// Scrolls to a field, focuses it and types; pauses so the recording shows the text arriving.
+    private func type(into field: XCUIElement, _ text: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "Missing \(field)", file: file, line: line)
+        _ = scrollTo(field, assert: false)
+        field.tap()
+        hold(0.6)
+        field.typeText(text)
+        hold(0.8)
+    }
+
+    /// Six digits one by one into a `SixDigitPinInput` (its sixth digit moves focus on).
+    private func typePin(_ identifier: String, _ digits: String, file: StaticString = #filePath, line: UInt = #line) {
+        let pin = app.textFields[identifier]
+        XCTAssertTrue(pin.waitForExistence(timeout: 10), "Missing \(identifier)", file: file, line: line)
+        _ = scrollTo(pin, assert: false)
+        pin.tap()
+        hold(0.6)
+        for digit in digits {
+            pin.typeText(String(digit))
+            hold(0.35)
+        }
+        hold(0.6)
+    }
+
+    /// Taps a button and waits for the screen it opens; a tap that lands during a phase fade is swallowed by
+    /// the flow's hit-testing gate, so one retry at the button's centre covers it.
+    private func tapRevealing(_ button: XCUIElement, _ reveals: XCUIElement, timeout: TimeInterval = 15, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(button.waitForExistence(timeout: 20), "Missing \(button)", file: file, line: line)
+        button.tap()
+        if !reveals.waitForExistence(timeout: 6) {
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(reveals.waitForExistence(timeout: timeout), "\(reveals) did not appear after tapping \(button)", file: file, line: line)
+    }
+
+    /// Taps an element by identifier whatever XCUITest classifies it as (toggle rows are buttons with a toggle trait).
+    private func tapAny(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let element = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "Missing \(identifier)", file: file, line: line)
+        _ = scrollTo(element, assert: false)
+        element.tap()
+    }
 
     private func launch(autoSignIn: Bool, skipLaunch: Bool, resetHouseholds: Bool = false) {
         var arguments = ["-NoteStalgiaDemoAudioLog", "YES", "-NoteStalgiaDemoAutoPhoto", "YES"]

@@ -104,9 +104,31 @@ actor APIClient {
         try await send(method: "PUT", path: path, query: [:], body: try encoder.encode(body), authorized: authorized)
     }
 
+    /// No body in, nothing of interest out (204).
+    func delete(_ path: String) async throws {
+        let _: EmptyResponse = try await send(method: "DELETE", path: path, query: [:], body: Optional<Data>.none, authorized: true)
+    }
+
     /// Raw upload (portraits).
     func upload<Response: Decodable>(_ path: String, data: Data, contentType: String) async throws -> Response {
         try await send(method: "PUT", path: path, query: [:], body: data, contentType: contentType, authorized: true)
+    }
+
+    /// Raw authorised GET with a query (exports): the bytes and the suggested file name, if any.
+    func downloadRaw(_ path: String, query: [String: String]) async throws -> (data: Data, fileName: String?) {
+        var request = try makeRequest(method: "GET", path: path, query: query)
+        if let token = await tokenProvider?.accessToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await perform(request)
+        guard (200 ... 299).contains(response.statusCode) else {
+            throw mapError(status: response.statusCode, data: data, response: response)
+        }
+        let disposition = response.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        let fileName = disposition.range(of: #"filename="([^"]+)""#, options: .regularExpression).map { range in
+            String(disposition[range]).replacingOccurrences(of: "filename=\"", with: "").replacingOccurrences(of: "\"", with: "")
+        }
+        return (data, fileName)
     }
 
     /// Raw download (portraits); `nil` on 404.
@@ -153,8 +175,9 @@ actor APIClient {
                 throw APIError.unauthorized
             }
             guard (200 ... 299).contains(response.statusCode) else {
-                // Unauthenticated calls (sign-in, reset) carry the message the app should show on 401.
-                if response.statusCode == 401, !authorized {
+                // Unauthenticated calls (sign-in, codes) carry the message the app should show on 401 / 403
+                // (wrong PIN, suspended account, ended trial).
+                if response.statusCode == 401 || response.statusCode == 403, !authorized {
                     let body = try? decoder.decode(ErrorBody.self, from: data)
                     throw APIError.server(status: 401, code: body?.error, message: body?.message)
                 }

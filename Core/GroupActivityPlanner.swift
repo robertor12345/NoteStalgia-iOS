@@ -98,8 +98,10 @@ struct GroupResidentInsight: Identifiable, Equatable {
     var flags: [Flag]
     /// Higher = would benefit more from being included in the next group activity.
     var needScore: Double
-    /// One line for the picker row, e.g. "Last 1-to-1 9 days ago · no group this fortnight".
+    /// One line for the picker row, e.g. "Last 1-to-1 9 days ago · no group in 14 days".
     var statusLine: String
+    /// Staff notes about this resident from recent group check-ins, most recent first (up to three).
+    var recentGroupNotes: [GroupParticipantState] = []
 
     var isRecommendable: Bool { groupComfort != .prefersOneToOne }
 }
@@ -237,8 +239,18 @@ enum GroupActivityPlanner {
             .sorted { $0.date > $1.date }
         let groups14 = myGroups.filter { $0.date >= windowStart }.count
         let daysSinceGroup = myGroups.first.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) }
-        let engagementScores = myGroups.prefix(5).compactMap { $0.engagementRating.map(Double.init) }
+        // Per-person engagement: a staff note about this resident outranks the room's score for
+        // that session ("engaged" lifts it to at least 7, "unsettled" 3, "left early" 2).
+        let engagementScores = myGroups.prefix(5).compactMap { record -> Double? in
+            switch record.participantNote(for: resident.id) {
+            case .engaged: return max(Double(record.engagementRating ?? 7), 7)
+            case .unsettled: return 3
+            case .leftEarly: return 2
+            case nil: return record.engagementRating.map(Double.init)
+            }
+        }
         let avgEngagement = engagementScores.isEmpty ? nil : engagementScores.reduce(0, +) / Double(engagementScores.count)
+        let recentNotes = myGroups.prefix(3).compactMap { $0.participantNote(for: resident.id) }
         let trend = CareHomeAnalytics.residentTrend(resident: resident, records: sessionRecords, now: now)
         let affinity = genreAffinity(for: resident, sessionRecords: sessionRecords)
         let genres = Set(affinity.filter { $0.value >= 1.5 }.map(\.key))
@@ -271,7 +283,10 @@ enum GroupActivityPlanner {
 
         var parts: [String] = []
         parts.append(daysSince.map { $0 == 0 ? "One-to-one today" : "Last one-to-one \($0) day\($0 == 1 ? "" : "s") ago" } ?? "No one-to-one on file")
-        parts.append(groups14 == 0 ? "no group this fortnight" : "\(groups14) group\(groups14 == 1 ? "" : "s") this fortnight")
+        parts.append(groups14 == 0 ? "no group in 14 days" : "\(groups14) group\(groups14 == 1 ? "" : "s") in 14 days")
+        if let lastNote = recentNotes.first {
+            parts.append("\(lastNote.label.lowercased()) last time")
+        }
 
         return GroupResidentInsight(
             id: resident.id,
@@ -288,7 +303,8 @@ enum GroupActivityPlanner {
             groupComfort: resident.groupComfort,
             flags: flags,
             needScore: need,
-            statusLine: parts.joined(separator: " · ")
+            statusLine: parts.joined(separator: " · "),
+            recentGroupNotes: recentNotes
         )
     }
 
@@ -386,6 +402,11 @@ enum GroupActivityPlanner {
         if let avg = insight.averageGroupEngagement, avg < 4.5 {
             return String(format: "group engagement has averaged %.1f/10", avg)
         }
+        // Two check-ins in a row where staff noted them unsettled or leaving early.
+        let difficult = insight.recentGroupNotes.prefix(2).filter { $0 != .engaged }
+        if insight.recentGroupNotes.count >= 2, difficult.count == 2 {
+            return "staff noted them \(difficult[0].label.lowercased()) at their last two groups"
+        }
         if insight.flags.contains(.gentle), insight.groupComfort != .enjoysGroups, insight.trend == .declining {
             return "recent sessions have been unsettled"
         }
@@ -443,7 +464,7 @@ enum GroupActivityPlanner {
                 GroupPlannerSuggestion(
                     id: "pair.\(genre.rawValue)",
                     kind: .pairing,
-                    text: "\(a.displayName) and \(b.displayName) both respond to \(genre.rawValue) and haven't shared a session this fortnight.",
+                    text: "\(a.displayName) and \(b.displayName) both respond to \(genre.rawValue) and haven't shared a session in the last 14 days.",
                     residentIds: [a.id, b.id],
                     canAdd: true
                 )

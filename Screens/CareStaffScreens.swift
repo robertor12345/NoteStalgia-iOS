@@ -23,10 +23,15 @@ struct CarePatientListView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to start screen",
+                backAccessibilityLabel: state.isCareHomeAdmin ? "Back to home insights" : "Back to start screen",
                 onBack: {
-                    state.selectedCarePatientId = nil
-                    state.navigateStaffToHome()
+                    // A home lead came from their dashboard; staff came from the start screen.
+                    if state.isCareHomeAdmin {
+                        state.returnToAdminDashboardFromRoster()
+                    } else {
+                        state.selectedCarePatientId = nil
+                        state.navigateStaffToHome()
+                    }
                 },
                 onLogout: { state.signOutSupervisor() },
                 topAligned: true
@@ -205,12 +210,11 @@ struct CarePatientListView: View {
     }
 
     private var displayModePicker: some View {
-        Picker("Display", selection: $state.rosterDisplayMode) {
-            ForEach(CareRosterDisplayMode.allCases) { mode in
-                Text(mode.label).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
+        BrandSegmentedChoice(
+            title: "Display",
+            selection: $state.rosterDisplayMode,
+            options: CareRosterDisplayMode.allCases.map { BrandChoiceOption(value: $0, label: $0.label) }
+        )
         .chimeOnChange(of: state.rosterDisplayMode)
         .accessibilityIdentifier("roster.displayMode")
         .padding(.horizontal, 4)
@@ -245,11 +249,12 @@ struct CarePatientListView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(section.title)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTheme.textPrimary)
+                            .orbOverlayText()
+                            .accessibilityAddTraits(.isHeader)
                         if let subtitle = section.subtitle {
                             Text(subtitle)
                                 .font(.caption)
-                                .foregroundStyle(BrandTheme.textSecondary)
+                                .orbOverlayText(muted: true)
                         }
                     }
                     .padding(.horizontal, 8)
@@ -379,23 +384,17 @@ struct CarePatientListView: View {
         return Group {
             if overview.hasData {
                 BrandCard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Care home — carer observations")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTheme.textSecondary)
-                        Text("Rolling averages across recent sessions with sentiment ratings.")
+                    VStack(alignment: .leading, spacing: 12) {
+                        BrandSectionHeader(
+                            title: "Carer observations across the home",
+                            systemImage: "heart.text.square",
+                            subtitle: "Rolling averages of the 1–10 observations recorded after recent sessions."
+                        )
+                        SentimentAverageTiles(summary: overview)
+                        Text("\(overview.sessionCount) rated session\(overview.sessionCount == 1 ? "" : "s") on file · \(BrandRatingTone.legend)")
                             .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
+                            .foregroundStyle(BrandTheme.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
-                        if let line = overview.formattedAveragesLine() {
-                            Text(line)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(BrandTheme.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Text("\(overview.sessionCount) rated session\(overview.sessionCount == 1 ? "" : "s") on file")
-                            .font(.caption2)
-                            .foregroundStyle(BrandTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -753,19 +752,15 @@ struct CareSessionPrepView: View {
 
                     if let patient {
                         BrandCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("With \(patient.displayName)")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                                Text("Light: \(patient.preferredLight)")
-                                    .font(.caption)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("Scent: \(patient.scentGuidance)")
-                                    .font(.caption)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("Touch: \(patient.touchComfortNotes)")
-                                    .font(.caption)
-                                    .foregroundStyle(BrandTheme.textSecondary)
+                            VStack(alignment: .leading, spacing: 12) {
+                                BrandSectionHeader(title: "With \(patient.displayName)", systemImage: "hand.raised")
+                                BrandInsetTile {
+                                    VStack(spacing: 0) {
+                                        CareSenseNoteRow(label: "Light", value: patient.preferredLight)
+                                        CareSenseNoteRow(label: "Scent", value: patient.scentGuidance)
+                                        CareSenseNoteRow(label: "Touch", value: patient.touchComfortNotes, isLast: true)
+                                    }
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -774,8 +769,9 @@ struct CareSessionPrepView: View {
 
                     Text("Smart lighting")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textPrimary)
+                        .orbOverlayText()
                         .padding(.horizontal, 4)
+                        .accessibilityAddTraits(.isHeader)
 
                     BrandCard {
                         VStack(alignment: .leading, spacing: 14) {
@@ -809,8 +805,9 @@ struct CareSessionPrepView: View {
 
                     Text("Immersive & VR")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textPrimary)
+                        .orbOverlayText()
                         .padding(.horizontal, 4)
+                        .accessibilityAddTraits(.isHeader)
 
                     BrandCard {
                         VStack(alignment: .leading, spacing: 14) {
@@ -835,18 +832,18 @@ struct CareSessionPrepView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Rough length")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTheme.textPrimary)
-                        Picker("Minutes", selection: $state.carePlannedDurationMinutes) {
-                            ForEach(durationChoices, id: \.self) { m in
-                                Text("\(m) min").tag(m)
-                            }
-                        }
+                            .orbOverlayText()
+                            .accessibilityAddTraits(.isHeader)
+                        BrandSegmentedChoice(
+                            title: "Minutes",
+                            selection: $state.carePlannedDurationMinutes,
+                            options: durationChoices.map { BrandChoiceOption(value: $0, label: "\($0) min") }
+                        )
                         .accessibilityIdentifier("prep.minutes")
-                        .pickerStyle(.segmented)
                         .chimeOnChange(of: state.carePlannedDurationMinutes)
                         Text("Only a guide — stop whenever it feels right. Lights can ease down with the closing breath.")
                             .font(.caption2)
-                            .foregroundStyle(BrandTheme.textSecondary)
+                            .orbOverlayText(muted: true)
                     }
                     .padding(.horizontal, 4)
 
@@ -952,9 +949,7 @@ struct CarePatientDetailView: View {
 
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("Listening profile")
-                                    .font(DetailTypography.section)
-                                    .foregroundStyle(BrandTheme.textSecondary)
+                                BrandSectionHeader(title: "Listening profile", systemImage: "person.text.rectangle")
                                 Stepper(value: Binding(
                                     get: { patient.residentAgeYears },
                                     set: { state.setResidentAge(for: patient.id, age: $0) }
@@ -984,13 +979,11 @@ struct CarePatientDetailView: View {
 
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("Listening discovery")
-                                    .font(DetailTypography.section)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("Seven short clips, one per genre (about 30 seconds each). The resident taps a face — red, amber or green — for each one; we then suggest genre playlists from what they enjoyed and open their calm surface.")
-                                    .font(DetailTypography.secondary)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                BrandSectionHeader(
+                                    title: "Listening discovery",
+                                    systemImage: "waveform",
+                                    subtitle: "Seven short clips, one per genre (about 30 seconds each). The resident taps a face — red, amber or green — for each one; we then suggest genre playlists from what they enjoyed and open their calm surface."
+                                )
                                 SecondaryButton(title: "Start discovery pass") {
                                     state.startDiscoveryCalibration(for: patient.id)
                                 }
@@ -1009,30 +1002,15 @@ struct CarePatientDetailView: View {
                         .padding(.horizontal, 4)
 
                         BrandCard {
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Comfort & senses")
-                                    .font(DetailTypography.section)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text("Light")
-                                    .font(DetailTypography.label)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                Text(patient.preferredLight)
-                                    .font(DetailTypography.body)
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                                Text("Scent")
-                                    .font(DetailTypography.label)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                    .padding(.top, 4)
-                                Text(patient.scentGuidance)
-                                    .font(DetailTypography.body)
-                                    .foregroundStyle(BrandTheme.textPrimary)
-                                Text("Touch")
-                                    .font(DetailTypography.label)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                    .padding(.top, 4)
-                                Text(patient.touchComfortNotes)
-                                    .font(DetailTypography.body)
-                                    .foregroundStyle(BrandTheme.textPrimary)
+                            VStack(alignment: .leading, spacing: 14) {
+                                BrandSectionHeader(title: "Comfort & senses", systemImage: "hand.raised")
+                                BrandInsetTile {
+                                    VStack(spacing: 0) {
+                                        CareSenseNoteRow(label: "Light", value: patient.preferredLight)
+                                        CareSenseNoteRow(label: "Scent", value: patient.scentGuidance)
+                                        CareSenseNoteRow(label: "Touch", value: patient.touchComfortNotes, isLast: true)
+                                    }
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -1040,15 +1018,18 @@ struct CarePatientDetailView: View {
 
                         BrandCard {
                             VStack(alignment: .leading, spacing: 14) {
-                                Text("For next time")
-                                    .font(DetailTypography.section)
-                                    .foregroundStyle(BrandTheme.textSecondary)
-                                meterRow("Tempo — gentler ↔ slightly brighter", value: patient.musicTempoBias)
-                                meterRow("Nature ↔ abstract", value: patient.natureVsAbstract)
-                                meterRow("Instrumental ↔ voice", value: patient.voiceVsInstrumental)
+                                BrandSectionHeader(title: "For next time", systemImage: "slider.horizontal.3")
+                                BrandInsetTile {
+                                    VStack(alignment: .leading, spacing: 14) {
+                                        meterRow("Tempo — gentler ↔ slightly brighter", value: patient.musicTempoBias)
+                                        meterRow("Nature ↔ abstract", value: patient.natureVsAbstract)
+                                        meterRow("Instrumental ↔ voice", value: patient.voiceVsInstrumental)
+                                    }
+                                }
                                 Text("After you’re together, note how they responded — these sliders help the next visit land softly.")
                                     .font(DetailTypography.secondary)
                                     .foregroundStyle(BrandTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -1057,71 +1038,19 @@ struct CarePatientDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Previous sessions")
                                 .font(DetailTypography.section)
-                                .foregroundStyle(BrandTheme.textPrimary)
+                                .orbOverlayText()
                                 .padding(.horizontal, 4)
+                                .accessibilityAddTraits(.isHeader)
 
                             let rows = state.recordsForPatient(patient.id)
                             if rows.isEmpty {
                                 Text("Nothing here yet.")
                                     .font(DetailTypography.body)
-                                    .foregroundStyle(BrandTheme.textSecondary)
+                                    .orbOverlayText(muted: true)
                                     .padding(.horizontal, 8)
                             } else {
                                 ForEach(rows) { rec in
-                                    BrandCard {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                Text(rec.date, style: .date)
-                                                    .font(DetailTypography.label)
-                                                    .foregroundStyle(BrandTheme.textSecondary)
-                                                Spacer()
-                                                Text("\(rec.calmPercent)% at ease")
-                                                    .font(DetailTypography.body.weight(.medium))
-                                                    .foregroundStyle(BrandTheme.goldDeep)
-                                            }
-                                            Text("Mood tags: \(rec.moodSummary)")
-                                                .font(DetailTypography.body)
-                                                .foregroundStyle(BrandTheme.textPrimary)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            if let line = outcomeLine(rec) {
-                                                Text(line)
-                                                    .font(DetailTypography.secondary)
-                                                    .foregroundStyle(BrandTheme.textSecondary)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            if let insight = rec.insightPreviewLine() {
-                                                Text(insight)
-                                                    .font(DetailTypography.body)
-                                                    .foregroundStyle(BrandTheme.textPrimary)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            if let next = rec.insightSuggestedNextStep {
-                                                Text("Next: \(next)")
-                                                    .font(DetailTypography.secondary)
-                                                    .foregroundStyle(BrandTheme.goldDeep)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            if let context = rec.sessionContextSummary, !context.isEmpty {
-                                                Text(context)
-                                                    .font(DetailTypography.secondary)
-                                                    .foregroundStyle(BrandTheme.textSecondary)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            if let note = rec.staffNote, !note.isEmpty {
-                                                Text(note)
-                                                    .font(DetailTypography.secondary)
-                                                    .foregroundStyle(BrandTheme.textSecondary)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
+                                    sessionHistoryCard(rec)
                                 }
                                 .padding(.horizontal, 4)
                             }
@@ -1157,22 +1086,16 @@ struct CarePatientDetailView: View {
             if summary.hasData {
                 BrandCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Carer observations (recent sessions)")
-                            .font(DetailTypography.section)
-                            .foregroundStyle(BrandTheme.textSecondary)
-                        Text("Rolling averages from post-session carer observations (1–10) — mood/affect, alertness, emotional presentation, and orientation.")
-                            .font(DetailTypography.secondary)
-                            .foregroundStyle(BrandTheme.textSecondary)
+                        BrandSectionHeader(
+                            title: "Carer observations",
+                            systemImage: "heart.text.square",
+                            subtitle: "Rolling averages of the 1–10 observations recorded after each session."
+                        )
+                        SentimentAverageTiles(summary: summary)
+                        Text("Based on \(summary.sessionCount) rated session\(summary.sessionCount == 1 ? "" : "s") · \(BrandRatingTone.legend)")
+                            .font(.caption)
+                            .foregroundStyle(BrandTheme.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
-                        if let line = summary.formattedAveragesLine() {
-                            Text(line)
-                                .font(DetailTypography.body.weight(.medium))
-                                .foregroundStyle(BrandTheme.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Text("Based on \(summary.sessionCount) rated session\(summary.sessionCount == 1 ? "" : "s")")
-                            .font(DetailTypography.secondary)
-                            .foregroundStyle(BrandTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -1186,9 +1109,7 @@ struct CarePatientDetailView: View {
         let participation = state.groupParticipationSummary(for: patient.id)
         return BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Group activities")
-                    .font(DetailTypography.section)
-                    .foregroundStyle(BrandTheme.textSecondary)
+                BrandSectionHeader(title: "Group activities", systemImage: "person.3")
                 Text(participation.line)
                     .font(DetailTypography.body)
                     .foregroundStyle(BrandTheme.textPrimary)
@@ -1199,16 +1120,19 @@ struct CarePatientDetailView: View {
                     Text("In company")
                         .font(DetailTypography.label)
                         .foregroundStyle(BrandTheme.textSecondary)
-                    Picker("In company", selection: Binding(
-                        get: { patient.groupComfort?.rawValue ?? "" },
-                        set: { state.setResidentGroupComfort(for: patient.id, comfort: GroupComfort(rawValue: $0)) }
-                    )) {
-                        Text("Not set").tag("")
-                        Text("Enjoys groups").tag(GroupComfort.enjoysGroups.rawValue)
-                        Text("Small groups").tag(GroupComfort.smallGroupsOnly.rawValue)
-                        Text("One-to-one").tag(GroupComfort.prefersOneToOne.rawValue)
-                    }
-                    .pickerStyle(.segmented)
+                    BrandSegmentedChoice(
+                        title: "In company",
+                        selection: Binding(
+                            get: { patient.groupComfort?.rawValue ?? "" },
+                            set: { state.setResidentGroupComfort(for: patient.id, comfort: GroupComfort(rawValue: $0)) }
+                        ),
+                        options: [
+                            BrandChoiceOption(value: "", label: "Not set"),
+                            BrandChoiceOption(value: GroupComfort.enjoysGroups.rawValue, label: "Enjoys groups"),
+                            BrandChoiceOption(value: GroupComfort.smallGroupsOnly.rawValue, label: "Small groups"),
+                            BrandChoiceOption(value: GroupComfort.prefersOneToOne.rawValue, label: "One-to-one"),
+                        ]
+                    )
                     .accessibilityIdentifier("profile.groupComfort")
                     .chimeOnChange(of: patient.groupComfort)
                     Text("Shapes the group planner's suggestions. Residents set to one-to-one are never invited automatically; small groups and gentle flags are shown to staff, not enforced.")
@@ -1230,17 +1154,15 @@ struct CarePatientDetailView: View {
         let groups = orderedPlaylistGroups(patient)
         return BrandCard {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Playlists on file (by genre)")
-                    .font(DetailTypography.section)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text("These appear as floating instruments for the resident — staff does not change them here.")
-                    .font(DetailTypography.secondary)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                BrandSectionHeader(
+                    title: "Playlists on file",
+                    systemImage: "music.note.list",
+                    subtitle: "By genre. These appear as floating instruments for the resident — staff do not change them here."
+                )
 
                 ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
                     if index > 0 {
-                        Divider().opacity(0.35)
+                        BrandHairline()
                     }
                     genrePlaylistSection(group: group)
                 }
@@ -1257,13 +1179,11 @@ struct CarePatientDetailView: View {
 
         return BrandCard {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Suggested liked songs")
-                    .font(DetailTypography.section)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text("Add tracks family or staff know they enjoy. These float earlier when a playlist starts — live sun taps still raise weight further.")
-                    .font(DetailTypography.secondary)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                BrandSectionHeader(
+                    title: "Suggested liked songs",
+                    systemImage: "heart",
+                    subtitle: "Add tracks family or staff know they enjoy. These float earlier when a playlist starts — live sun taps still raise weight further."
+                )
 
                 if selected.isEmpty {
                     Text("None yet — add a song below.")
@@ -1427,33 +1347,107 @@ struct CarePatientDetailView: View {
     }
 
     private func meterRow(_ title: String, value: Double) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title)
-                    .font(DetailTypography.body)
-                    .foregroundStyle(BrandTheme.textPrimary)
-                Spacer()
-                Text("\(Int((value * 100).rounded()))%")
-                    .font(DetailTypography.body.monospacedDigit())
+        BrandRatingRow(
+            label: title,
+            valueText: "\(Int((value * 100).rounded()))%",
+            fraction: value,
+            tint: BrandTheme.gold,
+            spokenValue: "\(Int((value * 100).rounded())) percent"
+        )
+    }
+
+    /// One past session as a handover note: when and how at ease in the header, the carer's 1–10
+    /// observations as chips, the insight and next step on their own tiles, notes quoted.
+    private func sessionHistoryCard(_ rec: CareSessionRecord) -> some View {
+        BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(rec.date, style: .date)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 8)
+                    BrandStatusChip(
+                        text: "\(rec.calmPercent)% at ease",
+                        systemImage: "leaf.fill",
+                        tint: CareAtEaseTone.tint(percent: rec.calmPercent)
+                    )
+                }
+                BrandHairline()
+                if !rec.moodSummary.isEmpty, rec.moodSummary != "—" {
+                    Text("Mood tags: \(rec.moodSummary)")
+                        .font(DetailTypography.body)
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                let ratings = sentimentRatings(rec)
+                if !ratings.isEmpty {
+                    InsightChipFlow {
+                        ForEach(ratings) { rating in
+                            BrandStatusChip(
+                                text: "\(rating.label) \(rating.value)/10",
+                                tint: BrandRatingTone.tint(outOfTen: Double(rating.value))
+                            )
+                        }
+                    }
+                }
+                if let line = outcomeLine(rec) {
+                    Text(line)
+                        .font(DetailTypography.secondary)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let insight = rec.insightPreviewLine() {
+                    BrandInsetTile {
+                        Text(insight)
+                            .font(DetailTypography.body)
+                            .foregroundStyle(BrandTheme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if let next = rec.insightSuggestedNextStep {
+                    BrandInsetTile(accent: BrandTheme.statusCaution) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "lightbulb.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(BrandTheme.statusCaution)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Suggested next step")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(BrandTheme.textSecondary)
+                                Text(next)
+                                    .font(DetailTypography.body)
+                                    .foregroundStyle(BrandTheme.textPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                if let context = rec.sessionContextSummary, !context.isEmpty {
+                    Label {
+                        Text(context)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "tag")
+                    }
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
-            }
-            GeometryReader { g in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(BrandTheme.brown.opacity(0.1))
-                    Capsule()
-                        .fill(BrandTheme.gold.opacity(0.85))
-                        .frame(width: max(4, g.size.width * CGFloat(value)))
+                }
+                if let note = rec.staffNote, !note.isEmpty {
+                    BrandQuoteBlock(title: "Staff note", text: note)
                 }
             }
-            .frame(height: 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
+    /// The interaction summary is already the opening of the insight tile, so it only appears here
+    /// for sessions recorded before insights existed.
     private func outcomeLine(_ rec: CareSessionRecord) -> String? {
         var parts: [String] = []
-        if let line = rec.residentInteractionSummaryLine() { parts.append(line) }
-        if let line = sentimentLine(rec) { parts.append(line) }
+        if rec.insightPreviewLine() == nil, let line = rec.residentInteractionSummaryLine() { parts.append(line) }
         if rec.settledness != nil || rec.engagement != nil || rec.comfortTolerance != nil {
             if let s = rec.settledness { parts.append("Settled \(s)%") }
             if let e = rec.engagement { parts.append("Engaged \(e)%") }
@@ -1462,13 +1456,85 @@ struct CarePatientDetailView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    private func sentimentLine(_ rec: CareSessionRecord) -> String? {
-        var parts: [String] = []
-        if let v = rec.moodRating { parts.append("Mood/affect \(v)/10") }
-        if let v = rec.alertnessRating { parts.append("Alertness \(v)/10") }
-        if let v = rec.emotionalStateRating { parts.append("Emotional presentation \(v)/10") }
-        if let v = rec.lucidityRating { parts.append("Orientation \(v)/10") }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    private func sentimentRatings(_ rec: CareSessionRecord) -> [CareSessionInsightSummary.Rating] {
+        var items: [CareSessionInsightSummary.Rating] = []
+        if let v = rec.moodRating { items.append(.init(label: "Mood/affect", value: v)) }
+        if let v = rec.alertnessRating { items.append(.init(label: "Alertness", value: v)) }
+        if let v = rec.emotionalStateRating { items.append(.init(label: "Emotional presentation", value: v)) }
+        if let v = rec.lucidityRating { items.append(.init(label: "Orientation", value: v)) }
+        return items
+    }
+}
+
+/// Status tint for a "% at ease" figure.
+enum CareAtEaseTone {
+    static func tint(percent: Int) -> Color {
+        if percent >= 70 { return BrandTheme.statusPositive }
+        if percent >= 45 { return BrandTheme.statusCaution }
+        return BrandTheme.statusAttention
+    }
+}
+
+/// Label above a sentence of care guidance (light, scent, touch), with a hairline beneath.
+struct CareSenseNoteRow: View {
+    let label: String
+    let value: String
+    var isLast: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BrandTheme.textSecondary)
+                Text(value)
+                    .font(.body)
+                    .foregroundStyle(BrandTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 8)
+            if !isLast { BrandHairline() }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The four carer-observation averages as tiles, each tinted by the rating tone.
+struct SentimentAverageTiles: View {
+    let summary: CareSessionSentimentSummary
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private struct Item: Identifiable {
+        let label: String
+        let value: Double?
+        var id: String { label }
+    }
+
+    private var items: [Item] {
+        [
+            Item(label: "Mood / affect", value: summary.averageMood),
+            Item(label: "Alertness", value: summary.averageAlertness),
+            Item(label: "Emotional presentation", value: summary.averageEmotionalState),
+            Item(label: "Orientation", value: summary.averageLucidity),
+        ]
+    }
+
+    var body: some View {
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: BrandLayout.isRegularWidth(horizontalSizeClass) ? 4 : 2
+        )
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(items) { item in
+                BrandStatTile(
+                    value: item.value.map { String(format: "%.1f", $0) } ?? "—",
+                    label: item.label,
+                    detail: "out of 10",
+                    tint: item.value.map { BrandRatingTone.tint(outOfTen: $0) }
+                )
+            }
+        }
     }
 }
 
@@ -1522,14 +1588,14 @@ struct CareSessionSentimentFeedbackView: View {
 
                         if let metricsLine = state.residentSurfaceMetrics.interactionSummary() {
                             BrandCard {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Session captured automatically")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(BrandTheme.textSecondary)
-                                    Text(metricsLine)
-                                        .font(.body)
-                                        .foregroundStyle(BrandTheme.textPrimary)
-                                        .fixedSize(horizontal: false, vertical: true)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    BrandSectionHeader(title: "Session captured automatically", systemImage: "waveform")
+                                    BrandInsetTile {
+                                        Text(metricsLine)
+                                            .font(.body)
+                                            .foregroundStyle(BrandTheme.textPrimary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -1549,6 +1615,7 @@ struct CareSessionSentimentFeedbackView: View {
                                 Text(currentStep.title)
                                     .font(.title2.weight(.semibold))
                                     .foregroundStyle(BrandTheme.textPrimary)
+                                    .accessibilityAddTraits(.isHeader)
                                 Text(currentStep.prompt)
                                     .font(.body)
                                     .foregroundStyle(BrandTheme.textSecondary)
@@ -1626,13 +1693,15 @@ struct CareSessionSentimentFeedbackView: View {
         HStack(spacing: 8) {
             ForEach(CareSessionSentimentStep.allCases) { step in
                 Capsule()
-                    .fill(step.rawValue <= state.sessionSentimentStep ? BrandTheme.gold : BrandTheme.brown.opacity(0.12))
-                    .frame(height: 4)
+                    .fill(step.rawValue <= state.sessionSentimentStep ? BrandTheme.gold : BrandTheme.meterTrack)
+                    .frame(height: 5)
             }
         }
         .padding(.horizontal, 4)
         .animation(CalmMotion.subtle, value: state.sessionSentimentStep)
-        .accessibilityLabel("Step \(state.sessionSentimentStep + 1) of \(CareSessionSentimentStep.allCases.count)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Progress")
+        .accessibilityValue("Step \(state.sessionSentimentStep + 1) of \(CareSessionSentimentStep.allCases.count)")
     }
 
     private var backLabel: String {
@@ -1691,12 +1760,13 @@ struct SentimentScalePicker: View {
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(isSelected ? BrandTheme.gold.opacity(0.55) : BrandTheme.gold.opacity(0.2), lineWidth: 1)
+                                    .stroke(isSelected ? BrandTheme.gold.opacity(0.7) : BrandTheme.insetBorder, lineWidth: isSelected ? 1.5 : 1)
                             )
                             .scaleEffect(isSelected ? 1.06 : 1)
                     }
                     .buttonStyle(ChimingPlainButtonStyle())
                     .accessibilityLabel("\(value) out of 10")
+                    .accessibilityHint(value <= 3 ? lowCaption : value >= 8 ? highCaption : "")
                     .accessibilityIdentifier("rating.\(value)")
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
@@ -1751,9 +1821,7 @@ struct CareSessionFeedbackView: View {
 
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text("In the moment")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(BrandTheme.textSecondary)
+                                BrandSectionHeader(title: "In the moment", systemImage: "face.smiling")
                                 outcomeSlider(
                                     title: "Seemed settled",
                                     caption: "Still unsettled  ←  →  More at ease",
@@ -1774,15 +1842,16 @@ struct CareSessionFeedbackView: View {
                         }
                         .padding(.horizontal, 4)
 
-                        Text("Sound for next time")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTheme.textPrimary)
+                        BrandCard {
+                            VStack(alignment: .leading, spacing: 16) {
+                                BrandSectionHeader(title: "Sound for next time", systemImage: "slider.horizontal.3")
+                                tuningSlider(title: "Tempo — gentler ↔ slightly brighter", value: $tempo)
+                                tuningSlider(title: "Nature ↔ abstract", value: $nature)
+                                tuningSlider(title: "Instrumental ↔ voice", value: $voice)
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 4)
-
-                        tuningSlider(title: "Tempo — gentler ↔ slightly brighter", value: $tempo)
-                        tuningSlider(title: "Nature ↔ abstract", value: $nature)
-                        tuningSlider(title: "Instrumental ↔ voice", value: $voice)
+                        }
+                        .padding(.horizontal, 4)
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Your note (optional)")
@@ -1860,7 +1929,9 @@ struct CareSessionFeedbackView: View {
                 .font(.caption2)
                 .foregroundStyle(BrandTheme.textSecondary)
             Slider(value: value, in: 0 ... 1)
-            .accessibilityIdentifier("feedback.outcome.\(title)")
+                .accessibilityIdentifier("feedback.outcome.\(title)")
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int((value.wrappedValue * 100).rounded())) percent")
                 .tint(BrandTheme.goldDeep)
         }
     }
@@ -1877,10 +1948,11 @@ struct CareSessionFeedbackView: View {
                     .foregroundStyle(BrandTheme.textSecondary)
             }
             Slider(value: value, in: 0 ... 1)
-            .accessibilityIdentifier("feedback.tuning.\(title)")
+                .accessibilityIdentifier("feedback.tuning.\(title)")
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int((value.wrappedValue * 100).rounded())) percent")
                 .tint(BrandTheme.goldDeep)
         }
-        .padding(.horizontal, 4)
     }
 }
 
@@ -1892,13 +1964,11 @@ private struct SessionContextCaptureCard: View {
     var body: some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Session context")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textSecondary)
-                Text("Quick tags for nursing handover and care plan documentation — optional but valuable.")
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                BrandSectionHeader(
+                    title: "Session context",
+                    systemImage: "tag",
+                    subtitle: "Quick tags for nursing handover and care plan documentation — optional but valuable."
+                )
 
                 contextChipRow(title: "Time of day", items: SessionTimeOfDay.allCases) { item in
                     context.timeOfDay = item
@@ -1940,30 +2010,14 @@ private struct SessionContextCaptureCard: View {
             FlowLayoutChipWrap {
                 ForEach(SessionEnvironmentTag.allCases) { tag in
                     let selected = context.environmentTags.contains(tag)
-                    Button {
+                    BrandSelectableChip(label: tag.label, selected: selected, tint: BrandTheme.goldDeep) {
                         if selected {
                             context.environmentTags.remove(tag)
                         } else {
                             context.environmentTags.insert(tag)
                         }
-                    } label: {
-                        Text(tag.label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(selected ? BrandTheme.goldDeep.opacity(0.22) : BrandTheme.creamMid.opacity(0.9))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(selected ? BrandTheme.goldDeep.opacity(0.55) : BrandTheme.gold.opacity(0.22), lineWidth: 1)
-                            )
-                            .foregroundStyle(BrandTheme.textPrimary)
                     }
                     .accessibilityIdentifier("observation.chip.\(tag.label)")
-                    .buttonStyle(ChimingPlainButtonStyle())
-                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
@@ -1982,26 +2036,10 @@ private struct SessionContextCaptureCard: View {
             FlowLayoutChipWrap {
                 ForEach(items) { item in
                     let selected = selection(item)
-                    Button {
+                    BrandSelectableChip(label: chipLabel(for: item), selected: selected, tint: BrandTheme.logoCyan) {
                         onSelect(item)
-                    } label: {
-                        Text(chipLabel(for: item))
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(selected ? BrandTheme.logoCyan.opacity(0.22) : BrandTheme.creamMid.opacity(0.9))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(selected ? BrandTheme.logoCyan.opacity(0.55) : BrandTheme.gold.opacity(0.22), lineWidth: 1)
-                            )
-                            .foregroundStyle(BrandTheme.textPrimary)
                     }
                     .accessibilityIdentifier("observation.chip.\(chipLabel(for: item))")
-                    .buttonStyle(ChimingPlainButtonStyle())
-                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
@@ -2014,16 +2052,13 @@ private struct SessionContextCaptureCard: View {
     }
 }
 
-/// Simple wrapping chip row for context pickers.
+/// Wrapping chip row for context pickers — content-sized, so "Agitated / behavioural distress" is
+/// never cut to "Agitated / beh…" the way the fixed-column grid did.
 private struct FlowLayoutChipWrap<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 108), spacing: 8)],
-            alignment: .leading,
-            spacing: 8
-        ) {
+        InsightChipFlow {
             content()
         }
     }
@@ -2081,10 +2116,9 @@ struct CareSessionInsightView: View {
     }
 
     private enum Tone {
-        static let sun = Color(red: 1.0, green: 0.84, blue: 0.24)
-        static let cloud = Color(red: 0.75, green: 0.79, blue: 0.84)
-        static let attention = BrandTheme.nebulaSalmon
-        static let tile = BrandTheme.creamDeep.opacity(0.75)
+        static let sun = BrandTheme.statusCaution
+        static let cloud = BrandTheme.statusNeutral
+        static let attention = BrandTheme.statusAttention
     }
 
     private var patient: CarePatientProfile? {
@@ -2148,10 +2182,11 @@ struct CareSessionInsightView: View {
                 trendBadge(trend)
             }
 
-            HStack(spacing: 10) {
-                statTile(value: summary.durationText ?? "—", label: "With music")
-                statTile(value: "\(summary.genres.count)", label: summary.genres.count == 1 ? "Genre" : "Genres")
-                statTile(value: "\(summary.liked.count) · \(summary.skipped.count)", label: "Liked · skipped")
+            BrandStatTileRow {
+                BrandStatTile(value: summary.durationText ?? "—", label: "With music", centered: true)
+                BrandStatTile(value: "\(summary.genres.count)", label: summary.genres.count == 1 ? "Genre" : "Genres", centered: true)
+                BrandStatTile(value: "\(summary.liked.count)", label: "Liked", tint: Tone.sun, centered: true)
+                BrandStatTile(value: "\(summary.skipped.count)", label: "Skipped", tint: Tone.cloud, centered: true)
             }
 
             if !summary.trendNotes.isEmpty {
@@ -2181,29 +2216,26 @@ struct CareSessionInsightView: View {
     private func observationsCard(_ summary: CareSessionInsightSummary) -> some View {
         sectionCard("Carer observations", systemImage: "heart.text.square") {
             if !summary.ratings.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(summary.ratings) { rating in
-                        ratingRow(rating)
+                BrandInsetTile {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(summary.ratings) { rating in
+                            BrandRatingRow(
+                                label: rating.label,
+                                valueText: "\(rating.value)/10",
+                                fraction: Double(rating.value) / 10,
+                                tint: BrandRatingTone.tint(outOfTen: Double(rating.value)),
+                                spokenValue: "\(rating.value) out of 10"
+                            )
+                        }
                     }
                 }
-                Text("1 = low or distressed · 10 = settled and responsive")
+                Text("1 = low or distressed · 10 = settled and responsive. \(BrandRatingTone.legend).")
                     .font(.caption)
                     .foregroundStyle(BrandTheme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let note = summary.note {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Carer note")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(BrandTheme.textSecondary)
-                    Text(note)
-                        .font(.callout.italic())
-                        .foregroundStyle(BrandTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.leading, 12)
-                .overlay(alignment: .leading) {
-                    Capsule().fill(BrandTheme.logoPink.opacity(0.6)).frame(width: 3)
-                }
+                BrandQuoteBlock(title: "Carer note", text: note)
             }
         }
     }
@@ -2261,12 +2293,11 @@ struct CareSessionInsightView: View {
 
     private func shareCard(_ pack: CareSessionInsightPack) -> some View {
         sectionCard("Share & record", systemImage: "square.and.arrow.up") {
-            Picker("Write-up", selection: $shareKind) {
-                ForEach(ShareKind.allCases) { kind in
-                    Text(kind.tabTitle).tag(kind)
-                }
-            }
-            .pickerStyle(.segmented)
+            BrandSegmentedChoice(
+                title: "Write-up",
+                selection: $shareKind,
+                options: ShareKind.allCases.map { BrandChoiceOption(value: $0, label: $0.tabTitle) }
+            )
             .chimeOnChange(of: shareKind)
             .accessibilityIdentifier("summary.shareKind")
 
@@ -2274,19 +2305,11 @@ struct CareSessionInsightView: View {
                 .font(.footnote)
                 .foregroundStyle(BrandTheme.textSecondary)
 
-            shareContent(pack)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Tone.tile)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(BrandTheme.gold.opacity(0.16), lineWidth: 1)
-                )
-                .id(shareKind)
-                .transition(.opacity)
+            BrandInsetTile(padding: 14) {
+                shareContent(pack)
+            }
+            .id(shareKind)
+            .transition(.opacity)
 
             SecondaryButton(title: copiedKind == shareKind ? shareKind.copiedTitle : shareKind.copyTitle) {
                 copy(text(for: shareKind, in: pack), kind: shareKind)
@@ -2306,13 +2329,15 @@ struct CareSessionInsightView: View {
         switch shareKind {
         case .handover:
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(pack.handoverSections) { section in
+                ForEach(Array(pack.handoverSections.enumerated()), id: \.element.id) { index, section in
                     let isNarrative = section.title == "Narrative"
+                    if index > 0 { BrandHairline() }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(section.title.uppercased())
                             .font(.caption2.weight(.semibold))
                             .tracking(0.6)
                             .foregroundStyle(BrandTheme.textSecondary)
+                            .accessibilityAddTraits(.isHeader)
                         // On screen only — the copied text keeps its original wording.
                         Text(section.body.prefix(1).uppercased() + section.body.dropFirst())
                             .font(.callout)
@@ -2354,14 +2379,7 @@ struct CareSessionInsightView: View {
     ) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Label {
-                    Text(title)
-                } icon: {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(highlighted ? Tone.sun : BrandTheme.logoCyan)
-                }
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(BrandTheme.textPrimary)
+                BrandSectionHeader(title: title, systemImage: systemImage, tint: highlighted ? Tone.sun : BrandTheme.logoCyan)
                 content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -2388,74 +2406,33 @@ struct CareSessionInsightView: View {
             case .firstRated:
                 return ("flag.fill", "First rated session", "Sets the baseline for future comparisons", BrandTheme.logoCyan)
             case let .higher(now, usual):
-                return ("arrow.up.right", "Better than usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.nebulaTeal)
+                return ("arrow.up.right", "Better than usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.statusPositive)
             case let .steady(now, usual):
-                return ("equal", "In line with usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.logoLavenderBlue)
+                return ("equal", "In line with usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", BrandTheme.statusNeutral)
             case let .lower(now, usual):
                 return ("arrow.down.right", "Lower than usual", "Wellbeing \(score(now))/10 · usual \(score(usual))", Tone.attention)
             }
         }()
-        return HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(tint)
-                .frame(width: 38, height: 38)
-                .background(Circle().fill(tint.opacity(0.16)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(BrandTheme.textPrimary)
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(BrandTheme.textSecondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func statTile(value: String, label: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .foregroundStyle(BrandTheme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(BrandTheme.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .padding(.horizontal, 6)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tone.tile))
-        .accessibilityElement(children: .combine)
-    }
-
-    private func ratingRow(_ rating: CareSessionInsightSummary.Rating) -> some View {
-        let tint = rating.value <= 4 ? Tone.attention : BrandTheme.logoCyan
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(rating.label)
-                    .font(.subheadline)
-                    .foregroundStyle(BrandTheme.textPrimary)
-                Spacer(minLength: 8)
-                Text("\(rating.value)/10")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+        return BrandInsetTile(accent: tint) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(tint)
-            }
-            HStack(spacing: 3) {
-                ForEach(1 ... 10, id: \.self) { step in
-                    Capsule()
-                        .fill(step <= rating.value ? tint : Color.white.opacity(0.08))
-                        .frame(height: 7)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(tint.opacity(0.18)))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(BrandTheme.textPrimary)
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(BrandTheme.textSecondary)
                 }
+                Spacer(minLength: 0)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(rating.label), \(rating.value) out of 10")
+        .accessibilityElement(children: .combine)
     }
 
     private func genreChip(_ play: CareSessionInsightSummary.GenrePlay) -> some View {
@@ -2479,8 +2456,8 @@ struct CareSessionInsightView: View {
         .padding(.leading, play.genre == nil ? 12 : 4)
         .padding(.trailing, 12)
         .padding(.vertical, 4)
-        .background(Capsule().fill(Tone.tile))
-        .overlay(Capsule().stroke(BrandTheme.gold.opacity(0.22), lineWidth: 1))
+        .background(Capsule().fill(BrandTheme.surfaceInset))
+        .overlay(Capsule().stroke(BrandTheme.insetBorder, lineWidth: 1))
         .accessibilityElement(children: .combine)
     }
 
@@ -2536,8 +2513,8 @@ struct CareSessionInsightView: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(Tone.tile))
-            .overlay(Capsule().stroke(tint.opacity(0.28), lineWidth: 1))
+            .background(Capsule().fill(tint == BrandTheme.textSecondary ? BrandTheme.surfaceInset : tint.opacity(0.16)))
+            .overlay(Capsule().stroke(tint == BrandTheme.textSecondary ? BrandTheme.insetBorder : tint.opacity(0.55), lineWidth: 1))
     }
 
     // MARK: Helpers
@@ -2566,6 +2543,8 @@ struct CareSessionInsightView: View {
         withAnimation(CalmMotion.subtle) {
             copiedKind = kind
         }
+        // The button's title changes; VoiceOver users hear it too.
+        UIAccessibility.post(notification: .announcement, argument: kind.copiedTitle.replacingOccurrences(of: " ✓", with: ""))
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             guard generation == copiedGeneration else { return }
             withAnimation(CalmMotion.subtle) { copiedKind = nil }
@@ -2574,7 +2553,7 @@ struct CareSessionInsightView: View {
 }
 
 /// Left-aligned wrapping row for chips of varying width.
-private struct InsightChipFlow: Layout {
+struct InsightChipFlow: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

@@ -4,6 +4,7 @@
     f_discovery  testStoryPartF_OnlineDiscovery seven real songs in the orb → taste profile → first playlist
     h_group      testStoryPartH_GroupSession    planner from shared tastes → playlist ranked for the room → check-in
     g_admin      testStoryPartG_GroupProgramme  home lead's dashboard → Group programme card
+    i_onboarding testStoryPartI_Onboarding      request a workspace → verify → activate → six-step set-up → a supervisor joins
 
 Same engine as build_story.py (markers → chapter cards, captions, narration, subtitles); this file only
 swaps the flow list, the cards and the take names, and teaches the mixer to rebuild streamed Apple
@@ -11,7 +12,7 @@ previews from the log (the app logs `title` + `url` with every music.start), so 
 video-only (DEMO_AUDIO_DEVICE="") and the soundtrack is deterministic.
 
     tools/demo/reset-backend.sh
-    for s in testStoryPartE_LiveBackend:e_live testStoryPartF_OnlineDiscovery:f_discovery testStoryPartH_GroupSession:h_group testStoryPartG_GroupProgramme:g_admin; do
+    for s in testStoryPartE_LiveBackend:e_live testStoryPartF_OnlineDiscovery:f_discovery testStoryPartH_GroupSession:h_group testStoryPartG_GroupProgramme:g_admin testStoryPartI_Onboarding:i_onboarding; do
       DEMO_AUDIO_DEVICE="" TEST_RUNNER_API_BASE_URL=https://notestalgia-api.fitraclesub.workers.dev tools/demo/walkthrough.sh "${s%%:*}" "${s##*:}"
     done
     python3 tools/demo/pipeline/build_v7.py        # → NoteStalgia-Walkthrough-v7.mp4 + .srt
@@ -44,6 +45,7 @@ FLOWS = [
     "Online discovery",
     "Group sessions from shared tastes",
     "Home admin: group programme",
+    "A new organisation",
 ]
 FLOW_SUBTITLES = [
     "A Cloudflare Worker behind every tap — offline-first on the iPad",
@@ -55,13 +57,14 @@ FLOW_SUBTITLES = [
     "Seven real songs, chosen for her generation",
     "A playlist ranked for the whole room",
     "The group programme at a glance",
+    "Request, verify, activate, set up — without an engineer",
 ]
 B.FLOWS[:] = FLOWS
 B.FLOW_SUBTITLES[:] = FLOW_SUBTITLES
-S.TAKE_NAMES[:] = ["e_live", "f_discovery", "h_group", "g_admin"]
-S.INTRO_DUR = 19.5
+S.TAKE_NAMES[:] = ["e_live", "f_discovery", "h_group", "g_admin", "i_onboarding"]
+S.INTRO_DUR = 25.0
 B.INTRO_DUR = S.INTRO_DUR
-B.INDEX_Y = 672          # nine flows → five rows per column (same as build_story)
+B.INDEX_Y = 672          # ten flows → five rows per column (same as build_story)
 N.SCRIPT["intro"] = N.SCRIPT["intro7"]
 N.SCRIPT["outro"] = N.SCRIPT["outro7"]
 
@@ -108,6 +111,7 @@ def outro_card():
         "Would family searching and adding songs change how music reaches a resident?",
         "Do the song choices after a pick or a sun feel right — and fast enough?",
         "Does cover art inside the orb and behind the glyph help, or distract?",
+        "Could a registered manager set up a home with this, without our help?",
     ]
     f_q = B.font(B.SANS, 38, "Regular")
     widest = max(f_q.getlength(q) for q in qs)
