@@ -495,3 +495,154 @@ enum CareHomeAnalytics {
         home?.wings.first { $0.id == wingId }?.name ?? wingId
     }
 }
+
+// MARK: - Single-resident insights (Care at home)
+
+/// Trends and totals for one resident — the household carer's view of the same session history
+/// the care-home dashboard aggregates across a roster.
+struct ResidentInsightsPresentation: Equatable {
+    struct GenreHighlight: Identifiable, Equatable {
+        let id: String
+        var genre: ResidentMusicGenre?
+        var name: String
+        var plays: Int
+    }
+
+    var residentName: String
+    var periodLabel: String
+    var totalSessions: Int
+    var trend: CareHomeImpactTrend
+    var trendLine: String
+    var kpis: [CareHomeKPICard]
+    var trendSeries: [CareHomeTrendSeries]
+    var observations: CareSessionSentimentSummary
+    var genreHighlights: [GenreHighlight]
+    var likedLine: String?
+    var skippedLine: String?
+    var suggestedNextStep: String?
+    var recentSessions: [CareHomeRecentSessionRow]
+    var hasSessionData: Bool
+}
+
+extension CareHomeAnalytics {
+    /// Improving / stable / declining for one resident, from their last rated session against
+    /// the five before it (the dashboard's rule).
+    static func residentTrend(resident: CarePatientProfile, records: [CareSessionRecord], now: Date = Date()) -> CareHomeImpactTrend {
+        residentImpacts(residents: [resident], records: records.filter { $0.patientId == resident.id }, home: nil, now: now).first?.trend ?? .noData
+    }
+
+    static func buildResidentInsights(
+        resident: CarePatientProfile,
+        records: [CareSessionRecord],
+        home: CareHome?,
+        now: Date = Date()
+    ) -> ResidentInsightsPresentation {
+        let all = records
+            .filter { $0.patientId == resident.id }
+            .sorted { $0.date > $1.date }
+        let windowStart = now.addingTimeInterval(-Double(dashboardWindowDays) * 86_400)
+        let window = all.filter { $0.date >= windowStart }
+        let seconds = window.compactMap(\.sessionDurationSeconds).reduce(0, +)
+
+        let kpis = [
+            CareHomeKPICard(
+                id: "sessions",
+                title: "Sessions",
+                value: "\(window.count)",
+                detail: "Last \(dashboardWindowDays) days"
+            ),
+            CareHomeKPICard(
+                id: "time",
+                title: "Time with music",
+                value: formatMinutes(seconds),
+                detail: window.isEmpty ? "No sessions yet" : "Across \(window.count) session\(window.count == 1 ? "" : "s")"
+            ),
+            CareHomeKPICard(
+                id: "calm",
+                title: "Avg at ease",
+                value: averageCalm(window).map { "\($0)%" } ?? "—",
+                detail: "During sessions"
+            ),
+            CareHomeKPICard(
+                id: "wellbeing",
+                title: "Observed wellbeing",
+                value: averageWellbeing(window).map { String(format: "%.1f/10", $0) } ?? "—",
+                detail: "Your ratings composite"
+            ),
+        ]
+
+        let series = buildTrendSeries(residents: [resident], records: all, now: now)
+            .filter { $0.id != "reach" }
+        let impact = residentImpacts(residents: [resident], records: all, home: home, now: now).first
+
+        var genreCounts: [String: Int] = [:]
+        for record in window {
+            for (name, count) in parseCountedSummary(record.residentGenresPlayedSummary) {
+                genreCounts[name.lowercased(), default: 0] += count
+            }
+        }
+        let highlights = genreCounts
+            .sorted { $0.value > $1.value || ($0.value == $1.value && $0.key < $1.key) }
+            .prefix(4)
+            .map { name, plays in
+                ResidentInsightsPresentation.GenreHighlight(
+                    id: name,
+                    genre: ResidentMusicGenre.allCases.first { $0.rawValue.lowercased() == name },
+                    name: name.capitalized,
+                    plays: plays
+                )
+            }
+
+        let recent = window.prefix(10).map { record in
+            CareHomeRecentSessionRow(
+                id: record.id,
+                patientName: resident.displayName,
+                wingLabel: wingName(home: home, wingId: resident.wingId),
+                date: record.date,
+                calmPercent: record.calmPercent,
+                moodSummary: record.moodSummary,
+                wellbeingScore: sessionImpactScore(record),
+                impactLine: sessionImpactLine(for: record, prior: all.filter { $0.date < record.date })
+            )
+        }
+
+        return ResidentInsightsPresentation(
+            residentName: resident.displayName,
+            periodLabel: "Last \(dashboardWindowDays) days",
+            totalSessions: all.count,
+            trend: impact?.trend ?? .noData,
+            trendLine: impact?.impactLine ?? "No sessions on file yet.",
+            kpis: kpis,
+            trendSeries: series,
+            observations: CareSessionSentimentAnalytics.summary(for: window),
+            genreHighlights: Array(highlights),
+            likedLine: window.compactMap(\.residentLikedTracksSummary).first,
+            skippedLine: window.compactMap(\.residentSkippedTracksSummary).first,
+            suggestedNextStep: all.compactMap(\.insightSuggestedNextStep).first,
+            recentSessions: Array(recent),
+            hasSessionData: !window.isEmpty
+        )
+    }
+
+    /// "Classical ×2, Gospel ×3" → [("Classical", 2), ("Gospel", 3)]
+    private static func parseCountedSummary(_ summary: String?) -> [(String, Int)] {
+        guard let summary, !summary.isEmpty else { return [] }
+        return summary.split(separator: ",").compactMap { part -> (String, Int)? in
+            let piece = part.trimmingCharacters(in: .whitespaces)
+            guard !piece.isEmpty else { return nil }
+            guard let mark = piece.lastIndex(of: "×") else { return (piece, 1) }
+            let name = piece[..<mark].trimmingCharacters(in: .whitespaces)
+            let count = Int(piece[piece.index(after: mark)...].trimmingCharacters(in: .whitespaces)) ?? 1
+            return (name, count)
+        }
+    }
+
+    private static func formatMinutes(_ seconds: Int) -> String {
+        guard seconds > 0 else { return "—" }
+        let minutes = seconds / 60
+        if minutes >= 60 {
+            return "\(minutes / 60)h \(minutes % 60)m"
+        }
+        return "\(max(1, minutes))m"
+    }
+}

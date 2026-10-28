@@ -6,9 +6,23 @@ struct GroupSessionTrack: Identifiable, Equatable {
     let genre: ResidentMusicGenre
     let sourceResidentName: String
     let score: Double
+    /// What actually plays: a catalogue preview (sleeve, plays once, moves on) or the bundled stem.
+    var ref: ResidentTrackRef
+    /// Why the model chose it for this room ("A song Irene K. loves"); nil for roster-compiled picks.
+    var reason: String?
+
+    init(id: UUID, title: String, genre: ResidentMusicGenre, sourceResidentName: String, score: Double, ref: ResidentTrackRef? = nil, reason: String? = nil) {
+        self.id = id
+        self.title = title
+        self.genre = genre
+        self.sourceResidentName = sourceResidentName
+        self.score = score
+        self.ref = ref ?? ResidentTrackRef.bundled(title: title, genre: genre)
+        self.reason = reason
+    }
 }
 
-struct GroupSessionRecord: Identifiable, Equatable {
+struct GroupSessionRecord: Identifiable, Equatable, Codable {
     let id: UUID
     let date: Date
     let durationSeconds: Int
@@ -20,9 +34,17 @@ struct GroupSessionRecord: Identifiable, Equatable {
     var staffNote: String?
     /// Track titles heard during the session (POC snapshot).
     var playlistSnapshot: [String]
+    /// Residents who took part (empty = whole-home playlist before the planner existed).
+    var participantIds: [UUID] = []
+    /// The planned activity, e.g. "Classical listening circle"; nil for a whole-home playlist.
+    var activityTitle: String? = nil
+    var theme: GroupActivityTheme? = nil
+    /// Home the session happened in and who ran it — filled when the record is written (synced to the backend).
+    var homeId: UUID? = nil
+    var authorAccountId: UUID? = nil
 }
 
-struct GroupSessionFeedbackDraft: Equatable {
+struct GroupSessionFeedbackDraft: Equatable, Codable {
     var morale: Int?
     var alertness: Int?
     var lucidity: Int?
@@ -115,24 +137,41 @@ enum GroupSessionPlaylistCompiler {
         let rankedGenres = genreScores.sorted { $0.value > $1.value }.map(\.key)
         let topGenres = Set(rankedGenres.prefix(4))
 
-        // Only titles with bundled audio — discovery stub playlists carry placeholder names that
-        // would otherwise be listed as "now playing" while a different track is heard.
+        // Residents' own songs: catalogue references (previews, sleeves) when the playlist carries
+        // them — family picks, discovery playlists — otherwise only titles that have bundled audio
+        // (discovery stub playlists carry placeholder names that would be listed as "now playing"
+        // while a different track is heard).
         let audible = Set(ResidentPlaybackTrackCatalog.allUniqueTitles)
         var candidates: [GroupSessionTrack] = []
         for patient in roster {
             for group in patient.genrePlaylistGroups where topGenres.contains(group.genre) {
                 let genreWeight = genreScores[group.genre] ?? 1
                 for playlist in group.playlists {
-                    for title in playlist.trackTitles where audible.contains(title) {
-                        candidates.append(
-                            GroupSessionTrack(
-                                id: UUID(),
-                                title: title,
-                                genre: group.genre,
-                                sourceResidentName: patient.displayName,
-                                score: genreWeight
+                    if let refs = playlist.tracks, !refs.isEmpty {
+                        for ref in refs where ref.isBundled ? audible.contains(ref.title) : ref.previewURL != nil {
+                            candidates.append(
+                                GroupSessionTrack(
+                                    id: UUID(),
+                                    title: ref.title,
+                                    genre: group.genre,
+                                    sourceResidentName: patient.displayName,
+                                    score: genreWeight + (ref.isBundled ? 0 : 0.5),
+                                    ref: ref
+                                )
                             )
-                        )
+                        }
+                    } else {
+                        for title in playlist.trackTitles where audible.contains(title) {
+                            candidates.append(
+                                GroupSessionTrack(
+                                    id: UUID(),
+                                    title: title,
+                                    genre: group.genre,
+                                    sourceResidentName: patient.displayName,
+                                    score: genreWeight
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -162,6 +201,20 @@ enum GroupSessionPlaylistCompiler {
         let ordered = bestByTitle.values.sorted { $0.score > $1.score }
         if ordered.isEmpty { return fallbackTracks(from: roster) }
         return Array(ordered.prefix(maxTracks))
+    }
+
+    /// The backend's picks — ranked for the whole room — lead; the roster's own songs follow; the
+    /// song already playing stays first so the room hears no jump. One entry per title.
+    static func merge(serverPicks: [GroupSessionTrack], into local: [GroupSessionTrack], keepingFirst current: GroupSessionTrack?, maxTracks: Int = 14) -> [GroupSessionTrack] {
+        var out: [GroupSessionTrack] = []
+        var seen = Set<String>()
+        func add(_ track: GroupSessionTrack) {
+            if seen.insert(track.title.lowercased()).inserted { out.append(track) }
+        }
+        if let current { add(current) }
+        serverPicks.forEach(add)
+        local.forEach(add)
+        return Array(out.prefix(maxTracks))
     }
 
     /// One audible stem per genre (catalog order) when the roster offers nothing to rank.

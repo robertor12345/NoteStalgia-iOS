@@ -165,6 +165,10 @@ SCRIPT = {
         "Group mode builds one shared-room playlist from the listening data of everyone on this home's roster — and plays exactly the track it shows.",
         "Group mode is for a lounge or a day room. It builds one shared playlist from the listening data of everyone on the roster, "
         "and plays exactly the track it shows."),
+    "planner": (6,
+        "Group activities start with a plan: the app suggests an activity built around shared tastes, flags who has been overlooked, and staff choose who joins.",
+        "Group activities now start with a plan. The app suggests an activity built around what residents respond to, flags anyone who has "
+        "been overlooked, and staff choose who joins — every suggestion is just a suggestion."),
     "groupctl": (6,
         "Familiar controls for the carer leading the room — skip, or tap any song in the list.",
         "Familiar controls for the carer leading the room: pause, skip, or tap any song in the list to play it."),
@@ -196,6 +200,64 @@ SCRIPT = {
         "Below: impact by wing, residents who are improving or need attention, and every recent session — evidence for the whole home.",
         "Below that: impact by wing, the residents who are improving or need attention, and every recent session. "
         "Evidence of impact for the whole home, from the same taps carers make every day."),
+    # --- Part D · Care at home (flow 9)
+    "home_open": (8,
+        "NoteStalgia isn't only for care homes. A family member or a private carer can use the same app at home, for one person.",
+        "NoteStalgia isn't only for care homes. A family member or a private carer can use the same app at home, for one person. "
+        "It starts from the same sign-in screen."),
+    "home_signup": (8,
+        "Create an account: a name, their own email, family member or private carer, and a six-digit PIN. In the prototype, everything stays on the iPad.",
+        "They create an account: a name, their own email, whether they're family or a private carer, and a six digit PIN, entered twice. "
+        "In this prototype everything stays on the iPad."),
+    "home_register": (8,
+        "Who are you caring for? A name, their age and background, and an optional photo — the same details that shape the music in a care home.",
+        "Then: who are you caring for? A name, their age and their background, and an optional photo. These are the same details that "
+        "shape the music for a resident in a care home."),
+    "home_choice": (8,
+        "Run the listening discovery now, or set up without it and run it later from the home screen.",
+        "They can run the listening discovery straight away, or set up without it and run it later from the home screen."),
+    "home_home": (8,
+        "The household home screen: one person, the calm surface a tap away, their insights and trends, the full profile, and the listening discovery.",
+        "This is the household home screen. One person. The calm surface is one tap away, and below it their insights and trends, "
+        "their full profile with playlists and comfort notes, and the listening discovery."),
+    "home_surface": (8,
+        "The calm surface is exactly the same as in a care home — their music as floating artwork, the sun and the cloud, and press-and-hold to take the iPad back.",
+        "The calm surface is exactly the same as in a care home: their music as floating artwork, the sun and the cloud, "
+        "and the press and hold to take the iPad back."),
+    "home_observe": (8,
+        "And the same quick observations afterwards. Each one builds their history.",
+        "And the same quick observations afterwards — mood, alertness, emotional presentation and orientation. Each one builds their history."),
+    "home_summary": (8,
+        "The session summary, with the write-up in a family voice. Done takes the carer back to the home screen.",
+        "The session summary is the same too, with the write-up in a family voice ready to share. Done takes the carer back to the home screen."),
+    "home_insights1": (8,
+        "Insights and trends now holds the first session.",
+        "Insights and trends now holds Arun's first session. The trends build from here."),
+    "home_demo": (8,
+        "After a couple of weeks it looks like this. Claire cares for her father Harold at home.",
+        "After a couple of weeks it looks like this. Claire is a family member who cares for her father Harold at home, and signs in with her own account."),
+    "home_insights2": (8,
+        "Trends over fourteen days, totals including time with music, the carer's own observations, and what Harold responds to — the same measures a care home sees, for one person.",
+        "Harold's insights: trends over the last fourteen days, totals including time with music, Claire's own observations as averages, "
+        "and what Harold responds to. The same measures a care home sees, for one person."),
+    "home_next": (8,
+        "A suggested next step and every recent session. The same taps, the same evidence — at home.",
+        "A suggested next step, and every recent session with how it compared. The same taps, the same evidence — at home."),
+    "home_surface2": (8,
+        "Taking the iPad back is the same press and hold — nothing for the family to learn twice.",
+        "Taking the iPad back is the same press and hold. Nothing for the family to learn twice."),
+    "home_observe2": (8,
+        "Four ratings, each moving on to the next, then save.",
+        "Four ratings, each one moving straight on to the next, then save."),
+    "home_summary2": (8,
+        "The family write-up copies into a message, just as a care home copies a handover.",
+        "The family write-up copies into a message, just as a care home would copy a handover."),
+    "home_insights1b": (8,
+        "One session on file; averages and trends fill in as the history grows.",
+        "One session on file so far. Averages and trends fill in as the history grows."),
+    "home_demo2": (8,
+        "Same welcome, same home screen — Harold's details and two weeks of sessions.",
+        "The same welcome and the same home screen, with Harold's details and two weeks of sessions behind them."),
     "end": (None, "", ""),
     # Follow-on lines inside a long hold (see EXTRA: marker → [(seconds after the marker, key)]).
     "roster_scroll2": (1,
@@ -225,7 +287,8 @@ SCRIPT = {
     # Spoken over the title and closing cards (no caption).
     "intro": (None, "",
         "NoteStalgia. Sound that takes you back. This walkthrough follows one afternoon in a care home, from a carer "
-        "signing in to the home manager's dashboard — eight flows, end to end, exactly as they happen on the iPad."),
+        "signing in to the home manager's dashboard, and then the same app used at home by a family — nine flows, end to end, "
+        "exactly as they happen on the iPad."),
     "outro": (None, "",
         "Thanks for watching. We'd love your feedback on these four questions. Everything you've seen runs on the iPad, "
         "with demo residents and demo data."),
@@ -242,7 +305,173 @@ EXTRA = {
     "groupctl": [(8.0, "groupctl2")],
     "groupfb": [(10.0, "groupfb2")],
     "impact": [(13.0, "impact2")],
+    "home_surface": [(15.0, "home_surface2")],
+    "home_observe": [(13.0, "home_observe2")],
+    "home_summary": [(12.0, "home_summary2")],
+    "home_insights1": [(11.0, "home_insights1b")],
+    "home_demo": [(13.0, "home_demo2")],
 }
+
+
+# ---- v7: what's new since v6 (tools/demo/pipeline/build_v7.py) — flow indices refer to build_v7.FLOWS ----
+SCRIPT.update({
+    "intro7": (None, "",
+        "NoteStalgia, version seven. Since the last walkthrough the iPad has gained a real backend, a song catalogue "
+        "with Apple previews and cover art, and a recommender that learns in real time. This video shows only what is "
+        "new, with a pause after every tap so you can follow along."),
+    "outro7": (None, "",
+        "Thanks for watching. We'd love your feedback on these four questions. Everything you have seen runs on the "
+        "iPad against a live backend, with demo residents and demo data."),
+    "v7_open": (0,
+        "Same orb, same calm opening — but every tap now talks to a live server.",
+        "The same calm opening. Behind it, every tap now talks to a live server: a Cloudflare Worker and a database on "
+        "the free tier, with the iPad working offline first and syncing whenever it can."),
+    "v7_signin": (0,
+        "Sign-in is checked by the server — the PIN is never stored on the iPad.",
+        "Max signs in as before, with a work email and a six digit PIN. Now the server checks it: the PIN is hashed with "
+        "a secret the iPad never sees, and five wrong attempts lock the account."),
+    "v7_welcome": (0,
+        "Syncing: the iPad pulls Maple Lodge from the server.",
+        "While the welcome plays, the iPad pulls Maple Lodge from the server and caches it, so the roster keeps working "
+        "offline."),
+    "v7_roster": (1,
+        "The roster you know — now built from synced data. A session saved on one iPad reaches every other.",
+        "This is the same roster, built from synced data. A session saved on one iPad appears on every other iPad in "
+        "the home, and anything done offline is pushed when the network is back."),
+    "v7_profile": (1,
+        "Irene's profile, from the server: observations, playlists on file, comfort notes.",
+        "Irene's profile comes from the server too: carer observations, playlists on file and comfort notes, exactly as "
+        "staff left them on another device."),
+    "v7_group": (2,
+        "New: Group activities — how often Irene joins in, the last activity, and how engaged she was.",
+        "New since the last walkthrough: a Group activities card. It shows how often Irene has joined a group activity in "
+        "the last fortnight, which one was last, and how engaged she was."),
+    "v7_comfort": (2,
+        "'In company' tells the group planner how she likes to take part — Small groups here. Saved to the server at once.",
+        "In company tells the group planner how she likes to take part. Setting her to small groups means the planner only "
+        "suggests her for smaller sessions. The change is saved to the server straight away."),
+    "v7_songs": (3,
+        "New: 'Find a song they love' — a curated catalogue of songs from residents' younger years.",
+        "Also new: Find a song they love. Family and staff can search a curated catalogue of more than one hundred and "
+        "sixty songs from residents' younger years, each with an Apple Music preview."),
+    "v7_search": (3,
+        "Results show the sleeve, artist, year and the genre glyph the song will live under, with a link to Apple Music.",
+        "Searching for Vera Lynn. Each result shows the cover art, the artist, the year, and the genre glyph the song will "
+        "live under, with a link to the full song on Apple Music."),
+    "v7_preview": (3,
+        "Tap the sleeve to hear a 30-second preview before adding it.",
+        "Tapping the sleeve plays a thirty second preview, so a carer can check it is the right recording before adding it."),
+    "v7_add": (4,
+        "Add files the song on Irene's profile — and tells the recommender, in real time.",
+        "Add files the song on Irene's profile. In the same moment the iPad tells the recommender: a staff pick is strong "
+        "evidence, and the catalogue grows around the artist so there are similar songs to offer."),
+    "v7_added": (4,
+        "Within seconds the server has re-ranked her Pop queue: this song first, then more Vera Lynn, then British pop of her era.",
+        "Back on the profile, the song sits with her suggested likes. Within seconds the server has re-ranked her Pop queue "
+        "from four things: her age, where she is from, the genres she has responded to, and songs like the ones she loves. "
+        "This song first, then more from Vera Lynn, then British pop of her era."),
+    "v7_added2": (4,
+        "Real time means every staff pick, every sun and every session re-ranks the queues within seconds.",
+        "That is what real time means here: every staff pick, every sun and every finished session re-ranks her queues "
+        "within seconds, and the next tap plays the new order."),
+    "v7_surface": (5,
+        "On the calm surface a Pop glyph has appeared, built from the new playlist.",
+        "Opening her calm surface. A Pop glyph has appeared, built from the new playlist."),
+    "v7_pop": (5,
+        "We'll Meet Again plays — and the record sleeve fills the screen behind the glyph.",
+        "A tap on the glyph plays We'll Meet Again, streamed from Apple, and the record sleeve fills the screen behind the "
+        "glyph. For a resident, the picture is the song."),
+    "v7_next": (5,
+        "Swipe: the next song is more Vera Lynn, chosen by the model, with its own sleeve.",
+        "A swipe moves to the next song. It is more Vera Lynn, chosen by the model because she likes her, with its own "
+        "sleeve. Each preview plays once and the queue moves on by itself."),
+    "v7_sun": (5,
+        "The sun is a signal too: it raises this song and its genre for next time.",
+        "The sun is a signal too. It raises this song and its genre in her profile, and the next session will reflect it."),
+    "v7_staffkey": (5,
+        "Press and hold to take the iPad back — the session and its signals go to the server.",
+        "Pressing and holding the key takes the iPad back. The session is saved to the server, and the listening signals "
+        "go with it."),
+    "v7_summary": (5,
+        "The summary as before — and her queues are refreshed behind the scenes.",
+        "The session summary is as before. Behind the scenes the signals have been applied and her queues refreshed, so "
+        "the next session starts from what she responded to today."),
+    "v7_disc_start": (6,
+        "Discovery is now online: the server plans seven real songs for Irene's age and origin.",
+        "Discovery is now online. Instead of seven fixed clips, the server plans seven real songs for Irene's age and "
+        "origin: one per genre, the most familiar song of her generation in each."),
+    "v7_disc_orb": (6,
+        "The song's own cover art fills the orb; the small caption tells staff what is playing.",
+        "The song's own cover art fills the orb behind the three faces, and a small caption at the bottom tells staff "
+        "what is playing: title, artist and year."),
+    "v7_disc_tap": (6,
+        "Each face is sent to the server as evidence for the genre, the decade and the song.",
+        "Each face goes to the server as evidence: for the genre, for the decade, and for the song itself."),
+    "v7_disc_more": (6,
+        "A red lowers a genre without removing it; a green brings its playlist forward. Slot three is the genre the model knows least.",
+        "A red face lowers a genre without removing it. A green brings that genre's playlist forward. Slot three is always "
+        "the genre the model knows least about, so every pass teaches it something."),
+    "v7_disc_result": (6,
+        "The faces become a taste profile: playlists for the genres she enjoyed, and a queue for every glyph.",
+        "At the end the faces become a taste profile. Playlists are written for the genres she enjoyed, and every glyph "
+        "gets a queue, with a short retry queue even for a genre she turned down."),
+    "v7_disc_play": (6,
+        "Her first discovery playlist plays with its sleeve.",
+        "Her first discovery playlist plays, with its sleeve."),
+    "v7_disc_done": (6,
+        "Saved to the server, like every session.",
+        "The session is saved to the server like every other one."),
+    "v7_admin": (8,
+        "Alex's dashboard: the same insights, now computed from synced data.",
+        "Alex, the home lead, opens the Maple Lodge dashboard. The insights are the same, now computed on the iPad from "
+        "the synced data."),
+    "v7_programme": (8,
+        "New: the Group programme card — activities this fortnight, who joined, and who has been overlooked.",
+        "New: the Group programme card. It shows how many group activities ran this fortnight, who joined them, and which "
+        "residents have been overlooked, so the next session can include them."),
+})
+SCRIPT.update({
+    "v7_grp_open": (7,
+        "Group activities: the planner suggests who to bring together, and what to play.",
+        "Group activities. The planner looks across the home and suggests who to bring together, and what to play."),
+    "v7_grp_planner": (7,
+        "Suggestions come from shared tastes: residents who respond to the same genre, with those overdue a visit or a group first.",
+        "The suggestions come from shared tastes: residents who respond to the same genre, scored by who most needs company, "
+        "with those overdue a visit or a group first. Each suggestion says why, and a Shared favourites set collects residents "
+        "who enjoy two or more of the home's top genres."),
+    "v7_grp_pick": (7,
+        "Tap a suggestion and its residents are selected. Staff keep the final say: one-to-one residents are never invited.",
+        "Tapping a suggestion selects its residents. Staff keep the final say. Residents set to one-to-one are never invited, "
+        "and small-group residents are flagged rather than dropped."),
+    "v7_grp_people": (7,
+        "Each name carries its reasoning: last visit, last group, how they did in company.",
+        "Each name carries its reasoning: when they were last seen, when they last joined a group, and how they did in company."),
+    "v7_grp_session": (7,
+        "New: the playlist is ranked for the whole room. Every song is scored for every resident; the room's score is the mean, with a bonus when someone loves it.",
+        "New with the backend: the playlist is ranked for the whole room. Every song in the catalogue is scored for every resident "
+        "in it, with the same model as their own surface: age, origin, the genres they responded to, and songs like the ones they "
+        "love. The room's score is the mean, with a bonus when someone in the room loves the song, and each pick says who it is for."),
+    "v7_grp_next": (7,
+        "Songs are taken in turn from the room's genres, two per artist at most, so the set is shared rather than one person's.",
+        "Songs are taken in turn from the room's genres, two per artist at most, so the set is shared rather than one person's "
+        "favourites. Previews play once and the room moves on by itself."),
+    "v7_grp_list": (7,
+        "The full playlist, with the sleeve and the resident each song was chosen for.",
+        "The full playlist, with the sleeve and the resident each song was chosen for."),
+    "v7_grp_end": (7,
+        "Ending the session asks for a quick check-in on the room.",
+        "Ending the session asks for a quick check-in on the room."),
+    "v7_grp_checkin": (7,
+        "Morale, alertness, lucidity, engagement: four taps, saved to the server with who took part and what played.",
+        "Morale, alertness, lucidity and engagement: four taps. The record goes to the server with who took part and what "
+        "played, and it feeds the Group programme card we will see next."),
+    "v7_grp_saved": (7,
+        "Back on the roster, the last group's scores are already there.",
+        "Back on the roster, the last group's scores are already there."),
+})
+EXTRA.update({
+    "v7_added": [(12.0, "v7_added2")],
+})
 
 
 def chapter(key):

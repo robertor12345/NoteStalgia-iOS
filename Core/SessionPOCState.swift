@@ -23,6 +23,12 @@ final class SessionPOCState: ObservableObject {
     let captureMood = CaptureMoodStore()
     let groupSession = GroupSessionStore()
     let vitals = ImmersiveSessionVitalsStore()
+    /// Care at home drafts — observed directly by the household screens, not forwarded (see `auth`).
+    let householdUI = HouseholdFlowStore()
+    /// Backend sync (only active with `-NoteStalgiaAPIBaseURL`); observes the stores, never forwarded.
+    lazy var sync: SyncEngine = MainActor.assumeIsolated { SyncEngine(careData: careData, groupSession: groupSession) }
+    /// Backend recommendations (surface queues, discovery plan); read at play time, not forwarded.
+    let recommendations = RecommendationStore()
 
     private var storeSubscriptions: [AnyCancellable] = []
 
@@ -42,6 +48,7 @@ final class SessionPOCState: ObservableObject {
         forward(captureMood)
         forward(groupSession)
         forward(vitals)
+        storeSubscriptions += makeHouseholdPersistence()
     }
 
     /// Re-publishes a store's `objectWillChange` as this coordinator's own, so existing
@@ -379,8 +386,12 @@ final class SessionPOCState: ObservableObject {
     }
 
     func openResidentProfile() {
+        if APIConfig.isConfigured, let pid = selectedCarePatientId ?? activeCarePatientId {
+            // Warm the backend's per-genre queues so the glyphs play catalogue songs, not stems.
+            Task { @MainActor in await refreshRecommendations(for: pid) }
+        }
         guard selectedCarePatientId != nil else { return }
-        residentStaffReturnPhase = .carePatientList
+        residentStaffReturnPhase = staffHubPhase()
         withAnimation(.easeOut(duration: 0.38)) {
             phaseContentVisible = false
         }
@@ -452,7 +463,7 @@ final class SessionPOCState: ObservableObject {
         }
 
         resetResidentSurfaceMetrics()
-        phase = residentStaffReturnPhase
+        phase = residentStaffReturnPhase == .carePatientList ? staffHubPhase() : residentStaffReturnPhase
     }
 
     func recordResidentGenrePlay(_ genre: ResidentMusicGenre) {
@@ -525,6 +536,7 @@ final class SessionPOCState: ObservableObject {
     /// Persist durable preference hints from a finished resident surface session.
     /// Rage bursts are recorded for staff but never promote a track or genre.
     func applyResidentSessionPreferences(from metrics: ResidentSurfaceSessionMetrics, patientId: UUID) {
+        enqueueListeningSignals(from: metrics, patientId: patientId)
         for (title, count) in metrics.trackLikeCounts where count >= 1 {
             addSuggestedLikedTrack(for: patientId, title: title)
         }
@@ -551,9 +563,11 @@ final class SessionPOCState: ObservableObject {
     }
 
     func addSuggestedLikedTrack(for patientId: UUID, title: String) {
-        guard ResidentPlaybackTrackCatalog.allUniqueTitles.contains(title),
-              let i = carePatients.firstIndex(where: { $0.id == patientId })
-        else { return }
+        guard let i = carePatients.firstIndex(where: { $0.id == patientId }) else { return }
+        let knownTitles = Set(ResidentPlaybackTrackCatalog.allUniqueTitles)
+            .union(carePatients[i].genrePlaylistGroups.flatMap { $0.playlists.flatMap { ($0.tracks ?? []).map(\.title) } })
+            .union(residentSurfaceMetrics.trackIdsByTitle.keys)
+        guard knownTitles.contains(title) else { return }
         var patients = carePatients
         guard !patients[i].suggestedLikedTrackTitles.contains(title) else { return }
         patients[i].suggestedLikedTrackTitles.append(title)
@@ -564,7 +578,12 @@ final class SessionPOCState: ObservableObject {
         guard let i = carePatients.firstIndex(where: { $0.id == patientId }) else { return }
         var patients = carePatients
         patients[i].suggestedLikedTrackTitles.removeAll { $0 == title }
+        let trackId = patients[i].suggestedLikedTrackIds?[title]
+        patients[i].suggestedLikedTrackIds?[title] = nil
         carePatients = patients
+        if let trackId {
+            noteStaffPick(trackId: trackId, genre: nil, artist: nil, isBundled: trackId.hasPrefix("bundled:"), for: patientId, removed: true)
+        }
     }
 
     private func resetResidentSurfaceMetrics() {
@@ -687,7 +706,7 @@ final class SessionPOCState: ObservableObject {
     func enterOneToOneCalmFlow() {
         guard isSignedIn else { return }
         pendingCareRosterAfterSignIn = false
-        phase = .carePatientList
+        phase = staffHubPhase()
     }
 
     func completeSupervisorSignIn() -> String? {
@@ -700,9 +719,17 @@ final class SessionPOCState: ObservableObject {
             supervisorSignInError = "Sign-in failed."
             return supervisorSignInError
         }
+        signInAsAccount(account)
+        return nil
+    }
+
+    /// Signs a validated account in and routes it: home picker / welcome for care-home staff, the
+    /// resident setup or welcome for a Care at home account. Shared with `completeHouseholdSignUp`.
+    func signInAsAccount(_ account: SupervisorAccount) {
         supervisorSignInError = nil
         isSignedIn = true
         signedInSupervisorId = account.id
+        supervisorEmail = account.email
         pendingCareRosterAfterSignIn = false
         loadRosterPrefs(for: account.id)
         rosterSearchQuery = ""
@@ -710,8 +737,30 @@ final class SessionPOCState: ObservableObject {
         rosterBrowsingAllResidents = false
         careHomeAdminWelcomeIsManual = false
         phaseTransitionTask?.cancel()
+        if APIConfig.isConfigured {
+            careData.isSeeded = false
+            MainActor.assumeIsolated {
+                // Every delivered signals batch (session end, a staff pick) re-ranks that resident's
+                // glyph queues against the updated taste profile.
+                sync.onSignalsDelivered = { [weak self] residentId in
+                    Task { @MainActor in await self?.refreshRecommendations(for: residentId) }
+                }
+                sync.activate(homeIds: account.homeIds, accountId: account.id)
+            }
+        }
 
-        if account.homeIds.count == 1, let homeId = account.homeIds.first {
+        if account.role == .household, let homeId = account.homeIds.first {
+            currentHomeId = homeId
+            // A registered resident may not be in `carePatients` yet if the launch seed is still
+            // merging the stored household data — the welcome gate waits for it, so only an
+            // account that never registered anyone goes to the setup screen.
+            let household = HouseholdCareStore.account(id: account.id)
+            let residentId = PrincipalCache.principal(accountId: account.id)?.residentId
+                ?? household?.residentId
+                ?? CareRosterEngine.activeResidents(in: homeId, from: carePatients).first?.id
+            selectedCarePatientId = residentId
+            phase = residentId == nil ? .householdResidentSetup : .supervisorWelcome
+        } else if account.homeIds.count == 1, let homeId = account.homeIds.first {
             currentHomeId = homeId
             phase = account.role.isHomeAdmin ? .careHomeAdminWelcome : .supervisorWelcome
         } else {
@@ -721,7 +770,6 @@ final class SessionPOCState: ObservableObject {
         withAnimation(CalmMotion.softFade) {
             phaseContentVisible = true
         }
-        return nil
     }
 
     func beginSupervisorPinReset() {
@@ -814,17 +862,17 @@ final class SessionPOCState: ObservableObject {
 
     func currentSupervisorAccount() -> SupervisorAccount? {
         guard let signedInSupervisorId else { return nil }
-        return CareTenancyMockData.supervisor(id: signedInSupervisorId)
+        return CareAccountDirectory.account(id: signedInSupervisorId)
     }
 
     func currentHome() -> CareHome? {
         guard let currentHomeId else { return nil }
-        return CareTenancyMockData.home(id: currentHomeId)
+        return CareAccountDirectory.home(id: currentHomeId)
     }
 
     func assignedHomes() -> [CareHome] {
         guard let account = currentSupervisorAccount() else { return [] }
-        return account.homeIds.compactMap { CareTenancyMockData.home(id: $0) }
+        return account.homeIds.compactMap { CareAccountDirectory.home(id: $0) }
     }
 
     func selectHome(_ homeId: UUID) {
@@ -879,6 +927,10 @@ final class SessionPOCState: ObservableObject {
 
     func signOutSupervisor() {
         phaseTransitionTask?.cancel()
+        if APIConfig.isConfigured {
+            MainActor.assumeIsolated { sync.deactivate() }
+            Task { await AuthSession.shared.signOut() }
+        }
         isSignedIn = false
         signedInSupervisorId = nil
         currentHomeId = nil
@@ -893,6 +945,7 @@ final class SessionPOCState: ObservableObject {
         rosterRecentlyViewedIds = []
         careHomeAdminWelcomeIsManual = false
         selectedCarePatientId = nil
+        householdUI.resetDrafts()
         phase = .home
         withAnimation(CalmMotion.softFade) {
             phaseContentVisible = true
@@ -1242,6 +1295,8 @@ final class SessionPOCState: ObservableObject {
             rec.insightFamilyText = pack.familyText
         }
 
+        rec.homeId = carePatient(id: patientId)?.homeId ?? currentHomeId
+        rec.authorAccountId = signedInSupervisorId
         careSessionRecords.insert(rec, at: 0)
         return rec
     }
@@ -1336,14 +1391,14 @@ final class SessionPOCState: ObservableObject {
                 finishAfterSessionFeedback(patientId: pid)
             }
         } else {
-            phase = .carePatientList
+            phase = staffHubPhase()
         }
     }
 
     func completeSessionInsightReview() {
         guard let pid = activeCarePatientId ?? selectedCarePatientId else {
             pendingSessionInsight = nil
-            phase = .carePatientList
+            phase = staffHubPhase()
             return
         }
         pendingSessionInsight = nil
@@ -1380,7 +1435,7 @@ final class SessionPOCState: ObservableObject {
         selectedCarePatientId = patientId
         clearResidentSessionSurfaceState()
         resetResidentSurfaceMetrics()
-        phase = .carePatientList
+        phase = staffHubPhase()
     }
 
     func sentimentSummary(for patientId: UUID) -> CareSessionSentimentSummary {
@@ -1401,27 +1456,134 @@ final class SessionPOCState: ObservableObject {
 
     // MARK: - Group session
 
+    // MARK: Group activity planner
+
+    /// Opens the planner from the roster with the app's recommendation pre-selected.
+    func beginGroupActivityPlanning() {
+        guard isSignedIn else {
+            phase = .home
+            return
+        }
+        let presentation = groupActivityPlannerPresentation()
+        if let top = presentation.activities.first {
+            groupSession.plannerActivityId = top.id
+            groupSession.plannerSelectedIds = Set(top.recommendedIds)
+        } else {
+            groupSession.plannerActivityId = nil
+            groupSession.plannerSelectedIds = []
+        }
+        transitionToPhase(.careGroupPlanner)
+    }
+
+    func cancelGroupActivityPlanning() {
+        groupSession.plannerSelectedIds = []
+        groupSession.plannerActivityId = nil
+        transitionToPhase(.carePatientList)
+    }
+
+    /// Recommendations, suggestions and the engagement overview for the current home. Pure
+    /// function of roster + history; cheap enough to rebuild on demand.
+    func groupActivityPlannerPresentation() -> GroupActivityPlannerPresentation {
+        GroupActivityPlanner.build(
+            residents: residentsInCurrentHome(),
+            sessionRecords: careSessionRecords,
+            groupRecords: groupSessionRecords
+        )
+    }
+
+    func toggleGroupPlannerResident(_ id: UUID) {
+        if groupSession.plannerSelectedIds.contains(id) {
+            groupSession.plannerSelectedIds.remove(id)
+        } else {
+            groupSession.plannerSelectedIds.insert(id)
+        }
+    }
+
+    /// Picks a suggested activity: its recommended residents replace the selection.
+    func chooseGroupActivity(_ suggestion: GroupActivitySuggestion) {
+        groupSession.plannerActivityId = suggestion.id
+        groupSession.plannerSelectedIds = Set(suggestion.recommendedIds)
+    }
+
+    func addGroupPlannerResidents(_ ids: [UUID]) {
+        groupSession.plannerSelectedIds.formUnion(ids)
+    }
+
+    /// Starts the session with the staff's selection; the playlist is compiled from those
+    /// residents only, and the record will name them and the activity.
+    func startPlannedGroupSession() {
+        guard isSignedIn else {
+            phase = .home
+            return
+        }
+        let selected = residentsInCurrentHome().filter { groupSession.plannerSelectedIds.contains($0.id) }
+        guard !selected.isEmpty else { return }
+        let presentation = groupActivityPlannerPresentation()
+        let activity = presentation.activities.first { $0.id == groupSession.plannerActivityId }
+        let title = activity?.title ?? "Staff-picked group"
+        let theme = activity?.theme ?? .mixed
+        groupSession.plannedActivity = GroupActivityPlan(title: title, theme: theme, participantIds: selected.map(\.id))
+        startGroupSession(with: selected)
+    }
+
+    /// Whole-home playlist (the original Group mode) — no plan, everyone counts as a participant.
     func beginGroupSession() {
         guard isSignedIn else {
             phase = .home
             return
         }
-        groupSessionTracks = GroupSessionPlaylistCompiler.compile(
-            patients: residentsInCurrentHome(),
-            sessionRecords: careSessionRecords
+        groupSession.plannedActivity = nil
+        startGroupSession(with: residentsInCurrentHome())
+    }
+
+    /// The group screen opens on a loading ring; the playlist — roster-compiled list merged with the
+    /// backend's picks for the room, sleeves and first preview fetched — appears in one piece about
+    /// three seconds later (`prepareGroupPlaylist`), and playback starts with it.
+    private func startGroupSession(with participants: [CarePatientProfile]) {
+        let local = GroupSessionPlaylistCompiler.compile(
+            patients: participants,
+            sessionRecords: careSessionRecords.filter { record in participants.contains { $0.id == record.patientId } }
         )
+        groupSessionTracks = []
         groupSessionTrackIndex = 0
-        groupSessionStartedAt = Date()
+        groupSessionStartedAt = nil
         groupSessionTracksPlayed = 0
         groupSession.groupSessionPlayedTrackIDs = []
         groupSessionFeedbackStep = 0
         groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
+        let preparation = UUID()
+        groupSession.groupSessionPreparationID = preparation
+        groupSession.isPreparingGroupPlaylist = true
         isGroupSessionActive = true
         phase = .careGroupSession
+        Task { @MainActor in
+            let tracks = await prepareGroupPlaylist(local: local, participants: participants)
+            guard isGroupSessionActive, groupSession.groupSessionPreparationID == preparation else { return }
+            groupSessionTracks = tracks
+            groupSessionTrackIndex = 0
+            groupSessionStartedAt = Date()
+            groupSession.isPreparingGroupPlaylist = false
+        }
+    }
+
+    /// Back out while the playlist is still being prepared: nothing has played, so there is no
+    /// check-in — straight back to the planner with the staff's selection intact.
+    private func cancelGroupSessionPreparation() {
+        groupSession.groupSessionPreparationID = UUID()
+        groupSession.isPreparingGroupPlaylist = false
+        isGroupSessionActive = false
+        groupSessionTracks = []
+        groupSessionStartedAt = nil
+        groupSession.plannedActivity = nil
+        phase = .careGroupPlanner
     }
 
     func endGroupSession() {
         guard isGroupSessionActive else { return }
+        if groupSession.isPreparingGroupPlaylist {
+            cancelGroupSessionPreparation()
+            return
+        }
         isGroupSessionActive = false
         groupSessionFeedbackStep = 0
         groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
@@ -1514,11 +1676,21 @@ final class SessionPOCState: ObservableObject {
             lucidityRating: lucidity,
             engagementRating: engagement,
             staffNote: note.isEmpty ? nil : note,
-            playlistSnapshot: snapshot
+            playlistSnapshot: snapshot,
+            participantIds: groupSessionParticipantIds(),
+            activityTitle: groupSession.plannedActivity?.title,
+            theme: groupSession.plannedActivity?.theme ?? .wholeHome,
+            homeId: currentHomeId,
+            authorAccountId: signedInSupervisorId
         )
         groupSessionRecords.insert(rec, at: 0)
         resetGroupSessionState()
         phase = .carePatientList
+    }
+
+    /// Who the running session counts for: the planned participants, or the whole home.
+    private func groupSessionParticipantIds() -> [UUID] {
+        groupSession.plannedActivity?.participantIds ?? residentsInCurrentHome().map(\.id)
     }
 
     func skipGroupSessionFeedback() {
@@ -1533,7 +1705,12 @@ final class SessionPOCState: ObservableObject {
             lucidityRating: nil,
             engagementRating: nil,
             staffNote: nil,
-            playlistSnapshot: groupSessionTracks.map(\.title)
+            playlistSnapshot: groupSessionTracks.map(\.title),
+            participantIds: groupSessionParticipantIds(),
+            activityTitle: groupSession.plannedActivity?.title,
+            theme: groupSession.plannedActivity?.theme ?? .wholeHome,
+            homeId: currentHomeId,
+            authorAccountId: signedInSupervisorId
         )
         groupSessionRecords.insert(rec, at: 0)
         resetGroupSessionState()
@@ -1541,6 +1718,9 @@ final class SessionPOCState: ObservableObject {
     }
 
     private func resetGroupSessionState() {
+        groupSession.plannedActivity = nil
+        groupSession.plannerSelectedIds = []
+        groupSession.plannerActivityId = nil
         groupSessionTracks = []
         groupSessionTrackIndex = 0
         groupSessionStartedAt = nil
@@ -1548,6 +1728,7 @@ final class SessionPOCState: ObservableObject {
         groupSession.groupSessionPlayedTrackIDs = []
         groupSessionFeedbackStep = 0
         groupSessionFeedbackDraft = GroupSessionFeedbackDraft()
+        groupSession.isPreparingGroupPlaylist = false
         isGroupSessionActive = false
     }
 
@@ -1795,13 +1976,35 @@ final class SessionPOCState: ObservableObject {
     /// thread; the launch overlay covers the brief window before the roster is populated, and the
     /// roster itself isn't reachable until after sign-in.
     private func seedCareDataOffMain() {
+        if APIConfig.isConfigured {
+            // Backend mode: the stores fill from the per-home cache + pull once an account signs in
+            // (`SyncEngine.activate`). Nothing mock is seeded, so what you see is what the server has.
+            careData.isSeeded = false
+            return
+        }
         Task.detached(priority: .userInitiated) { [weak self] in
             let patients = CareTenancyMockData.allPatients()
             let records = CareStaffMockData.initialRecords + CareTenancyMockData.supplementalRecords()
+            // Care at home: the demo household plus any accounts created on this device.
+            if DemoLaunchOptions.resetHouseholds { HouseholdCareStore.wipeStored() }
+            let household = HouseholdCareStore.seedContent()
             await MainActor.run {
                 guard let self else { return }
-                self.careData.carePatients = patients
-                self.careData.careSessionRecords = records
+                self.careData.carePatients = patients + household.residents
+                self.careData.careSessionRecords = records + household.records
+                // A fortnight of group activities for the mock home, so the planner has history.
+                self.groupSession.groupSessionRecords = GroupActivityMockData.records(
+                    residents: patients, sessionRecords: records, homeId: CareTenancyMockData.mapleLodgeId
+                )
+                if !household.portraits.isEmpty {
+                    self.careData.carePatientPortraitImages.merge(household.portraits) { _, stored in stored }
+                }
+                self.householdUI.persistedPortraitIds = Set(household.portraits.keys)
+                self.householdUI.persistenceArmed = true
+                self.careData.isSeeded = true
+                if SeedExport.isRequested {
+                    SeedExport.run(patients: patients, records: records + household.records, groupRecords: self.groupSession.groupSessionRecords)
+                }
             }
         }
     }
@@ -1832,6 +2035,7 @@ final class SessionPOCState: ObservableObject {
         discoverySnippetIndex = 0
         discoveryResults = []
         discoveryPendingPick = nil
+        recommendations.discoveryPlan = nil
         phase = .careDiscoveryCalibration
     }
 
@@ -1839,14 +2043,18 @@ final class SessionPOCState: ObservableObject {
         discoveryPendingPick = sentiment
     }
 
-    func commitDiscoverySnippetSlice() {
+    func commitDiscoverySnippetSlice(trackId: String? = nil) {
         let pick = discoveryPendingPick ?? .neutral
-        discoveryResults.append(DiscoverySnippetResult(snippetIndex: discoverySnippetIndex, sentiment: pick))
+        let plan = recommendations.discoveryPlan
+        let ratedId = trackId ?? plan?.snippets[safe: discoverySnippetIndex]?.id
+        discoveryResults.append(DiscoverySnippetResult(snippetIndex: discoverySnippetIndex, sentiment: pick, trackId: ratedId))
         discoveryPendingPick = nil
         discoverySnippetIndex += 1
-        if discoverySnippetIndex >= DiscoveryFlowPOC.snippetCount {
-            if let pid = selectedCarePatientId ?? activeCarePatientId,
-               let ix = carePatients.firstIndex(where: { $0.id == pid }) {
+        if discoverySnippetIndex >= discoverySnippetTotal {
+            guard let pid = selectedCarePatientId ?? activeCarePatientId else { return }
+            if let plan {
+                Task { @MainActor in await finishDiscoveryOnline(for: pid, plan: plan) }
+            } else if let ix = carePatients.firstIndex(where: { $0.id == pid }) {
                 var patient = carePatients[ix]
                 DiscoveryPlaylistTuning.applyDiscoveryResults(discoveryResults, to: &patient)
                 carePatients[ix] = patient
@@ -1859,6 +2067,7 @@ final class SessionPOCState: ObservableObject {
         discoverySnippetIndex = 0
         discoveryResults = []
         discoveryPendingPick = nil
+        recommendations.discoveryPlan = nil
         if newResidentDiscoveryPatientId != nil {
             phase = .carePatientList
         } else {
@@ -1871,6 +2080,7 @@ final class SessionPOCState: ObservableObject {
         discoveryResults = []
         discoveryPendingPick = nil
         discoverySnippetOrder = []
+        recommendations.discoveryPlan = nil
     }
 
     private func resetNewResidentFlowState() {
@@ -1923,6 +2133,13 @@ enum FlowPhase: Int, CaseIterable, Identifiable {
     case careHomeAdminWelcome = 25
     /// Home admin analytics — session impact across the home.
     case careHomeAdminDashboard = 26
+    // Care at home (family member / private carer, one resident)
+    case householdSignUp = 27
+    case householdResidentSetup = 28
+    case householdHome = 29
+    case householdInsights = 30
+    /// Group activities: choose who joins (with recommendations) before the session starts.
+    case careGroupPlanner = 31
 
     var id: Int { rawValue }
 }

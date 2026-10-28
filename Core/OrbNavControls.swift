@@ -97,6 +97,7 @@ struct PrimaryButton: View {
                 .font(BrandTheme.buttonLabel(.headline))
                 .foregroundStyle(BrandTheme.textOnOrb)
                 .shadow(color: Color(red: 0.42, green: 0.58, blue: 0.72).opacity(0.38), radius: 1.5, y: 1)
+                .flattenedShadows(bleed: 6)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)

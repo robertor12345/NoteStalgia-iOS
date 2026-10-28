@@ -52,6 +52,13 @@ struct ResidentSurfaceSessionMetrics: Equatable {
 
     var currentTrackTitle: String?
     var currentTrackStartedAt: Date?
+    /// Catalogue ids behind the titles played this session (signals are keyed by id, summaries by title).
+    var trackIdsByTitle: [String: String] = [:]
+    /// Artists behind the catalogue titles played this session (sun-likes grow the catalogue around them).
+    var trackArtistsByTitle: [String: String] = [:]
+    /// Seconds into the track when it was cloud-skipped (early skips weigh more in the model).
+    var skipSecondsByTitle: [String: Int] = [:]
+    var previewFailedTrackIds: [String] = []
 
     // MARK: - Rage detection
 
@@ -148,6 +155,9 @@ struct ResidentSurfaceSessionMetrics: Equatable {
 
     mutating func recordTrackSkip(_ title: String) {
         let rage = recordControlTap(key: "cloud:\(title)")
+        if currentTrackTitle == title, let start = currentTrackStartedAt {
+            skipSecondsByTitle[title] = max(0, Int(Date().timeIntervalSince(start).rounded()))
+        }
         skippedTrackTitles.insert(title)
         comfortTryElseCount += 1
         trackChangeCount += 1
@@ -230,13 +240,13 @@ struct ResidentSurfaceSessionMetrics: Equatable {
         guard !trackLikeCounts.isEmpty else { return nil }
         return trackLikeCounts
             .sorted { $0.value > $1.value }
-            .map { "\($0.key) ×\($0.value)" }
+            .map { "\(Self.summarySafe($0.key)) ×\($0.value)" }
             .joined(separator: ", ")
     }
 
     func skippedTracksSummary() -> String? {
         guard !skippedTrackTitles.isEmpty else { return nil }
-        return skippedTrackTitles.sorted().joined(separator: ", ")
+        return skippedTrackTitles.sorted().map(Self.summarySafe).joined(separator: ", ")
     }
 
     func topDwellTracksSummary(limit: Int = 3) -> String? {
@@ -245,7 +255,13 @@ struct ResidentSurfaceSessionMetrics: Equatable {
             .sorted { $0.value > $1.value }
             .prefix(limit)
         guard !ranked.isEmpty else { return nil }
-        return ranked.map { "\($0.key) \($0.value)s" }.joined(separator: ", ")
+        return ranked.map { "\(Self.summarySafe($0.key)) \($0.value)s" }.joined(separator: ", ")
+    }
+
+    /// The legacy summary strings are split on "," and "×" when read back (planner, insight builder),
+    /// so real song titles must not contain either.
+    static func summarySafe(_ title: String) -> String {
+        title.replacingOccurrences(of: ",", with: " ").replacingOccurrences(of: "×", with: "x")
     }
 
     // MARK: - Totals / summaries

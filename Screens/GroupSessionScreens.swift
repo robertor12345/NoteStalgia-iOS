@@ -6,9 +6,12 @@ struct GroupSessionView: View {
     @ObservedObject var state: SessionPOCState
     @StateObject private var audio = AmbientAudioSession()
     @State private var isPlaying = true
+    @State private var playingTrackID: UUID?
 
     private var tracks: [GroupSessionTrack] { state.groupSessionTracks }
     private var currentIndex: Int { state.groupSessionTrackIndex }
+    /// From Start until the room's playlist is ready to show in one piece (about three seconds).
+    private var isPreparing: Bool { state.groupSession.isPreparingGroupPlaylist }
 
     private var currentTrack: GroupSessionTrack? {
         guard tracks.indices.contains(currentIndex) else { return nil }
@@ -19,29 +22,54 @@ struct GroupSessionView: View {
         VStack(spacing: 0) {
             topBar
 
-            ScrollViewportWithEdgeFade(coordinateSpace: "groupSessionScroll") {
-                VStack(spacing: 22) {
-                    if let track = currentTrack {
-                        nowPlayingCard(track)
-                        transportControls
-                        trackList
-                    } else {
-                        FadeInLine(text: "No tracks compiled yet — add residents to the roster first.", delay: 0)
+            if !isPreparing {
+                ScrollViewportWithEdgeFade(coordinateSpace: "groupSessionScroll") {
+                    VStack(spacing: 22) {
+                        if let plan = state.groupSession.plannedActivity {
+                            FadeInLine(
+                                text: "\(plan.title) · \(plan.participantIds.count) resident\(plan.participantIds.count == 1 ? "" : "s")",
+                                font: BrandTheme.orbHintFont(),
+                                muted: true,
+                                delay: 0.04
+                            )
+                            .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
+                            .accessibilityIdentifier("group.activityLine")
+                        }
+                        if let track = currentTrack {
+                            nowPlayingCard(track)
+                            transportControls
+                            trackList
+                        } else {
+                            FadeInLine(text: "No tracks compiled yet — add residents to the roster first.", delay: 0)
+                                .padding(.horizontal, 24)
+                        }
                     }
+                    .padding(.vertical, 20)
+                    .padding(.bottom, BrandLayout.scrollEdgeFadeComfortPadding)
+                    .animation(CalmMotion.gentle, value: currentIndex)
+                    .animation(CalmMotion.subtle, value: isPlaying)
                 }
-                .padding(.vertical, 20)
-                .padding(.bottom, BrandLayout.scrollEdgeFadeComfortPadding)
-                .animation(CalmMotion.gentle, value: currentIndex)
-                .animation(CalmMotion.subtle, value: isPlaying)
+                .transition(.opacity.combined(with: .offset(y: 10)))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The loading ring and its line sit in the middle of the screen, over the whole view (the top
+        // bar stays tappable: the card has no background, so taps outside its text fall through).
+        .overlay {
+            if isPreparing {
+                preparingCard
+                    .transition(.opacity)
+            }
+        }
+        .animation(CalmMotion.gentle, value: isPreparing)
         .onAppear {
             audio.volumeMultiplier = 1.08
             startCurrentTrack()
         }
-        .onChange(of: state.groupSessionTrackIndex) { _, _ in
-            startCurrentTrack()
+        // Index changes and the backend's picks replacing the list both land here.
+        .onChange(of: currentTrack?.id) { _, id in
+            if id != playingTrackID { startCurrentTrack() }
         }
         .onDisappear {
             audio.stop()
@@ -55,8 +83,8 @@ struct GroupSessionView: View {
                 state.endGroupSession()
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "stop.circle.fill")
-                    Text("End session")
+                    Image(systemName: isPreparing ? "chevron.left.circle.fill" : "stop.circle.fill")
+                    Text(isPreparing ? "Back" : "End session")
                         .font(.subheadline.weight(.semibold))
                 }
                 .foregroundStyle(BrandTheme.textPrimary)
@@ -86,6 +114,28 @@ struct GroupSessionView: View {
         .padding(.bottom, 8)
     }
 
+    /// Shown while `prepareGroupPlaylist` runs: the list arrives finished, songs and sleeves together.
+    private var preparingCard: some View {
+        VStack(spacing: 18) {
+            CalmCircularLoader(diameter: 64)
+                .padding(.bottom, 6)
+            // Over the orb, so the text takes the overlay treatment the roster's loading line uses.
+            Text("Choosing songs for the room…")
+                .font(BrandTheme.orbHintFont())
+                .orbOverlayText()
+                .multilineTextAlignment(.center)
+            Text("Ranked for everyone taking part: their ages, where they are from, the genres they respond to, and songs like the ones they love.")
+                .font(.caption)
+                .orbOverlayText(muted: true)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 420)
+        }
+        .padding(.horizontal, 24)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("group.preparing")
+    }
+
     private func nowPlayingCard(_ track: GroupSessionTrack) -> some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 14) {
@@ -94,30 +144,29 @@ struct GroupSessionView: View {
                     .foregroundStyle(BrandTheme.textSecondary)
 
                 HStack(spacing: 14) {
-                    ZStack {
-                        Circle()
-                            .fill(track.genre.accent.opacity(0.45))
-                            .frame(width: 56, height: 56)
-                        Image(track.genre.artworkAssetName)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 52, height: 52)
-                            .clipShape(Circle())
-                    }
+                    // The sleeve for a catalogue song, the genre glyph for a bundled stem.
+                    TrackArtworkView(ref: track.ref, size: 64, cornerRadius: 12)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(track.title)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(BrandTheme.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(track.genre.accessibilityLabel) · drawn from \(track.sourceResidentName)")
+                        Text("\(track.genre.accessibilityLabel) · \(track.ref.artist.map { "\($0) · " } ?? "")for \(track.sourceResidentName)")
                             .font(.caption)
                             .foregroundStyle(BrandTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                        if let reason = track.reason {
+                            Text(reason)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BrandTheme.goldDeep)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("group.reason")
+                        }
                     }
                 }
 
-                Text("Track \(currentIndex + 1) of \(tracks.count) · playlist compiled from resident listening data across your home.")
+                Text("Track \(currentIndex + 1) of \(tracks.count) · ranked for everyone in the room: their ages, where they are from, the genres they respond to, and songs like the ones they love.")
                     .font(.caption2)
                     .foregroundStyle(BrandTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -169,11 +218,7 @@ struct GroupSessionView: View {
                         isPlaying = true
                     } label: {
                         HStack(spacing: 12) {
-                            Image(track.genre.artworkAssetName)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 28, height: 28)
-                                .clipShape(Circle())
+                            TrackArtworkView(ref: track.ref, size: 34, cornerRadius: 8)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(track.title)
@@ -219,9 +264,17 @@ struct GroupSessionView: View {
     private func startCurrentTrack() {
         guard let track = currentTrack else { return }
         audio.stop()
-        // Play the listed track — this previously always started the ambient loop.
-        audio.startFresh(streamURL: ResidentPlaybackTrackCatalog.track(titled: track.title, genre: track.genre).audioURL)
+        // Catalogue previews play once and move the room along; bundled stems loop as before.
+        audio.logTitle = track.title
+        audio.loops = track.ref.isBundled
+        audio.onItemEnd = { if !track.ref.isBundled { state.groupSessionNextTrack() } }
+        audio.onFailure = { state.groupSessionNextTrack() }
+        audio.startFresh(streamURL: track.ref.audioURL, fallbackURL: track.ref.isBundled ? AmbientAudioSession.quickStartStreamURL : nil)
+        if tracks.indices.contains(currentIndex + 1), let next = tracks[currentIndex + 1].ref.previewURL {
+            StreamAudioCache.prefetch([next])
+        }
         isPlaying = true
+        playingTrackID = track.id
         state.markGroupTrackPlayed()
     }
 }

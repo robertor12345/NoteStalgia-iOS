@@ -24,6 +24,8 @@ struct DiscoverySnippetResult: Identifiable, Equatable {
     var id: Int { snippetIndex }
     let snippetIndex: Int
     let sentiment: DiscoveryTrafficSentiment
+    /// Catalogue track that was auditioned (nil for the bundled offline clips).
+    var trackId: String? = nil
 }
 
 enum DiscoveryFlowPOC {

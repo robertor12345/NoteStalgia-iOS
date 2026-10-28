@@ -264,13 +264,29 @@ struct NoteStalgiaNebulaOrbShell: View {
             )
         }
         .frame(width: diameter * OrbHeartbeat.visualHeadroom, height: diameter * OrbHeartbeat.visualHeadroom)
-        .shadow(color: BrandTheme.nebulaCyan.opacity(0.34 * glowPulse * Double(glowStrength)), radius: bounds * 0.24, y: 0)
-        .shadow(color: BrandTheme.nebulaPeach.opacity(0.22 * glowPulse * Double(glowStrength)), radius: bounds * 0.17, y: 0)
-        .shadow(
-            color: BrandTheme.nebulaMagenta.opacity(0.20 * glowPulse * Double(glowStrength)),
-            radius: bounds * 0.11,
-            y: bounds * 0.014
-        )
+        .modifier(ShellShadows(glow: glowPulse * Double(glowStrength), bounds: bounds))
+    }
+
+    /// The three coloured shadows that give the shell its radiance. Kept as a modifier so the
+    /// demo toolkit can measure their cost (`OrbRenderBudget.experimentDisableShellShadows`).
+    private struct ShellShadows: ViewModifier {
+        var glow: Double
+        var bounds: CGFloat
+
+        func body(content: Content) -> some View {
+            if OrbRenderBudget.experimentDisableShellShadows {
+                content
+            } else {
+                content
+                    .shadow(color: BrandTheme.nebulaCyan.opacity(0.34 * glow), radius: bounds * 0.24, y: 0)
+                    .shadow(color: BrandTheme.nebulaPeach.opacity(0.22 * glow), radius: bounds * 0.17, y: 0)
+                    .shadow(color: BrandTheme.nebulaMagenta.opacity(0.20 * glow), radius: bounds * 0.11, y: bounds * 0.014)
+                    // Three large blur passes per frame in the render server; flattened with the
+                    // shell into one texture (see `flattenedShadows`). The bleed covers the widest
+                    // shadow's tail (0.24 × bounds, ×2.5) plus the downward offset.
+                    .flattenedShadows(bleed: bounds * 0.62)
+            }
+        }
     }
 
     @ViewBuilder

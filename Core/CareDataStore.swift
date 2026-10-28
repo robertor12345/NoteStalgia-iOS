@@ -18,6 +18,9 @@ final class CareDataStore: ObservableObject {
     }
     /// Custom portraits keyed by patient id (captured during profile setup).
     @Published var carePatientPortraitImages: [UUID: UIImage] = [:]
+    /// True once the stores hold the best data available for the signed-in account: the offline seed,
+    /// the per-home cache, or the first backend pull. The welcome gate waits on this, not on counts.
+    @Published var isSeeded = false
 
     /// Bumped on any roster/history change. Used as a cheap O(1) cache key for the roster and
     /// dashboard presentations instead of comparing the full patient/record arrays element-wise on

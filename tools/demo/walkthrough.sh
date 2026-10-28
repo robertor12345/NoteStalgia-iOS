@@ -38,6 +38,12 @@ WORK="${DEMO_WORKDIR:-$REPO/.demo-work}"; TAKE="$WORK/takes/$take.mp4"
 xcrun simctl bootstatus "$UDID" -b > /dev/null 2>&1 || true
 CONTAINER=$(xcrun simctl get_app_container "$UDID" com.notestalgia.ios data 2>/dev/null || true)
 rm -rf .derivedData/Logs/Test/*.xcresult 2>/dev/null || true   # xcresult bundles grow by hundreds of MB per run
+# The simulator downloads Siri / dictation speech assets (≈1–3 GB) once the keyboard has been used; on this
+# 8 GB machine that fills the disk within a few takes. They are a cache — drop them while the device is down.
+SIMDATA="$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data"
+rm -rf "$SIMDATA/private/var/MobileAsset/AssetsV2/com_apple_MobileAsset_UAF_Siri_Understanding" \
+       "$SIMDATA/private/var/MobileAsset/AssetsV2/com_apple_MobileAsset_VoiceServices"* \
+       "$SIMDATA/tmp/com.apple.sirittsd" 2>/dev/null || true
 if [[ -n "$CONTAINER" && -f "$CONTAINER/Documents/demo-audio-log.jsonl" && -f "$WORK/takes/$take.start" ]]; then
   # First moment worth keeping: the earliest app log event or script marker (the story takes mark
   # "open" the instant the app launches, before any phase change is logged).

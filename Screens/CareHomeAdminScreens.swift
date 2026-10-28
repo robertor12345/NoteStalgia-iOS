@@ -29,6 +29,7 @@ struct CareHomeAdminDashboardView: View {
                     if !dashboard.wingBreakdown.isEmpty {
                         wingSection
                     }
+                    groupProgrammeSection
                     if !dashboard.positiveHighlights.isEmpty {
                         impactSection(
                             title: "Positive session impact",
@@ -103,6 +104,58 @@ struct CareHomeAdminDashboardView: View {
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    /// The home's group programme — sessions, reach, how they land, and who has had none.
+    private var groupProgrammeSection: some View {
+        let g = state.groupProgrammeSummary()
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Group programme")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BrandTheme.textSecondary)
+                    .accessibilityIdentifier("admin.groupProgramme")
+                Text("Group activities over the same \(GroupActivityPlanner.windowDays) days, alongside the one-to-ones above.")
+                    .font(.caption)
+                    .foregroundStyle(BrandTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 12) {
+                    groupStat("Sessions", "\(g.sessions14d)")
+                    groupStat("Reached", "\(g.residentsReached) of \(g.activeResidents)")
+                    groupStat("Engagement", g.averageEngagement.map { String(format: "%.1f/10", $0) } ?? "—")
+                    groupStat("Morale", g.averageMorale.map { String(format: "%.1f/10", $0) } ?? "—")
+                }
+                if let best = g.bestActivity {
+                    Text("Lands best: \(best.title) · \(String(format: "%.1f", best.averageEngagement))/10 engagement over \(best.sessions) session\(best.sessions == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if g.noGroupCount > 0 {
+                    let names = g.noGroupNames.joined(separator: ", ")
+                    let more = g.noGroupCount - g.noGroupNames.count
+                    let tail = names.isEmpty ? "." : " — \(names)\(more > 0 ? " and \(more) more." : ".")"
+                    Text("\(g.noGroupCount) resident\(g.noGroupCount == 1 ? "" : "s") who would welcome a group \(g.noGroupCount == 1 ? "has" : "have") had none this fortnight\(tail)")
+                        .font(.caption)
+                        .foregroundStyle(BrandTheme.nebulaSalmon)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func groupStat(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(BrandTheme.textSecondary)
+            Text(value)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BrandTheme.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var wingSection: some View {
@@ -186,17 +239,19 @@ struct CareHomeAdminDashboardView: View {
 
 // MARK: - Trend graphs (compact, expandable)
 
-private struct DashboardTrendGraphsStrip: View {
+struct DashboardTrendGraphsStrip: View {
     let series: [CareHomeTrendSeries]
+    var title = "Home trends"
+    var subtitle = "Tap a chart to expand — tap again to collapse."
     @State private var expandedId: String?
 
     var body: some View {
         BrandCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Home trends")
+                Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(BrandTheme.textSecondary)
-                Text("Tap a chart to expand — tap again to collapse.")
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
 
@@ -495,7 +550,7 @@ private struct DashboardTrendChart: View {
 
 // MARK: - Dashboard components
 
-private struct DashboardKPICardView: View {
+struct DashboardKPICardView: View {
     let card: CareHomeKPICard
     var delay: Double
 
@@ -604,7 +659,7 @@ private struct DashboardResidentImpactRow: View {
     }
 }
 
-private struct DashboardRecentSessionRow: View {
+struct DashboardRecentSessionRow: View {
     let session: CareHomeRecentSessionRow
 
     private var dateLabel: String {

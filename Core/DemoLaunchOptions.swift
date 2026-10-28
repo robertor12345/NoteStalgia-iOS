@@ -11,6 +11,9 @@ import Foundation
 /// -NoteStalgiaDemoFreezeGlyphDrift YES            resident glyphs hold still so scripted taps land
 /// -NoteStalgiaDemoAutoPhoto YES                   save-resident form pre-filled with a bundled portrait
 /// -NoteStalgiaDemoAudioLog YES                    (see `DemoAudioLog`) log music/chime/phase events
+/// -NoteStalgiaDemoResetHouseholds YES             forget Care at home accounts created on this device
+/// -NoteStalgiaDemoFrameLog YES                    (see `OrbFrameMonitor`) log display / orb frame stats
+/// -NoteStalgiaDemoFreezeOrb YES                   orb + sparkles hold one frame (pixel A/B of render changes)
 /// ```
 ///
 /// Jump targets: `roster`, `profile:<name prefix>`, `surface:<name prefix>`, `discovery`, `group`.
@@ -27,11 +30,19 @@ enum DemoLaunchOptions {
 
     static let freezeGlyphDrift = UserDefaults.standard.bool(forKey: "NoteStalgiaDemoFreezeGlyphDrift")
 
+    /// `-NoteStalgiaDemoFreezeOrb YES` — the persistent orb and the sparkle field hold one fixed
+    /// frame (2 s into the breath), so two builds can be compared pixel for pixel.
+    static let freezeOrb = UserDefaults.standard.bool(forKey: "NoteStalgiaDemoFreezeOrb")
+
     /// `-NoteStalgiaDemoAutoPhoto YES` — the save-resident form arrives with a bundled portrait already
     /// in place, so a scripted discovery can press Save (the photo picker is system UI a script can't drive).
     static let autoPhoto = UserDefaults.standard.bool(forKey: "NoteStalgiaDemoAutoPhoto")
 
     static let jump: Jump? = UserDefaults.standard.string(forKey: "NoteStalgiaDemoJump").flatMap(Jump.init(argument:))
+
+    /// `-NoteStalgiaDemoResetHouseholds YES` — wipes household accounts, residents, history and portraits
+    /// stored on this device at launch, so a scripted sign-up can reuse the same email every take.
+    static let resetHouseholds = UserDefaults.standard.bool(forKey: "NoteStalgiaDemoResetHouseholds")
 
     enum Jump: Equatable {
         case roster
@@ -62,14 +73,19 @@ extension SessionPOCState {
     @discardableResult
     func applyDemoSignInIfRequested() -> Bool {
         guard let email = DemoLaunchOptions.signInEmail, !isSignedIn else { return false }
-        guard let account = CareTenancyMockData.supervisors.first(where: {
-            $0.email.caseInsensitiveCompare(email) == .orderedSame
-        }) else {
-            assertionFailure("Demo sign-in: no mock supervisor with email \(email)")
+        if APIConfig.isConfigured {
+            // Demo accounts share the demo PIN; the server validates it.
+            supervisorEmail = email
+            supervisorPIN = CareAccountDirectory.account(email: email)?.pin ?? HouseholdCare.demoPIN
+            Task { @MainActor in _ = await signIn() }
+            return true
+        }
+        guard let account = CareAccountDirectory.account(email: email) else {
+            assertionFailure("Demo sign-in: no account with email \(email)")
             return false
         }
         supervisorEmail = account.email
-        supervisorPIN = SupervisorCredentialStore.accountWithEffectivePIN(account).pin
+        supervisorPIN = account.pin
         return completeSupervisorSignIn() == nil
     }
 

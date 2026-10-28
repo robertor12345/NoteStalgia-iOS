@@ -24,6 +24,14 @@ final class CareRosterUIStore: ObservableObject {
     /// Same key as the dashboard — the home-wide sentiment card only depends on home + data.
     var homeSentimentOverviewCache: (key: DashboardPresentationCacheKey, value: CareSessionSentimentSummary)?
 
+    struct GroupProgrammeCacheKey: Equatable {
+        var homeId: UUID?
+        var dataRevision: Int
+        /// Group records only grow (feedback save) or are reseeded at sign-in, so the count stands in for the array.
+        var groupRecordCount: Int
+    }
+    var groupProgrammeCache: (key: GroupProgrammeCacheKey, value: GroupProgrammeSummary)?
+
     struct RosterPresentationCacheKey: Equatable {
         var homeId: UUID
         /// `CareDataStore.dataRevision` — cheap O(1) stand-in for the patients + records arrays.

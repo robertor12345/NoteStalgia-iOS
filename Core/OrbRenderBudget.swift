@@ -1,10 +1,13 @@
 import CoreGraphics
+import Foundation
 
 /// Tunable orb render cost — drives the ~10s pulse and ambient motion at a silky 60fps,
 /// while keeping heavy procedural backdrops on a calmer cadence to protect the frame budget.
 enum OrbRenderBudget {
-    /// Orb shell breathe + glow. 60fps for fluid, ethereal motion.
-    static let shellFramesPerSecond: Double = 60
+    /// Orb shell breathe + glow: follows the display (60 Hz on most iPads and the simulator, 120 Hz
+    /// on ProMotion). The per-frame main-thread cost is small now that the nebula noise is computed
+    /// off-main, so the breathing is as smooth as the panel allows.
+    static let shellFramesPerSecond: Double = 120
     /// Honoured when Reduce Motion is on — calmer and cheaper.
     static let reducedMotionFramesPerSecond: Double = 30
     /// Inner orb content drift and interactive glyph layouts.
@@ -51,6 +54,17 @@ enum OrbRenderBudget {
     static func nebulaVolumeBlurRadius(for diameter: CGFloat) -> CGFloat {
         max(0.95, diameter * 0.017)
     }
+
+    /// Measurement switch for the demo toolkit (`-NoteStalgiaPerfNoShellShadows YES`): skips the
+    /// three large shell shadows so their GPU cost can be measured on a given machine. Never on in
+    /// normal use — the shadows are part of the orb's look.
+    static let experimentDisableShellShadows = UserDefaults.standard.bool(forKey: "NoteStalgiaPerfNoShellShadows")
+    /// Measurement switch (`-NoteStalgiaPerfSyncNebula YES`): compute the nebula noise synchronously on
+    /// the main thread as before the precompute, for back-to-back A/B on the same build.
+    static let experimentSyncNebula = UserDefaults.standard.bool(forKey: "NoteStalgiaPerfSyncNebula")
+    /// Measurement switch (`-NoteStalgiaPerfCAShadows YES`): leave shadows to Core Animation instead of
+    /// flattening them with `drawingGroup` — the pre-optimisation path, for back-to-back A/B.
+    static let experimentCAShadows = UserDefaults.standard.bool(forKey: "NoteStalgiaPerfCAShadows")
 
     static var usesLiteNebulaInterior: (CGFloat, CGFloat) -> Bool {
         { diameter, fillOpacity in

@@ -16,7 +16,7 @@ Subtitles: every narration cue (sentence timings from the voice engine, long sen
 rendered as a strip under the device and composited with the picture; the same cues go to a sidecar
 .srt next to the video.
 
-    python3 tools/demo/pipeline/build_story.py                 # → NoteStalgia-Walkthrough-v5.mp4 + .srt
+    python3 tools/demo/pipeline/build_story.py                 # → NoteStalgia-Walkthrough-v6.mp4 + .srt
     python3 tools/demo/pipeline/build_story.py --reuse-video   # narration/mix only: keeps the rendered picture
                                                                # (only valid while captions, cuts and subtitles are unchanged)
 """
@@ -43,10 +43,10 @@ PNG = os.path.join(WORK, "png_story")
 RENDER = V3.RENDER
 B.PNG = PNG
 
-TAKE_NAMES = ["a_story", "b_story", "c_story"]
+TAKE_NAMES = ["a_story", "b_story", "c_story", "d_story"]
 LEAD_IN = 1.2        # seconds of take kept before its first marker
 TAIL = 1.5           # seconds kept after the "end" marker
-INTRO_DUR = 15.0
+INTRO_DUR = 18.0     # the intro line now names both settings (~17.5 s)
 CHAPTER_DUR = 3.4
 OUTRO_DUR = 12.0
 VOICE_DELAY = 0.45   # narration starts this long after its marker
@@ -57,7 +57,8 @@ B.INTRO_DUR, B.CHAPTER_DUR, B.OUTRO_DUR = INTRO_DUR, CHAPTER_DUR, OUTRO_DUR
 # Layout: the device is a little smaller than in v3/v4 so a subtitle band fits under it, and the
 # flow index in the right-hand panel moves up out of that band.
 B.SCREEN = (208, 40, 619, 890)
-B.INDEX_Y = 690
+B.INDEX_Y = 672          # nine flows → five rows per column, tighter pitch, still above the subtitle band
+B.INDEX_ROW_H = 44
 SUB_Y = 940          # top of the 1920×150 subtitle strip
 SUB_FADE = 0.12
 
@@ -426,4 +427,4 @@ def main(out_path, reuse_video=False):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    main(args[0] if args else os.path.join(REPO, "NoteStalgia-Walkthrough-v5.mp4"), reuse_video="--reuse-video" in sys.argv)
+    main(args[0] if args else os.path.join(REPO, "NoteStalgia-Walkthrough-v6.mp4"), reuse_video="--reuse-video" in sys.argv)

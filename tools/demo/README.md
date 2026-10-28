@@ -18,13 +18,20 @@ lead-in and re-encoded at half resolution so a five-minute take is ~250 MB) plus
 `.log.jsonl` (the app's phase / music / chime log), `.markers.log` (`epoch|label` for every scripted
 step) and `.sync.json` (recording start + trim).
 
-The story is one chronological afternoon in three continuous takes:
+The story is one chronological afternoon in four continuous takes (three in the care home, one at home):
 
 | Scenario | What it shows |
 |---|---|
 | `testStoryPartA_SignInToSummary` | title → typed sign-in (`max@…`, PIN) → welcome → roster (scroll, wing filter, Cards/Compact) → Irene's profile scrolled card by card → calm surface (play, sun, switch, cloud) → staff hold → observation (tags, ratings, note) → session summary scrolled → copy family update → Done |
 | `testStoryPartB_DiscoveryAndGroup` | roster → new-resident discovery (age → seven clips with reactions) → first calm surface → staff hold → name + save → roster → group mode (next, pick a track) → end → check-in → roster |
 | `testStoryPartC_Admin` | typed sign-in as `alex@…` → home picker → admin welcome → dashboard (expand a trend, scroll) |
+| `testStoryPartD_Household` | Care at home: "Create an account" from sign-in → sign-up (Priya, private carer, PIN) → register Arun S. (no discovery) → household home → calm surface session → observation → summary (Family write-up) → first insights → log out → sign in as `claire@example.com` → Harold's insights scrolled. Launches with `-NoteStalgiaDemoResetHouseholds YES` so the same email works every take |
+| `testStoryPartE_LiveBackend` | **v7** · live backend: typed sign-in checked by the server → "Syncing" → synced roster → Irene's profile → Group activities card (In company → Small groups) → Find a song they love ("vera lynn": sleeves, preview, Add) → the chip + real-time re-ranking → calm surface (new Pop glyph, We'll Meet Again with its sleeve, swipe to more Vera Lynn, sun) → staff hold → observation skipped → summary → Done. Every tap is followed by a hold of ≥ 3 s |
+| `testStoryPartF_OnlineDiscovery` | **v7** · online discovery for Irene: seven real songs with their sleeves in the orb and the staff caption → faces → playlists on her calm surface → first playlist plays → staff hold → summary |
+| `testStoryPartH_GroupSession` | **v7** · Group activities → planner (suggestions from shared tastes, reasons) → tap a suggestion → the residents and their reasoning → Start → a playlist ranked for the whole room by the server (sleeve, who each song is for, why) → next → the full list → End → check-in → roster |
+| `testStoryPartG_GroupProgramme` | **v7** · `alex@…` → Maple Lodge → dashboard from synced data → the Group programme card |
+| `testGroupPlannerWalkthrough` | Group activities: roster → planner → pick a suggested activity → toggle a resident → start → session (activity line) → end → check-in → roster → Irene K.'s profile (Group activities card: participation line, set "In company" to Small groups) → log out → `alex@` → Maple Lodge dashboard (Group programme card) |
+| `testHouseholdWalkthrough` | Care at home: create an account → register a resident (no discovery) → home → empty insights → profile → calm surface session → observation → summary → insights with data → relaunch + sign in (persistence) → demo household `claire@example.com` → Harold's insights |
 
 Every step calls `mark("<label>")`, which appends to `/tmp/notestalgia-demo-markers.log`
 (`TEST_RUNNER_DEMO_MARKERS_FILE`); the labels are the keys of `pipeline/narration.py`, which holds
@@ -36,11 +43,30 @@ shuts the simulator down afterwards — `walkthrough.sh` boots it again before t
 ## Full walkthrough video (narrated + subtitled)
 
 ```bash
-for s in testStoryPartA_SignInToSummary:a_story testStoryPartB_DiscoveryAndGroup:b_story testStoryPartC_Admin:c_story; do
+for s in testStoryPartA_SignInToSummary:a_story testStoryPartB_DiscoveryAndGroup:b_story \
+         testStoryPartC_Admin:c_story testStoryPartD_Household:d_story; do
   tools/demo/walkthrough.sh "${s%%:*}" "${s##*:}"
 done
-python3 tools/demo/pipeline/build_story.py         # → NoteStalgia-Walkthrough-v5.mp4 + .srt (~11¾ min)
+python3 tools/demo/pipeline/build_story.py         # → NoteStalgia-Walkthrough-v6.mp4 + .srt (~16 min, nine flows)
 ```
+
+### v7 — what's new since v6 (live backend)
+
+```bash
+tools/demo/reset-backend.sh                   # model + ad-hoc songs cleared, demo residents re-seeded on the deployed Worker
+for s in testStoryPartE_LiveBackend:e_live testStoryPartF_OnlineDiscovery:f_discovery testStoryPartH_GroupSession:h_group testStoryPartG_GroupProgramme:g_admin; do
+  DEMO_AUDIO_DEVICE="" TEST_RUNNER_API_BASE_URL=https://notestalgia-api.fitraclesub.workers.dev \
+    tools/demo/walkthrough.sh "${s%%:*}" "${s##*:}"
+done
+python3 tools/demo/pipeline/build_v7.py       # → NoteStalgia-Walkthrough-v7.mp4 + .srt (nine flows)
+```
+
+`build_v7.py` is `build_story.py` with its own flow list, cards and take names (narration keys `v7_*`,
+`intro7`, `outro7`). The takes are recorded **video-only** (`DEMO_AUDIO_DEVICE=""`): the app logs `title` +
+`url` with every `music.start`, so streamed Apple previews are fetched once into the wav cache and cut in
+exactly where they played, alongside the bundled stems and synthesised chimes — no BlackHole routing and no
+stray system sounds. Run `reset-backend.sh` before every take of Part E so Irene has no pick and no taste yet;
+Parts F and G can follow E without a reset.
 
 `build_story.py` reads each take's markers: a chapter card is cut in where a marker's flow changes, the
 caption runs from one marker to the next, and the narration line is queued so lines never overlap, with
@@ -85,6 +111,14 @@ re-synthesises the chimes and re-cuts the bundled MP3s at the logged times.
 | `-NoteStalgiaDemoJump roster\|profile:<name>\|surface:<name>\|discovery\|group` | after the welcome gate, jump straight to that scene |
 | `-NoteStalgiaDemoFreezeGlyphDrift YES` | resident glyphs hold still so taps land |
 | `-NoteStalgiaDemoAudioLog YES` | log music / chime / phase events to `Documents/demo-audio-log.jsonl` |
+| `-NoteStalgiaDemoResetHouseholds YES` | forget Care at home accounts created on this device (the demo household stays) |
+| `-NoteStalgiaDemoFrameLog YES` | log `orb.frames` (display-link fps, hitches, shell draws, nebula canvas ms) every 2 s to the demo log |
+| `-NoteStalgiaDemoFreezeOrb YES` | orb and sparkles hold one frame — for pixel comparisons between builds |
+| `-NoteStalgiaAPIBaseURL http://localhost:8787` | use the POC backend (`../NoteStalgia-Backend`, `npm run dev` + `npm run seed:local`) instead of the in-memory seed: real sign-in, synced homes, Apple-preview catalogue, online discovery. The client appends `/v1`. Omit it for the recorded demo |
+| `-NoteStalgiaExportSeed YES` | one-off: write the deterministic mock roster, history, group history and demo household to `Documents/seed.json` (copied to `../NoteStalgia-Backend/seed/demo.json`) |
+
+XCUITests pick the backend up from the environment: `TEST_RUNNER_API_BASE_URL=http://localhost:8787 xcodebuild test …`
+passes `-NoteStalgiaAPIBaseURL` to the app (the household walkthrough then registers a unique email per run).
 
 Example — straight to Irene's calm surface with the real title screen:
 
@@ -103,7 +137,7 @@ Every interactive control carries one. `<…>` parts are the on-screen text (e.g
 | Signed-in start | `home.oneToOne`, `home.logout`; home picker `homePicker.<Home name>` |
 | Chrome | `chrome.back` (also "Skip" / "Discard" variants), `chrome.logout` |
 | Roster | `roster.search`, `roster.wing.<Wing>` / `roster.wing.All wings`, `roster.displayMode`, `roster.startDiscovery`, `roster.groupMode`, `roster.browseAll`, `roster.backToToday`, `roster.switchHome`, `roster.resident.<Display Name>`, `roster.pin.<Display Name>` |
-| Profile | `profile.openSurface`, `profile.age` (stepper), `nationality.menu`, `profile.addSong`, `profile.song.remove.<Title>`, `profile.startDiscovery`, `profile.prepSession` |
+| Profile | `profile.openSurface`, `profile.age` (stepper), `nationality.menu`, `profile.groupActivities` (participation line), `profile.groupComfort` (In company segmented: Not set / Enjoys groups / Small groups / One-to-one), `profile.addSong`, `profile.song.remove.<Title>`, `profile.startDiscovery`, `profile.prepSession` |
 | Session prep | `prep.toggle.<Title>`, `prep.brightness`, `prep.minutes`, `prep.continue` |
 | Entry / capture / mood | `entry.<Tile title>`, `capture.chooseLibrary`, `capture.takePicture`, `capture.startSession`, `capture.chooseAnother`, `capture.takeAgain`, `mood.<Mood>`, `mood.begin` |
 | Staff immersive | `immersive.mute`, `immersive.settings`, `immersive.lights`, `immersive.share`, `immersive.end`, `immersive.returnToPlaylists`; "How that felt": `insight.note`, `insight.skip`, `insight.returnToPlaylists`; feedback: `feedback.outcome.<Title>`, `feedback.tuning.<Title>`, `feedback.note`, `feedback.save`, `feedback.skip` |
@@ -112,14 +146,22 @@ Every interactive control carries one. `<…>` parts are the on-screen text (e.g
 | Session summary | `summary.shareKind` (Handover / Family / Care plan), `summary.copy`, `summary.done`, `summary.back` |
 | Discovery | `discovery.age`, `nationality.menu`, `discovery.begin`, `discovery.face.pleasant` / `.neutral` / `.unpleasant` |
 | New resident | `newResident.choosePhoto`, `newResident.takePhoto`, `newResident.name`, `newResident.age`, `nationality.menu`, `newResident.save`; Back is "Discard" → confirmation dialog |
-| Group | `group.previous`, `group.playPause`, `group.next`, `group.track.<Title>`, `group.end`; check-in `rating.<n>`, `group.note`, `group.save`, `group.skip` |
-| Admin | `admin.trend.<series id>` (sessions / calm / wellbeing), `admin.switchHome`, `admin.open` |
+| Group | planner `planner.activity.<id>` (e.g. `genre.classical`, `mixed`), `planner.suggestion.<id>` (Add), `planner.resident.<Display Name>`, `planner.clear`, `planner.start`, `planner.startAll`; session `group.activityLine`, `group.previous`, `group.playPause`, `group.next`, `group.track.<Title>`, `group.end`; check-in `rating.<n>`, `group.note`, `group.save`, `group.skip` |
+| Admin | `admin.trend.<series id>` (sessions / calm / wellbeing), `admin.groupProgramme` (Group programme card title), `admin.switchHome`, `admin.open` |
+| Care at home | sign-in link `signin.createHousehold`; sign-up `household.name`, `household.email`, `household.relationship` (Family member / Private carer), `household.pin`, `household.confirmPin`, `household.create`; resident setup `household.residentName`, `household.residentAge`, `nationality.menu`, `household.choosePhoto`, `household.takePhoto`, `household.startDiscovery`, `household.skipDiscovery`; home `household.openSurface`, `household.insights`, `household.profile`, `household.discovery`, `household.register`; insights empty state `household.insightsBack` |
 
 ## Other helpers
 
 - `shot.sh <name>` — screenshot (+1000px preview) into `.demo-work/shots/`.
 - `profile.sh <label> [seconds]` — `sample` the running app and summarise main-thread hot spots (`anal.py`).
 - `mark.sh "<label>"` — timestamped marker for hand-driven takes (same `epoch|label` format as the scripted markers).
+- `orbperf.sh <label> [launch args…]` — orb performance probe: launches to sign-in with the frame monitor on and reports host
+  CPU (app + `backboardd`), screen-recorder fps, main-thread busy %, and the in-app `orb.frames` log (display-link fps,
+  hitches, shell draws/s, nebula canvas ms). Keep the Simulator window visible while measuring — hidden, the
+  simulator throttles frame delivery to ~15–20 fps. A/B switches: `-NoteStalgiaPerfCAShadows YES` (Core Animation
+  shadows instead of flattened textures), `-NoteStalgiaPerfSyncNebula YES` (noise on the main thread),
+  `-NoteStalgiaPerfNoShellShadows YES` (drop the shell's three shadows — measurement only), `-NoteStalgiaDemoFreezeOrb YES`
+  (orb + sparkles hold one frame for pixel diffs).
 
 ## Legacy compositor pipeline (`pipeline/`)
 
@@ -139,4 +181,14 @@ printf "file 'a.mp4'\nfile 'b.mp4'\n" > list.txt && ffmpeg -f concat -safe 0 -i 
 ## Machine notes
 
 8 GB RAM: one simulator at a time; the **iPad Air 11 Demo** device is the smooth one (the iPad Pro 13″
-was too slow). Keep ≥3 GB disk free — a raw take is 0.5–1.5 GB until `walkthrough.sh` compacts it. Record from a Release build.
+was too slow). Recording works headless (`simctl boot`, no Simulator.app window). Three things about
+`simctl io recordVideo` learnt the hard way: it writes its file only when it stops (a take is 0 bytes until
+`record.sh stop`, so never judge it by size mid-take); the output path must be **absolute** (the render server
+opens the file itself — a relative path fails at once with "SimRenderServer.SimulatorError Code=2"); and when the
+disk fills during a take the final write fails and the take comes back as a 0-byte file with "moov atom not
+found" — typed takes are the risk, because the keyboard makes the simulator download 1–3 GB of speech assets
+(see above). `record.sh` waits for a screenshot to succeed and checks the recorder is still alive a few seconds in. Keep ≥3 GB disk free — a raw take is 0.5–1.5 GB until `walkthrough.sh` compacts it. Record from a Release build.
+The simulator's own data folder grows by gigabytes: once the keyboard has been used it downloads Siri / dictation
+speech assets (`data/private/var/MobileAsset/…Siri_Understanding`, ≈1–3 GB). `walkthrough.sh` deletes that cache
+after every take; if a take still comes back as a 0-byte `raw.mp4` with "moov atom not found", the disk filled —
+`xcrun simctl erase <udid>` the device and re-run.

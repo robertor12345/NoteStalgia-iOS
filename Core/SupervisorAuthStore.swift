@@ -19,6 +19,10 @@ final class SupervisorAuthStore: ObservableObject {
     @Published var pendingCareRosterAfterSignIn = false
     @Published var supervisorSignInError: String?
     @Published var signedInSupervisorId: UUID?
+    /// True while a backend sign-in / sign-up / reset call is in flight (disables double submits).
+    @Published var isAuthenticating = false
+    /// Non-production backends return the reset code in the response; shown in the step hint.
+    @Published var pinResetDevCode: String?
 
     @Published var pinResetActive = false
     @Published var pinResetStep: SupervisorPinResetStep = .email

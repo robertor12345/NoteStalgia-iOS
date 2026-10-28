@@ -4,6 +4,13 @@ import SwiftUI
 
 struct DiscoveryCalibrationView: View {
     @ObservedObject var state: SessionPOCState
+    @ObservedObject private var recommendations: RecommendationStore
+    @State private var planRequested = false
+
+    init(state: SessionPOCState) {
+        self.state = state
+        self.recommendations = state.recommendations
+    }
     @Environment(\.flowContainerSize) private var flowContainerSize
     @Environment(\.flowOrbShellSize) private var flowOrbShellSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -35,11 +42,12 @@ struct DiscoveryCalibrationView: View {
             ScreenFadeIn {
                 ZStack {
                     DiscoveryEraListeningOrb(
-                        snippetIndex: state.discoveryPhysicalSnippetIndex(logicalIndex: state.discoverySnippetIndex),
+                        snippetIndex: orbSnippetIndex,
                         orbSize: orbSize,
                         pendingPick: state.discoveryPendingPick,
                         affirmationGlowTick: affirmationGlowTick,
                         isClipPlaybackActive: isClipPlaybackActive,
+                        planSnippet: currentPlanSnippet,
                         onSelectMood: { mood in
                             advanceToNextDiscoveryClip(selected: mood)
                         }
@@ -57,6 +65,21 @@ struct DiscoveryCalibrationView: View {
                     action: { state.abandonDiscoveryCalibration() }
                 )
                 Spacer(minLength: 0)
+                if let ref = currentPlanSnippet {
+                    // Staff-facing only: small, at the bottom, out of the resident's eyeline.
+                    HStack(spacing: 10) {
+                        TrackArtworkView(ref: ref, size: 36, cornerRadius: 8)
+                        Text("\(ref.title)\(ref.caption.isEmpty ? "" : " · \(ref.caption)")")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(BrandTheme.textSecondary.opacity(0.85))
+                            .lineLimit(1)
+                            .accessibilityIdentifier("discovery.caption")
+                            .accessibilityLabel("Now auditioning \(ref.title)\(ref.caption.isEmpty ? "" : " by \(ref.caption)")")
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 10)
+                    .opacity(clipContentOpacity)
+                }
             }
             .zIndex(20)
         }
@@ -73,12 +96,30 @@ struct DiscoveryCalibrationView: View {
                 from: state.discoverySnippetIndex,
                 order: state.discoverySnippetOrder
             )
-            Task { await runDiscoveryClipTransition(skipFadeOut: true) }
+            Task {
+                // With a backend, ask for real songs first (capped so a slow network never blocks the pass).
+                if APIConfig.isConfigured, !planRequested, state.discoverySnippetIndex == 0,
+                   let pid = state.selectedCarePatientId ?? state.activeCarePatientId {
+                    planRequested = true
+                    await withTaskGroup(of: Void.self) { group in
+                        group.addTask { @MainActor in await state.ensureDiscoveryPlan(for: pid) }
+                        group.addTask { try? await Task.sleep(nanoseconds: 6_000_000_000) }
+                        await group.next()
+                        group.cancelAll()
+                    }
+                }
+                await runDiscoveryClipTransition(skipFadeOut: true)
+            }
         }
         .onChange(of: state.discoverySnippetIndex) { _, newIdx in
-            if newIdx >= DiscoveryFlowPOC.snippetCount {
+            if newIdx >= state.discoverySnippetTotal {
                 scheduleDiscoveryCompletionExitSequence()
             } else {
+                if let plan = recommendations.discoveryPlan {
+                    let upcoming = plan.snippets.dropFirst(newIdx + 1).prefix(2)
+                    StreamAudioCache.prefetch(upcoming.map(\.audioURL))
+                    SceneImageCache.prefetch(upcoming.compactMap { $0.artworkURL(side: 1200) })
+                }
                 StreamAudioCache.prefetchDiscoveryUpcoming(
                     from: newIdx,
                     order: state.discoverySnippetOrder
@@ -116,9 +157,19 @@ struct DiscoveryCalibrationView: View {
     }
 
     /// After tap: mood shows as selected immediately; streamed clip keeps playing ~2s, then affirmation glow fires, then snippet commits and cross-fades to the next clip.
+    private var currentPlanSnippet: ResidentTrackRef? {
+        recommendations.discoveryPlan?.snippets[safe: state.discoverySnippetIndex]
+    }
+
+    /// Visuals follow the genre of the catalogue song being auditioned; bundled clips keep their own order.
+    private var orbSnippetIndex: Int {
+        if let ref = currentPlanSnippet { return DiscoveryEraMediaCatalog.physicalIndex(for: ref.genre) }
+        return state.discoveryPhysicalSnippetIndex(logicalIndex: state.discoverySnippetIndex)
+    }
+
     private func advanceToNextDiscoveryClip(selected mood: DiscoveryTrafficSentiment) {
         guard state.phase == .careDiscoveryCalibration else { return }
-        guard state.discoverySnippetIndex < DiscoveryFlowPOC.snippetCount else { return }
+        guard state.discoverySnippetIndex < state.discoverySnippetTotal else { return }
         cancelPostPickAdvance()
         sliceDeadlineTask?.cancel()
         sliceDeadlineTask = nil
@@ -152,7 +203,7 @@ struct DiscoveryCalibrationView: View {
         let prefersReducedMotion = reduceMotion
         discoveryCompletionExitTask = Task { @MainActor in
             guard state.phase == .careDiscoveryCalibration else { return }
-            guard state.discoverySnippetIndex >= DiscoveryFlowPOC.snippetCount else { return }
+            guard state.discoverySnippetIndex >= state.discoverySnippetTotal else { return }
 
             sliceDeadlineTask?.cancel()
             sliceDeadlineTask = nil
@@ -182,7 +233,7 @@ struct DiscoveryCalibrationView: View {
             clipContentOpacity = 1
             return
         }
-        guard state.discoverySnippetIndex < DiscoveryFlowPOC.snippetCount else {
+        guard state.discoverySnippetIndex < state.discoverySnippetTotal else {
             clipContentOpacity = 1
             return
         }
@@ -196,7 +247,7 @@ struct DiscoveryCalibrationView: View {
             try? await Task.sleep(nanoseconds: ns)
             guard token == clipFadeNonce else { return }
             guard state.phase == .careDiscoveryCalibration else { return }
-            guard state.discoverySnippetIndex < DiscoveryFlowPOC.snippetCount else {
+            guard state.discoverySnippetIndex < state.discoverySnippetTotal else {
                 clipContentOpacity = 1
                 return
             }
@@ -215,30 +266,58 @@ struct DiscoveryCalibrationView: View {
         sliceDeadlineTask = nil
 
         guard state.phase == .careDiscoveryCalibration else { return }
-        guard state.discoverySnippetIndex < DiscoveryFlowPOC.snippetCount else { return }
+        guard state.discoverySnippetIndex < state.discoverySnippetTotal else { return }
 
         if resetStartTime {
             sliceStartedAt = Date()
         }
 
         let idxCapt = state.discoverySnippetIndex
-
-        audio.startFresh(streamURL: DiscoveryFlowPOC.snippetAudioStreamURL(
-            snippetIndex: idxCapt,
-            order: state.discoverySnippetOrder.isEmpty ? nil : state.discoverySnippetOrder
-        ))
-        isClipPlaybackActive = true
-
-        sliceDeadlineTask = Task { @MainActor in
-            let ns = UInt64(DiscoveryFlowPOC.snippetDurationSeconds * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: ns)
-            guard !Task.isCancelled else { return }
-            guard state.phase == .careDiscoveryCalibration else { return }
-            guard state.discoverySnippetIndex == idxCapt else { return }
-            isClipPlaybackActive = false
-            audio.stop()
-            state.commitDiscoverySnippetSlice()
+        let armDeadline: (TimeInterval) -> Void = { seconds in
+            sliceDeadlineTask?.cancel()
+            sliceDeadlineTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                guard state.phase == .careDiscoveryCalibration else { return }
+                guard state.discoverySnippetIndex == idxCapt else { return }
+                isClipPlaybackActive = false
+                audio.stop()
+                state.commitDiscoverySnippetSlice()
+            }
         }
+
+        if let ref = currentPlanSnippet {
+            // A catalogue preview: plays once; the slice ends with the preview, at 30 s, or on failure.
+            audio.loops = false
+            audio.onReady = { armDeadline(DiscoveryFlowPOC.snippetDurationSeconds + 1) }
+            audio.onItemEnd = {
+                guard state.phase == .careDiscoveryCalibration, state.discoverySnippetIndex == idxCapt else { return }
+                isClipPlaybackActive = false
+                state.commitDiscoverySnippetSlice()
+            }
+            audio.onFailure = {
+                guard state.phase == .careDiscoveryCalibration, state.discoverySnippetIndex == idxCapt else { return }
+                state.noteTrackPreviewFailed(ref)
+                isClipPlaybackActive = false
+                state.commitDiscoverySnippetSlice()
+            }
+            audio.logTitle = currentPlanSnippet?.title
+            audio.startFresh(streamURL: ref.audioURL, fallbackURL: nil)
+            // A preview that never becomes ready is skipped rather than rated.
+            armDeadline(8)
+        } else {
+            audio.loops = true
+            audio.onReady = nil
+            audio.onItemEnd = nil
+            audio.onFailure = nil
+            audio.logTitle = currentPlanSnippet?.title
+            audio.startFresh(streamURL: DiscoveryFlowPOC.snippetAudioStreamURL(
+                snippetIndex: idxCapt,
+                order: state.discoverySnippetOrder.isEmpty ? nil : state.discoverySnippetOrder
+            ))
+            armDeadline(DiscoveryFlowPOC.snippetDurationSeconds)
+        }
+        isClipPlaybackActive = true
     }
 }
 
@@ -250,6 +329,9 @@ private struct DiscoveryEraListeningOrb: View {
     let pendingPick: DiscoveryTrafficSentiment?
     let affirmationGlowTick: UInt
     var isClipPlaybackActive: Bool
+    /// The catalogue song being auditioned (backend plan). Its cover art fills the orb; the
+    /// mood's era scene is the picture for the bundled clips and for a track without art.
+    var planSnippet: ResidentTrackRef? = nil
     var onSelectMood: (DiscoveryTrafficSentiment) -> Void
 
     @StateObject private var videoLooper = DiscoverySnippetVideoLooper()
@@ -269,7 +351,21 @@ private struct DiscoveryEraListeningOrb: View {
     }
 
     private var visual: DiscoverySnippetEraVisual {
-        DiscoveryEraMediaCatalog.visual(for: snippetIndex)
+        let base = DiscoveryEraMediaCatalog.visual(for: snippetIndex)
+        guard let planSnippet, let artwork = planSnippet.artworkURL(side: 1200) else { return base }
+        return DiscoverySnippetEraVisual(
+            snippetIndex: base.snippetIndex,
+            eraYear: planSnippet.eraYear ?? base.eraYear,
+            eraEvent: planSnippet.caption.isEmpty ? planSnippet.title : "\(planSnippet.title) · \(planSnippet.caption)",
+            clip: base.clip,
+            imagePosterOverride: artwork,
+            suppressVideo: true
+        )
+    }
+
+    /// Changes whenever the picture should: next snippet, or the same slot with different art.
+    private var mediaKey: String {
+        "\(snippetIndex)|\(planSnippet?.artworkURL(side: 1200)?.absoluteString ?? "")"
     }
 
     private var visualMood: MusicVisualMood {
@@ -408,7 +504,7 @@ private struct DiscoveryEraListeningOrb: View {
             restartEraVideo()
             SceneImageCache.prefetch(visual.posterImageURL)
         }
-        .onChange(of: snippetIndex) { _, _ in
+        .onChange(of: mediaKey) { _, _ in
             // Keep the prior still until the next cached image is ready — only blank when cold.
             if !SceneImageCache.isCached(visual.posterImageURL) {
                 eraMediaReady = false
@@ -420,7 +516,7 @@ private struct DiscoveryEraListeningOrb: View {
             videoLooper.stop()
         }
         // Restarts per clip; cancelled with the view. Only fires if the media is still cold.
-        .task(id: snippetIndex) {
+        .task(id: mediaKey) {
             mediaTimedOut = false
             try? await Task.sleep(for: .seconds(mediaReadyTimeout))
             guard !Task.isCancelled, !eraMediaReady else { return }

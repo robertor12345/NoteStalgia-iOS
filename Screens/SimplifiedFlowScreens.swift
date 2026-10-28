@@ -71,7 +71,7 @@ private struct SupervisorAuthPanel: View {
     private var signedInContent: some View {
         VStack(spacing: SignInPageLayout.stackSpacing) {
             FadeInLine(
-                text: "Signed in — open the resident roster or log out.",
+                text: state.isHouseholdAccount ? "Signed in — open their home screen or log out." : "Signed in — open the resident roster or log out.",
                 delay: 0.06
             )
             .multilineTextAlignment(.center)
@@ -94,7 +94,7 @@ private struct SupervisorAuthPanel: View {
     private var supervisorSignInContent: some View {
         VStack(spacing: SignInPageLayout.stackSpacing) {
             FadeInLine(
-                text: "Supervisor sign-in for this care home.",
+                text: "Sign in with your email and 6-digit PIN.",
                 delay: 0.06
             )
             .multilineTextAlignment(.center)
@@ -103,7 +103,7 @@ private struct SupervisorAuthPanel: View {
             BrandCard {
                 VStack(alignment: .leading, spacing: 18) {
                     labeledField(
-                        title: "Work email",
+                        title: "Email",
                         content: {
                             TextField("Work email", text: $auth.supervisorEmail, prompt: BrandTheme.fieldPrompt("name@sunrise-care.co.uk"))
                                 .accessibilityIdentifier("signin.email")
@@ -137,8 +137,9 @@ private struct SupervisorAuthPanel: View {
                     .accessibilityValue(error)
             }
 
-            PrimaryButton(title: "Continue", action: attemptSignIn)
+            PrimaryButton(title: auth.isAuthenticating ? "Signing in…" : "Continue", action: attemptSignIn)
                 .accessibilityIdentifier("signin.continue")
+                .disabled(auth.isAuthenticating)
                 .padding(.horizontal, 24)
 
             Button {
@@ -154,7 +155,22 @@ private struct SupervisorAuthPanel: View {
             .buttonStyle(ChimingPlainButtonStyle())
             .padding(.top, 4)
             .accessibilityLabel("Forgot PIN")
-            .accessibilityHint("Reset your supervisor PIN with your work email")
+            .accessibilityHint("Reset your PIN with your email")
+
+            Button {
+                state.beginHouseholdSignUp()
+            } label: {
+                Text("Caring for someone at home? Create an account")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(BrandTheme.gold)
+                    .multilineTextAlignment(.center)
+                    .expandedHitArea(vertical: 14, horizontal: 16)
+            }
+            .accessibilityIdentifier("signin.createHousehold")
+            .buttonStyle(ChimingPlainButtonStyle())
+            .padding(.top, 2)
+            .accessibilityLabel("Create a Care at home account")
+            .accessibilityHint("For family members and private carers supporting one person at home")
         }
     }
 
@@ -183,8 +199,10 @@ private struct SupervisorAuthPanel: View {
     }
 
     private func attemptSignIn() {
-        if state.completeSupervisorSignIn() == nil {
-            CalmExperienceFeedback.signInSuccess()
+        Task { @MainActor in
+            if await state.signIn() == nil {
+                CalmExperienceFeedback.signInSuccess()
+            }
         }
     }
 }
@@ -285,6 +303,8 @@ private struct SupervisorPinResetView: View {
         case .email:
             return "Enter the work email on your supervisor account. We’ll send a verification code."
         case .verificationCode:
+            if let code = auth.pinResetDevCode { return "Enter the 6-digit code we sent. Demo code: \(code)." }
+            if APIConfig.isConfigured { return "Enter the 6-digit code we sent to that email." }
             return "Enter the 6-digit code we sent. Demo code: \(SupervisorCredentialStore.demoResetCode)."
         case .newPIN, .confirmPIN:
             return "Pick a new \(SupervisorAuth.pinDigitCount)-digit PIN you’ll use to sign in."
@@ -386,13 +406,13 @@ private struct SupervisorPinResetView: View {
     private func submitCurrentStep() {
         switch auth.pinResetStep {
         case .email:
-            state.submitSupervisorPinResetEmail()
+            Task { @MainActor in await state.pinResetSubmitEmail() }
         case .verificationCode:
-            state.submitSupervisorPinResetCode()
+            state.pinResetSubmitCode()
         case .newPIN:
             state.submitSupervisorPinResetNewPIN()
         case .confirmPIN:
-            state.submitSupervisorPinResetConfirm()
+            Task { @MainActor in await state.pinResetConfirm() }
         case .complete:
             state.finishSupervisorPinReset()
         }
@@ -528,7 +548,7 @@ struct SupervisorWelcomeView: View {
                     .scaleEffect(greetingVisible ? 1 : 0.97)
 
                 // Space is reserved so the greeting never shifts when the hint fades in.
-                Text("Preparing the roster…")
+                Text(state.isHouseholdAccount ? "Preparing their home…" : "Preparing the roster…")
                     .font(BrandTheme.orbHintFont())
                     .orbOverlayText(muted: true)
                     .opacity(showsLongerWaitHint ? 1 : 0)
@@ -564,7 +584,7 @@ struct SupervisorWelcomeView: View {
             hint.cancel()
             guard !Task.isCancelled, state.phase == .supervisorWelcome else { return }
             if let jump = DemoLaunchOptions.jump, state.performDemoJump(jump) { return }
-            state.transitionToPhase(.carePatientList)
+            state.transitionToPhase(state.staffHubPhase())
         }
     }
 

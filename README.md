@@ -39,6 +39,10 @@ xcodebuild -project NoteStalgia-iOS.xcodeproj -scheme NoteStalgia-iOS \
 |---|---|---|
 | `max@sunrise-care.co.uk` | `123456` | Single-home supervisor |
 | `alex@sunrise-care.co.uk` | `123456` | Multi-home lead → Home Admin dashboard |
+| `claire@example.com` | `123456` | **Care at home** — family member caring for Harold T. (fortnight of history) |
+
+Anyone can also create a Care at home account from the sign-in screen (any non-organisation email +
+a chosen PIN); it is stored on the device.
 
 Signing: Automatic. Local Xcode may set `DEVELOPMENT_TEAM` (e.g. `23CGZDXP4Q`); `project.yml` leaves it blank for regenerating machines.
 
@@ -48,14 +52,22 @@ Signing: Automatic. Local Xcode may set `DEVELOPMENT_TEAM` (e.g. `23CGZDXP4Q`); 
 
 ```
 Launch / splash
-  → Supervisor email + 6-digit PIN
+  → Email + 6-digit PIN  (care-home staff, or a Care at home account)
   → (multi-home) home picker
   → Welcome
   → Curated roster (pin / recent / due / wing / search / browse-all)
        ├─ Resident detail → session prep → resident calm surface → post-session sentiment → insight
        ├─ Discovery (new resident) → age + nationality → traffic-light clips → profile → calm surface
-       ├─ Group mode → compiled playlist → group feedback
+       ├─ Group activities → planner (suggested activities · staff suggestions · pick residents · engagement) → compiled playlist → group check-in
        └─ (home admin) Insights dashboard
+
+Care at home (family member / private carer, one resident)
+  Sign-in → "Caring for someone at home? Create an account"
+  → name · email · family member / private carer · PIN
+  → "Who are you caring for?" (name · age · nationality · optional photo)
+       ├─ Start listening discovery → clips → calm surface → observation → summary → home
+       └─ Set up without discovery → home
+  → Home screen: Open calm surface · Insights & trends · Profile & preferences · Listening discovery
 ```
 
 Everything is **on-device / in-memory** (mocked org, homes, roster, analytics). No backend yet.
@@ -120,8 +132,8 @@ Production cloud/auth/data decisions live in `docs/IMPLEMENTATION_PLAN.md` §2.
 | Comfort dock | Always-on **sun (like)** / **cloud (skip + remove from session queue)** while playing |
 | Staff return | Corner button is **press-and-hold (0.8 s)** with a filling ring; a quick tap only shows "Staff: press and hold" so residents can't end their own session |
 | Media | Mood-matched stills (`MusicVisualMood` + Wikimedia scene URLs); orb morphs circle → full-page on play — full-page covers the **whole screen** incl. status bar (sized from `flowSafeAreaInsets`) |
-| Audio | Bundled MP3s in `App/Resources/Music` via `BundledAudio` / `ResidentPlaybackTrackCatalog` |
-| Telemetry | Likes, skips, rage bursts, dwell → `ResidentSurfaceSessionMetrics` → session record + preference boosts |
+| Audio | Offline: bundled MP3s in `App/Resources/Music` via `BundledAudio` / `ResidentPlaybackTrackCatalog`. With a backend configured: Apple Music 30 s previews from the resolved catalogue, streamed from Apple's CDN (see **Backend, song catalogue & discovery model**) |
+| Telemetry | Likes, skips, rage bursts, dwell → `ResidentSurfaceSessionMetrics` → session record + preference boosts; online, one signals batch per session to `/residents/{id}/signals` |
 | Equalizer | Live PCM reactive bars around hero glyph (`MusicReactiveAnalyzer`) |
 
 ### Track → genre → icon map (audible catalog)
@@ -143,6 +155,27 @@ Discovery snippet order / moods must stay aligned with these stems (`DiscoveryEr
 `DiscoveryFlowPOC.snippetAudioStreamURLs`).
 Discovery auditions **all 7 stems** (one snippet per genre: Pop, Rock, Classical, Jazz, Gospel,
 Soul, Country) before age/nationality reordering. *Android `calibrationMoods` not yet aligned.*
+With a backend configured the stems are the **offline fallback**: the audible catalogue is the
+resolved iTunes seed and discovery plays seven catalogue previews chosen by the Worker (next section).
+
+### Backend, song catalogue & discovery model (POC, Oct 2026)
+
+| Decision | Choice |
+|---|---|
+| Backend | **Cloudflare Worker + D1 on the free tier**, sibling repo `../NoteStalgia-Backend` (Hono, TypeScript, vitest). It implements the v1 resource contract (`contracts/openapi.yaml`) that the production AWS/.NET stack will serve — a stepping stone, not a competing architecture (`docs/IMPLEMENTATION_PLAN.md` §0) |
+| Switching it on | Launch argument `-NoteStalgiaAPIBaseURL http://localhost:8787` (or the deployed `workers.dev` URL; the client appends `/v1`). **No base URL = today's offline behaviour** (in-memory seed, bundled stems, on-device discovery heuristic), so the recorded demo never breaks |
+| Offline-first sync | The iOS stores stay the UI's source of truth. `Core/Sync/SyncEngine` pulls each home by server **seq** cursor (never client time), observes the stores (0.8 s debounce) and pushes an on-disk outbox; residents are last-writer-wins by `updatedAt`, sessions / group sessions are immutable and deduped by id; portraits upload as ≤ 600 px JPEG. Works on the local cache offline and flushes when the API is back |
+| Auth online | Email + 6-digit PIN verified server-side (PBKDF2 over a peppered PIN, lockout after 5 failures), 12 h JWT + rotating refresh token in the Keychain; an account that signed in online once can sign in offline on that device. PIN-reset codes are returned (`devCode`) only by the local dev Worker, never when deployed. Household sign-up / registration go through the API; `PrincipalCache` decides household vs staff before the stores load |
+| Song catalogue | ~165 curated songs for residents born 1930–1960 (UK, Irish, Caribbean, South-Asian, West-African, European), resolved once through the **iTunes Search API** (UK storefront: 30 s previews, artwork, store link) + MusicBrainz original-release years, checked in as `seed/catalogue.resolved.json`. Search is D1-first, then one cached iTunes call (18/min token bucket, 7-day cache); ad-hoc results rank below curated ones. Apple answers the deployed Worker's shared egress with **429**, so after one refusal the Worker reports `upstream: blocked` for 10 min and the iPad searches iTunes itself and posts the results to `/music/tracks/ingest` (mapped and stored for every device). Previews are never re-hosted and every result links back to Apple Music (demo-only use; production uses the licensed provider) |
+| Track identity | `ResidentTrackRef` (`bundled:<title>` or `itunes:<id>`) in playlists, metrics and session records; `trackTitles` kept for the insight text. Reggae / ska / calypso map to the **Soul** glyph (nearest of the seven) |
+| Glyph queues | Profile playlists (family picks, discovery playlists) lead, then the backend's per-resident queue for that genre, then the bundled stem. Catalogue previews play once, auto-advance, prefetch two ahead and skip dead previews (reported as `previewFailed`); bundled stems still loop |
+| Discovery online | The Worker plans seven previews (one per genre, the most familiar for the resident's era + nationality, slot 3 the most informative) with a small staff caption (title · artist · year); faces post to `/discovery/results`, which returns profile playlists (genres with value ≥ 0 plus the favourite) and surface queues (a red genre keeps a 3-track retry queue). Unsaved residents use the stateless cold routes until their first push |
+| Taste model | Pure TypeScript in `worker/src/model` (unit-tested): evidence per genre / decade / track with shrinkage `(pos − neg)/(n + 2)` and a 12-week half-life; priors from birth year (peak at 22) and nationality (ported from `ResidentNationality`); greens / reds / sun-likes / cloud-skips / dwell ≥ 20 s / repeated genre taps / **staff picks** as signals, rage taps ignored. The favourite moves only to an evidenced genre that beats the current one on evidence **and** blended affinity by 0.12 |
+| Song selection (real time) | Every queue is re-ranked on request from four inputs: **age** (era proximity to birth year + 22, decade evidence), **origin** (nationality genre prior + a lift for songs tagged for their country / region), **liked genres** (discovery greens and reds, sun-likes, skips, genre taps) and **songs like the ones they love** (`worker/src/model/similarity.ts`: same artist = full match, else same glyph genre + Apple sub-genre + same few years + shared home tag, capped at 0.8, weighted by how much they like the song). Liked songs and their artists always stay in the candidate pool whatever the era window, and a liked artist may take 3 of 8 slots instead of 2. **Real time**: a song filed on the profile goes to the backend at once as a `staffPick` signal (`staffPickRemoved` on the ×), the catalogue grows around the artist (`POST /music/artists/expand`, the device searching iTunes when Apple blocks the Worker), and the glyph queues are refreshed after every delivered signals batch — a staff pick or the end of a listening session — so the next tap plays the new ranking. Ad-hoc songs by a curated artist inherit that artist's curated genre and nationality tags (Apple's labels are unreliable for this era) |
+| Family / staff picks | "Find a song they love" on the profile opens an iPad-first search sheet (preview, Add, Apple Music link); an added song becomes a suggested like **and** joins the resident's playlist for its genre so the glyph can play it |
+| Cover art | Apple's artwork URL is stored with every catalogue track and is **the picture for that song** wherever it plays: it fills the discovery orb behind the three faces and is the full-page backdrop on the resident surface (1200 px variant via `ResidentTrackRef.artworkURL(side:)`, through `SceneImageCache` with the usual Ken Burns + mood colour grade), and it is the thumbnail on the search-sheet rows and the discovery caption (200 px, `Core/TrackArtworkView.swift`). Bundled stems and tracks without art keep the mood's era scene; the floating genre glyphs stay the designer `Genre*` images. The sleeve for the current ± 1 track is prefetched so swipes paint from cache |
+| Group playlists (online) | `POST /homes/{id}/group/playlist` ranks the catalogue for the whole room: every candidate scored for every participant with the per-resident model, the group score is the mean plus a bonus when someone in the room loves the song, picks round-robin across the room's genres (the activity's genre when one was chosen) with two per artist, and each carries who it is for and a reason ("A song Irene K. loves"). On the iPad, Start shows a loading ring for about three seconds while the server's picks are merged in front of the roster-compiled list (residents' real songs with previews, else stems) and the sleeves are fetched, then the finished list appears in one piece and plays; previews play once with their sleeve and the room moves on. Offline: the same wait, the roster-compiled list only |
+| Free-tier budget | Every route ≤ 1 D1 batch + a few reads; sync pulls page by seq; one signals row per session (not per event); nightly Cron enriches ≤ 15 ad-hoc tracks. Portraits live in D1 BLOBs (R2 needs a card on file). Only demo data may live on the POC backend (backend ADR 0001) |
 
 ### Staff UI (iPhone + iPad)
 
@@ -164,6 +197,29 @@ Soul, Country) before age/nationality reordering. *Android `calibrationMoods` no
 | Screen-tap ripple | A short tap anywhere (staff **and** resident surface) blooms a cyan/pink glow ring at the finger (`TouchRipple.swift`). Observed by a window-level recogniser that never claims, cancels or delays touches; drags/scrolls and long presses don't ripple; off under Reduce Motion |
 | Post-session summary | Supervisor sees **Session summary**: at-a-glance (trend vs usual, time with music, genres, liked · skipped, context chips) → carer ratings as 10-segment bars (≤4 in soft salmon) + note → what they responded to (genre artwork chips, sun / cloud / longest listening) → one highlighted next step → **one** write-up at a time (Handover · Family · Care plan) with a single Copy button. Copied texts are unchanged; handover shows as labelled sections with the narrative collapsed |
 
+### Group activities (intelligent resident selection)
+
+| Decision | Choice |
+|---|---|
+| Planner before the session | "Group activities" on the roster opens `GroupActivityPlannerView` (`careGroupPlanner`) instead of starting straight away. Staff pick residents; the whole-home playlist is one tap away for anyone who wants the old behaviour |
+| Recommendations are heuristics, on device | `GroupActivityPlanner` (pure functions over roster + one-to-one history + group history): per-resident genre affinity (favourite ×3, playlists on file ×1.5, liked songs ×1, calm-surface plays ×0.5/play, sun-likes ×1), a *need* score (+2 overdue a visit ≥7 days, +1.5 no group this fortnight, +0.5 declining/unsettled, +0.5 groups visibly help, −2 prefers one-to-one, −0.5 small groups / regular), suggested activities per genre with ≥3 matching residents (title, reason, recommended list sorted by need) plus a "Shared favourites" mixed set, staff suggestions (nobody overlooked · organise the strongest activity · pairings who share a genre and haven't shared a session · better served one-to-one), and an engagement overview (regulars, needs encouragement, activities that land best by average engagement). Production ports the same rules as the Phase-A recommender (`docs/IMPLEMENTATION_PLAN.md` §10) |
+| Staff keep control | Every suggestion is a tap to apply (activity → replaces the selection; "Add" → adds) and a tap to undo; residents marked **prefers one-to-one** are never auto-recommended and get a one-to-one nudge instead; **small groups** and **keep it gentle** are shown as flags, not enforced |
+| Group comfort on the profile | `CarePatientProfile.groupComfort` (`GroupComfort`: enjoys groups / small groups / prefers one-to-one; optional so stored households still decode). Seeded for the mock roster by first name (`GroupActivityPlanner.seededGroupComfort`) and **staff-editable** on the resident profile's "Group activities" card ("In company" segmented picker: Not set / Enjoys groups / Small groups / One-to-one → `setResidentGroupComfort`, chime on change). The card is hidden for household accounts, which have no roster or group mode |
+| Participation is recorded | `GroupSessionRecord` now carries `participantIds`, `activityTitle` and `theme`; the compiled playlist comes from the chosen residents only; the session header names the activity. A fortnight of demo group sessions (`GroupActivityMockData`) is seeded for Maple Lodge so the overview has history. Group records are one store across homes, so `GroupActivityPlanner.build` keeps only records that involved the residents it is given (a record with no participants on file counts as a legacy whole-home session) — Riverside House never sees Maple Lodge's history |
+| Participation shows on the profile | The "Group activities" card (between carer observations and playlists) reads `GroupActivityReadModels.participation`: count in the last 14 days, last activity title, when, and its engagement rating ("3 group activities in the last 14 days · last: Jazz lounge, 2 days ago · engagement 8/10") |
+| Home Admin sees the programme | `CareHomeAdminDashboardView` gains a **Group programme** card after the wing breakdown (`GroupActivityReadModels.programme`, cached like the dashboard in `CareRosterUIStore.groupProgrammeCache`): sessions / residents reached of active / average engagement / average morale over the same 14-day window, the activity that lands best, and how many residents who would welcome a group have had none (planner's `needEncouragementIds`, first three named). Whole-home playlists count as reaching every resident |
+
+### Care at home (household accounts)
+
+| Decision | Choice |
+|---|---|
+| Accounts | Same email + 6-digit PIN form as staff. A household email is matched **before** the organisation-domain rule (`SupervisorAuth`), so any personal address works; organisation addresses are refused at sign-up and pointed back to the staff sign-in. Accounts live in `UserDefaults` (`HouseholdCareStore`); PIN reset uses the same demo code and updates the stored account |
+| Tenancy | Every household is a one-wing `CareHome` ("Care at home" / "At home") with its own `homeId`, so the roster engine, session records, portraits, dashboards and demo seeds work unchanged. `CareAccountDirectory` merges mock supervisors/homes with household accounts; `SupervisorRole.household` routes the flow |
+| Registration | One resident per account: name, age (55–105), nationality, optional photo. Created as a real (non-provisional) resident with a starter playlist for the nationality's first genre; discovery is offered immediately and again from the home screen. No roster, no group mode |
+| Home screen | Portrait + name, last session line, **Open calm surface**, then cards: Insights & trends · Profile & preferences (the full resident profile) · Listening discovery. Back from the profile, the session summary and the calm surface return here (`staffHubPhase()`) |
+| Insights & trends | `CareHomeAnalytics.buildResidentInsights`: trend charts (sessions / avg at ease / observed wellbeing over 14 days — same `DashboardTrendGraphsStrip` as the home dashboard), KPIs (sessions, time with music, avg at ease, observed wellbeing), carer-observation averages as bars, what they respond to (genre plays from session summaries, liked / moved-on-from lines), latest suggested next step, recent sessions. Empty state until the first session |
+| Persistence | Household residents, their history and photos are written to Application Support (`household-care.json`, `portrait-<id>.jpg`) on every change (debounced) and merged into the seed at launch; `CarePatientProfile` / `CareSessionRecord` are `Codable`. The demo household (Claire → Harold) is static and never persisted |
+
 ### Performance
 
 | Decision | Choice |
@@ -178,13 +234,15 @@ Soul, Country) before age/nationality reordering. *Android `calibrationMoods` no
 | Motion as transforms | Resident glyph buttons (`ResidentGlyphButton`, `Equatable`) and mood orbs are built once; per-tick drift is applied as position/rotation/scale/offset transforms in the original order. Discovery orb no longer re-renders at audio-bus rate |
 | Equalizer redraws | Live-only radial bars redraw when `MusicReactiveBus` publishes (≤48/s playing, 0 idle) rather than 60×/s; bar trig precomputed |
 | Cheap effects | Tap ripple pre-rendered as a sprite (scale/opacity only); `CalmCircularLoader` capped at 60 fps with rotation-invariant shadows; chime engine pauses after 20 s idle; `DemoAudioLog` builds nothing when disabled |
+| Orb frame rate | The shell's timeline follows the display (`shellFramesPerSecond = 120`, so 60 on most panels and 120 on ProMotion; `CADisableMinimumFrameDurationOnPhone` set). The nebula field's two noise samples per cell are computed **one frame ahead on a background queue** (`NebulaDensityPrecompute`, same formula → identical values; synchronous fallback when a buffer isn't ready) so the main thread only fills splats (~1 ms → ~0.6–0.9 ms per frame). Every `.shadow` that sits in the breathing scene — orb-overlay text (4 shadows per label), primary-button labels, `BrandCard`, the shell's three radiance shadows — is **flattened into one texture** (`flattenedShadows`, padded `drawingGroup`): pixel-identical to the Core Animation shadows (frozen-orb diff: 0 in the orb, text and card), but one composited layer per frame instead of a blur pass each. On the iOS Simulator those passes are synchronous host-GPU round-trips and were the real cap on the breathing (render server 76% in `ShadowNode`); on device they are cheap either way |
+| Launch warm-up | A blocked main thread is only invisible while nothing animates, so `LaunchWarmUp` is split: the main-thread-only steps (keyboard subsystem pre-load — ~1.7 s on the simulator because of a synchronous pasteboard round-trip — and the orb glow sprites) run in the root view's `onAppear`, **before the first frame**, under a brand-coloured static launch screen (`UILaunchScreen.UIColorName = LaunchBackground`, no white flash); the audio session, chime synthesis and `AVAudioEngine` creation/start run on a background queue; the remaining sprites/haptics are staged one per run-loop turn. The title orb never loses a frame; orb visuals are unchanged |
 
 ### Distribution / sharing
 
 | Decision | Choice |
 |---|---|
 | Free share | GitHub clone + Xcode Simulator, or screen recording |
-| Demo recording | `tools/demo/walkthrough.sh <scenario>` records a scripted walkthrough (`DemoUITests`) on the booted simulator with real audio via ffmpeg + BlackHole; demo-only launch arguments (`DemoLaunchOptions`: auto sign-in, skip title, jump to scene, freeze glyph drift) and `accessibilityIdentifier`s on the main controls make it deterministic. The narrated walkthrough (v4) is three chronological story takes whose scripted steps write timestamped markers; `pipeline/build_story.py` turns the markers into chapter cuts, captions, a neural voice-over (`pipeline/narration.py`, edge-tts with a macOS `say` fallback) and burned-in subtitles plus an `.srt` sidecar. See `tools/demo/README.md` |
+| Demo recording | `tools/demo/walkthrough.sh <scenario>` records a scripted walkthrough (`DemoUITests`) on the booted simulator with real audio via ffmpeg + BlackHole; demo-only launch arguments (`DemoLaunchOptions`: auto sign-in, skip title, jump to scene, freeze glyph drift) and `accessibilityIdentifier`s on the main controls make it deterministic. The narrated walkthrough (v6, nine flows incl. Care at home) is four chronological story takes whose scripted steps write timestamped markers; `pipeline/build_story.py` turns the markers into chapter cuts, captions, a neural voice-over (`pipeline/narration.py`, edge-tts with a macOS `say` fallback) and burned-in subtitles plus an `.srt` sidecar. See `tools/demo/README.md` |
 | Installable share (TestFlight / App Store) | Requires **Apple Developer Program ($99/yr)** — not free |
 | Production backend | Not in this repo yet — see implementation plan |
 
@@ -205,10 +263,13 @@ Soul, Country) before age/nationality reordering. *Android `calibrationMoods` no
 | [`docs/HANDOFF_PLAN.md`](docs/HANDOFF_PLAN.md) | Prioritised pickup plan for the next agent (Claude) |
 | [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Production architecture (AWS, Mongo, EKS, clients, GDPR) |
 | [`docs/NoteStalgia-PitchDeck.md`](docs/NoteStalgia-PitchDeck.md) | Investor / stakeholder narrative |
+| `../NoteStalgia-Backend/contracts/openapi.yaml` | v1 resource contract shared with Android and the production backend |
+| `../NoteStalgia-Backend/README.md` | Run the POC API locally (`wrangler dev`) or deploy it to Cloudflare |
 
 ---
 
 ## Related repos
 
 - **iOS (this):** feature-complete care path POC  
-- **Android:** `../NoteStalgia-Android` — core-path parity; group sessions deferred; keep catalogs in sync when changing tracks/genres/icons  
+- **Android:** `../NoteStalgia-Android` — core-path parity; group sessions deferred; keep catalogs in sync when changing tracks/genres/icons; **no API client, sync, search or online discovery yet** (see `docs/HANDOFF_PLAN.md`)
+- **Backend (POC):** `../NoteStalgia-Backend` — Cloudflare Worker + D1 implementing the v1 contract; catalogue seed + taste model; `npm run dev` for the simulator, `npm run deploy` for the user's Cloudflare account  

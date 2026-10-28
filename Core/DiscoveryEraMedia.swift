@@ -143,6 +143,12 @@ enum DiscoveryEraMediaCatalog {
         )
     }
 
+    /// Physical clip index whose visuals fit a genre (plan snippets from the catalogue reuse them).
+    static func physicalIndex(for genre: ResidentMusicGenre) -> Int {
+        let mood = MusicVisualMood.resolve(title: "", genre: genre)
+        return snippetMoods.firstIndex(of: mood) ?? 0
+    }
+
     static func mood(for snippetIndex: Int) -> MusicVisualMood {
         guard snippetMoods.isEmpty == false else { return .nostalgic }
         return snippetMoods[snippetIndex % snippetMoods.count]
@@ -227,13 +233,13 @@ struct DiscoverySnippetMediaFill: View {
         .opacity(anyReady ? 1 : 0)
         .animation(.easeIn(duration: 0.28), value: anyReady)
         .onChange(of: visual) { _, _ in
-            // Keep posterReady — SceneImageCache + DiscoveryEraPosterImage hold the prior still
-            // until the next image is decoded (avoids a blank flash on every track/snippet change).
+            // DiscoveryEraPosterImage keeps the prior still on screen until the next image is decoded
+            // (no blank flash). Readiness tracks the *new* poster: warm → ready now; cold → not ready
+            // until it lands, so the orb's gradients / equaliser re-arm once it has (a cold switch
+            // used to leave `posterReady` stuck at true and the equaliser never came back).
             videoReady = false
-            if SceneImageCache.memoryImage(for: visual.posterImageURL) != nil
-                || SceneImageCache.isCached(visual.posterImageURL) {
-                posterReady = true
-            }
+            posterReady = SceneImageCache.memoryImage(for: visual.posterImageURL) != nil
+                || SceneImageCache.isCached(visual.posterImageURL)
         }
         .onChange(of: anyReady) { _, ready in
             isMediaReady = ready

@@ -8,18 +8,26 @@ enum SupervisorAuth {
         let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let code = pin.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !normalizedEmail.isEmpty else { return (nil, "Enter your work email.") }
-        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid work email address.") }
+        guard !normalizedEmail.isEmpty else { return (nil, "Enter your email.") }
+        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid email address.") }
         guard code.count == pinDigitCount else {
             return (nil, "Enter your \(pinDigitCount)-digit PIN.")
         }
 
+        // Care at home: household accounts sign in on the same form. Their emails are personal, so
+        // they are matched before the organisation-domain rule that applies to care-home staff.
+        if let household = HouseholdCareStore.account(email: normalizedEmail) {
+            guard household.pin == code else {
+                return (nil, "Email or PIN didn’t match. Check your email or reset your PIN below.")
+            }
+            return (HouseholdCare.supervisorAccount(for: household), nil)
+        }
+
         guard let domain = normalizedEmail.split(separator: "@").last.map(String.init)?.lowercased() else {
-            return (nil, "Enter a valid work email address.")
+            return (nil, "Enter a valid email address.")
         }
         guard CareTenancyMockData.organisation.emailDomains.contains(where: { $0.lowercased() == domain }) else {
-            let allowed = CareTenancyMockData.organisation.emailDomains.map { "@\($0)" }.joined(separator: ", ")
-            return (nil, "Use your organisation email (\(allowed)).")
+            return (nil, "No account for that email. Care staff use their organisation email; family and home carers can create a Care at home account below.")
         }
 
         guard let account = CareTenancyMockData.supervisors.first(where: {
@@ -40,11 +48,15 @@ enum SupervisorAuth {
     static func beginPinReset(email: String) -> (accountId: UUID?, error: String?) {
         let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        guard !normalizedEmail.isEmpty else { return (nil, "Enter your work email.") }
-        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid work email address.") }
+        guard !normalizedEmail.isEmpty else { return (nil, "Enter your email.") }
+        guard normalizedEmail.contains("@") else { return (nil, "Enter a valid email address.") }
+
+        if let household = HouseholdCareStore.account(email: normalizedEmail) {
+            return (household.id, nil)
+        }
 
         guard let domain = normalizedEmail.split(separator: "@").last.map(String.init)?.lowercased() else {
-            return (nil, "Enter a valid work email address.")
+            return (nil, "Enter a valid email address.")
         }
         guard CareTenancyMockData.organisation.emailDomains.contains(where: { $0.lowercased() == domain }) else {
             let allowed = CareTenancyMockData.organisation.emailDomains.map { "@\($0)" }.joined(separator: ", ")
@@ -86,11 +98,15 @@ enum SupervisorAuth {
         guard newCode == confirmCode else {
             return "PINs don’t match. Enter the same PIN twice."
         }
-        guard CareTenancyMockData.supervisor(id: accountId) != nil else {
+        guard CareAccountDirectory.account(id: accountId) != nil else {
             return "Reset session expired. Start again."
         }
 
-        SupervisorCredentialStore.setPIN(newCode, for: accountId)
+        if CareAccountDirectory.isHousehold(accountId: accountId) {
+            HouseholdCareStore.setPIN(newCode, for: accountId)
+        } else {
+            SupervisorCredentialStore.setPIN(newCode, for: accountId)
+        }
         return nil
     }
 }

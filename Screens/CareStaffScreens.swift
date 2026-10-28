@@ -53,8 +53,8 @@ struct CarePatientListView: View {
                         .accessibilityIdentifier("roster.startDiscovery")
                         .padding(.horizontal, 24)
 
-                        SecondaryButton(title: "Group mode") {
-                            state.beginGroupSession()
+                        SecondaryButton(title: "Group activities") {
+                            state.beginGroupActivityPlanning()
                         }
                         .accessibilityIdentifier("roster.groupMode")
                         .padding(.horizontal, 24)
@@ -406,7 +406,7 @@ struct CarePatientListView: View {
 
     private var groupModeHint: some View {
         FadeInLine(
-            text: "Traditional playlist controls for a shared room — tracks are compiled from resident listening data on this home’s roster.",
+            text: "Pick who joins. The app suggests an activity from shared tastes, flags residents who have been overlooked, and compiles the playlist from the people you choose.",
             font: BrandTheme.orbHintFont(),
             muted: true,
             delay: 0.08
@@ -883,6 +883,8 @@ struct CareSessionPrepView: View {
 
 struct CarePatientDetailView: View {
     @ObservedObject var state: SessionPOCState
+    /// Resident whose song-search sheet is open (backend mode).
+    @State private var songSearchPatientId: UUID?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private enum DetailTypography {
@@ -906,11 +908,8 @@ struct CarePatientDetailView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to roster",
-                onBack: {
-                    state.selectedCarePatientId = nil
-                    state.phase = .carePatientList
-                },
+                backAccessibilityLabel: state.isHouseholdAccount ? "Back to home" : "Back to roster",
+                onBack: { state.returnFromResidentDetail() },
                 onLogout: { state.signOutSupervisor() }
             ) {
                 VStack(spacing: 26) {
@@ -942,6 +941,10 @@ struct CarePatientDetailView: View {
                         .padding(.horizontal, 24)
 
                         patientSentimentSummaryCard(patient)
+
+                        if !state.isHouseholdAccount {   // households have no roster or group mode
+                            groupActivitiesCard(patient)
+                        }
 
                         genrePlaylistsCard(patient)
 
@@ -1178,6 +1181,47 @@ struct CarePatientDetailView: View {
         }
     }
 
+    /// Participation in group activities plus the staff-set comfort flag the planner uses.
+    private func groupActivitiesCard(_ patient: CarePatientProfile) -> some View {
+        let participation = state.groupParticipationSummary(for: patient.id)
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Group activities")
+                    .font(DetailTypography.section)
+                    .foregroundStyle(BrandTheme.textSecondary)
+                Text(participation.line)
+                    .font(DetailTypography.body)
+                    .foregroundStyle(BrandTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("profile.groupActivities")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("In company")
+                        .font(DetailTypography.label)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    Picker("In company", selection: Binding(
+                        get: { patient.groupComfort?.rawValue ?? "" },
+                        set: { state.setResidentGroupComfort(for: patient.id, comfort: GroupComfort(rawValue: $0)) }
+                    )) {
+                        Text("Not set").tag("")
+                        Text("Enjoys groups").tag(GroupComfort.enjoysGroups.rawValue)
+                        Text("Small groups").tag(GroupComfort.smallGroupsOnly.rawValue)
+                        Text("One-to-one").tag(GroupComfort.prefersOneToOne.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("profile.groupComfort")
+                    .chimeOnChange(of: patient.groupComfort)
+                    Text("Shapes the group planner's suggestions. Residents set to one-to-one are never invited automatically; small groups and gentle flags are shown to staff, not enforced.")
+                        .font(DetailTypography.secondary)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 4)
+    }
+
     private func orderedPlaylistGroups(_ patient: CarePatientProfile) -> [CareGenrePlaylistGroup] {
         patient.genrePlaylistGroups.sorted { $0.genre.rawValue < $1.genre.rawValue }
     }
@@ -1266,6 +1310,36 @@ struct CarePatientDetailView: View {
                     }
                 }
 
+                if APIConfig.isConfigured {
+                    Button {
+                        CalmExperienceFeedback.buttonPress()
+                        songSearchPatientId = patient.id
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass.circle.fill")
+                                .foregroundStyle(BrandTheme.gold)
+                            Text("Find a song they love")
+                                .font(DetailTypography.body.weight(.medium))
+                                .foregroundStyle(BrandTheme.textPrimary)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(BrandTheme.goldDeep.opacity(0.85))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(BrandTheme.creamMid.opacity(0.95))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(ChimingPlainButtonStyle())
+                    .accessibilityIdentifier("profile.addSong")
+                    .accessibilityLabel("Find a song they love")
+                } else {
                 Menu {
                     if available.isEmpty {
                         Text("All catalog songs are already suggested")
@@ -1308,10 +1382,14 @@ struct CarePatientDetailView: View {
                 .accessibilityIdentifier("profile.addSong")
                 .disabled(available.isEmpty)
                 .accessibilityLabel("Add suggested liked song")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 4)
+        .sheet(isPresented: Binding(get: { songSearchPatientId == patient.id }, set: { if !$0 { songSearchPatientId = nil } })) {
+            SongSearchSheet(state: state, patient: state.carePatient(id: patient.id) ?? patient)
+        }
     }
 
     private func genrePlaylistSection(group: CareGenrePlaylistGroup) -> some View {
@@ -2020,7 +2098,7 @@ struct CareSessionInsightView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: "Back to roster",
+                backAccessibilityLabel: state.isHouseholdAccount ? "Back to home" : "Back to roster",
                 onBack: { state.completeSessionInsightReview() },
                 onLogout: { state.signOutSupervisor() }
             ) {
@@ -2042,7 +2120,7 @@ struct CareSessionInsightView: View {
                         nextStepCard(pack.suggestedNextStep)
                         shareCard(pack)
 
-                        PrimaryButton(title: "Done — back to roster") {
+                        PrimaryButton(title: state.isHouseholdAccount ? "Done — back to home" : "Done — back to roster") {
                             state.completeSessionInsightReview()
                         }
                         .accessibilityIdentifier("summary.done")
@@ -2050,7 +2128,7 @@ struct CareSessionInsightView: View {
                         .padding(.top, 6)
                     } else {
                         FadeInLine(text: "No summary available for this session.", delay: 0)
-                        PrimaryButton(title: "Back to roster") {
+                        PrimaryButton(title: state.isHouseholdAccount ? "Back to home" : "Back to roster") {
                             state.completeSessionInsightReview()
                         }
                         .accessibilityIdentifier("summary.back")

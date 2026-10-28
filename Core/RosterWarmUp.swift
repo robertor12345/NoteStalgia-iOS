@@ -70,19 +70,13 @@ enum RosterWarmUp {
         return outcome
     }
 
-    /// Returns once `seedCareDataOffMain` has published the roster and history (both land on the
-    /// main actor in one block, so waiting for the patients is enough in practice; records are
-    /// checked too for safety).
+    /// Returns once the stores are ready: the offline seed has landed, or (backend mode) the cached
+    /// home was loaded or the first pull finished. A readiness flag rather than non-empty counts, so
+    /// an empty home or a household with no sessions yet does not wait for the cap.
     private static func awaitSeeded(_ careData: CareDataStore) async {
-        if careData.carePatients.isEmpty {
-            for await patients in careData.$carePatients.values where !patients.isEmpty {
-                break
-            }
-        }
-        if careData.careSessionRecords.isEmpty {
-            for await records in careData.$careSessionRecords.values where !records.isEmpty {
-                break
-            }
+        guard !careData.isSeeded else { return }
+        for await ready in careData.$isSeeded.values where ready {
+            break
         }
     }
 }

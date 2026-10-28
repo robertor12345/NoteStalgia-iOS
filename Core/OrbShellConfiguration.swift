@@ -93,8 +93,8 @@ struct PersistentFlowOrbShell: View {
     var body: some View {
         // Present on every screen for the app's whole lifetime — pause while backgrounded so the
         // pulse/glow animation isn't computed and drawn when nothing is on screen.
-        TimelineView(.animation(minimumInterval: OrbRenderBudget.shellFrameInterval(reduceMotion: reduceMotion), paused: configuration.pulseMode == .dormant || scenePhase != .active || externallyPaused)) { timeline in
-            let elapsed = timeline.date.timeIntervalSince(anchor) * configuration.panelPulseSpeed
+        TimelineView(.animation(minimumInterval: OrbRenderBudget.shellFrameInterval(reduceMotion: reduceMotion), paused: configuration.pulseMode == .dormant || scenePhase != .active || externallyPaused || DemoLaunchOptions.freezeOrb)) { timeline in
+            let elapsed = DemoLaunchOptions.freezeOrb ? 2.0 : timeline.date.timeIntervalSince(anchor) * configuration.panelPulseSpeed
             let baseSample = OrbPulseSample.sample(
                 at: elapsed,
                 mode: configuration.pulseMode,
@@ -107,6 +107,7 @@ struct PersistentFlowOrbShell: View {
                 : baseSample
             let shellScale = sample.shellScale
             let floatScale: CGFloat = configuration.floats ? 0.25 : 0
+            let _ = OrbFrameMonitor.noteShellDrawIfEnabled()
 
             ZStack {
                 MorphingOrbShellBackdrop(

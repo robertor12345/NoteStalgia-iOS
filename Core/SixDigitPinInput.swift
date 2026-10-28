@@ -14,13 +14,16 @@ struct SixDigitPinInput<FocusValue: Hashable>: View {
     var onComplete: (() -> Void)?
     /// For scripted UI tests (`tools/demo`); the sign-in form uses the default.
     var accessibilityIdentifier: String = "signin.pin"
+    /// Field label and helper line; the sign-up form overrides them ("Choose a PIN" …).
+    var label: String = "PIN"
+    var hint: String = "Enter your 6-digit PIN"
 
     private let cellSpacing: CGFloat = 10
     private let cellCornerRadius: CGFloat = 12
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("PIN")
+            Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BrandTheme.textSecondary)
                 .accessibilityHidden(true)
@@ -51,13 +54,13 @@ struct SixDigitPinInput<FocusValue: Hashable>: View {
                 }
             }
 
-            Text("Enter your 6-digit PIN")
+            Text(hint)
                 .font(.caption)
                 .foregroundStyle(BrandTheme.textSecondary.opacity(0.9))
                 .accessibilityHidden(true)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("PIN")
+        .accessibilityLabel(label)
         .accessibilityValue(pinAccessibilityValue)
     }
 

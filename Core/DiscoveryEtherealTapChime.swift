@@ -19,8 +19,8 @@ enum DiscoveryEtherealTapChime {
         ChimeEngine.shared.play(.button)
     }
 
-    /// Start the audio engine and pre-render every chime buffer ahead of first use, so the first
-    /// tap doesn't pay for `AVAudioEngine.start()` + synthesis on the main thread.
+    /// Pre-render every chime buffer and start the audio engine ahead of first use — on a
+    /// background queue, so the launch animation never pays for `AVAudioEngine.start()` + synthesis.
     @MainActor
     static func prewarm() {
         ChimeEngine.shared.prewarm()
@@ -35,11 +35,17 @@ private final class ChimeEngine {
 
     enum Variant: CaseIterable { case button, light, success }
 
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
+    /// Created on the warm-up queue (`AVAudioEngine()` alone is ~0.25 s on the simulator) or,
+    /// if a chime is requested before that finished, lazily in `ensureRunning()`.
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
 
     private var graphReady = false
+    /// Set while `prewarm()` is building the graph on a background queue; `play()` stays out of the
+    /// engine until it flips back (a tap that early would be on the title screen anyway).
+    private var engineStartingInBackground = false
+    private var prewarmStarted = false
     private var buffers: [Variant: AVAudioPCMBuffer] = [:]
     /// The engine keeps the audio hardware and a realtime render thread alive while running.
     /// Nothing chimes on an idle screen, so pause it after a quiet spell; `ensureRunning()`
@@ -50,18 +56,50 @@ private final class ChimeEngine {
     private init() {}
 
     func prewarm() {
-        guard AppAudioSession.activate() else { return }
-        _ = ensureRunning()
-        for variant in Variant.allCases {
-            _ = buffer(for: variant)
+        guard !prewarmStarted, !graphReady else { return }
+        prewarmStarted = true
+        engineStartingInBackground = true
+        let format = self.format
+        // Session activation (~0.3 s), engine creation (~0.25 s), synthesis and
+        // `AVAudioEngine.start()` (~0.2 s) all happen here, off the main thread; only the
+        // bookkeeping comes back to the main actor.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let activated = AppAudioSession.activate()
+            let rendered = Variant.allCases.compactMap { variant in
+                Self.render(variant, format: format).map { (variant, $0) }
+            }
+            let engine = AVAudioEngine()
+            let player = AVAudioPlayerNode()
+            var started = false
+            if activated {
+                engine.attach(player)
+                engine.connect(player, to: engine.mainMixerNode, format: format)
+                engine.mainMixerNode.outputVolume = 1.0
+                engine.prepare()
+                started = (try? engine.start()) != nil
+            }
+            Task { @MainActor in
+                let shared = ChimeEngine.shared
+                if shared.engine == nil {
+                    shared.engine = engine
+                    shared.player = player
+                    shared.graphReady = started
+                }
+                for (variant, buffer) in rendered where shared.buffers[variant] == nil {
+                    shared.buffers[variant] = buffer
+                }
+                shared.engineStartingInBackground = false
+            }
         }
     }
 
     func play(_ variant: Variant) {
+        guard !engineStartingInBackground else { return }
         guard AppAudioSession.activate() else { return }
         guard ensureRunning() else { return }
         guard let buffer = buffer(for: variant) else { return }
 
+        guard let player else { return }
         // `.interrupts` keeps rapid taps crisp without stacking overlapping tails.
         player.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
         DemoAudioLog.record("chime", ["variant": "\(variant)"])
@@ -75,13 +113,19 @@ private final class ChimeEngine {
         idlePauseTask?.cancel()
         idlePauseTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.idlePauseDelay))
-            guard !Task.isCancelled, let self, self.engine.isRunning else { return }
-            self.player.stop()
-            self.engine.pause()
+            guard !Task.isCancelled, let self, let engine = self.engine, engine.isRunning else { return }
+            self.player?.stop()
+            engine.pause()
         }
     }
 
     private func ensureRunning() -> Bool {
+        if engine == nil {
+            engine = AVAudioEngine()
+            player = AVAudioPlayerNode()
+            graphReady = false
+        }
+        guard let engine, let player else { return false }
         if !graphReady {
             engine.attach(player)
             engine.connect(player, to: engine.mainMixerNode, format: format)
@@ -119,8 +163,9 @@ private final class ChimeEngine {
         return rendered
     }
 
-    /// Deterministic synth — rendered once per variant, then reused on every tap.
-    private static func render(_ variant: Variant, format: AVAudioFormat) -> AVAudioPCMBuffer? {
+    /// Deterministic synth — rendered once per variant, then reused on every tap. Pure math, so it
+    /// is nonisolated and runs on the warm-up queue.
+    private nonisolated static func render(_ variant: Variant, format: AVAudioFormat) -> AVAudioPCMBuffer? {
         let sr = format.sampleRate
 
         let duration: TimeInterval

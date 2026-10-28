@@ -2,31 +2,33 @@ import Foundation
 
 // MARK: - Organisation → home → supervisor → resident (POC tenancy)
 
-struct CareOrganisation: Identifiable, Equatable {
+struct CareOrganisation: Identifiable, Equatable, Codable {
     let id: UUID
     var name: String
     var emailDomains: [String]
 }
 
-struct CareHomeWing: Identifiable, Equatable, Hashable {
+struct CareHomeWing: Identifiable, Equatable, Hashable, Codable {
     let id: String
     var name: String
 }
 
-struct CareHome: Identifiable, Equatable {
+struct CareHome: Identifiable, Equatable, Codable {
     let id: UUID
     let organisationId: UUID
     var name: String
     var wings: [CareHomeWing]
 }
 
-enum SupervisorRole: String, Equatable {
+enum SupervisorRole: String, Equatable, Codable {
     case supervisor
     case homeLead
     case orgAdmin
+    /// Care at home: a family member or private carer with one resident (`HouseholdCareAccount`).
+    case household
 }
 
-struct SupervisorAccount: Identifiable, Equatable {
+struct SupervisorAccount: Identifiable, Equatable, Codable {
     let id: UUID
     let organisationId: UUID
     var email: String
@@ -413,7 +415,7 @@ enum CareTenancyMockData {
 
                 records.append(
                     CareSessionRecord(
-                        id: UUID(uuidString: String(format: "60000000-0000-4000-8000-%012x", records.count + 1))!,
+                        id: UUID(uuidString: String(format: "61000000-0000-4000-8000-%012x", records.count + 1))!,
                         patientId: patient.id,
                         date: now.addingTimeInterval(-Double(daysAgo) * 86_400 - Double(sessionIndex) * 3_600),
                         moodSummary: moodSummary,
@@ -516,7 +518,8 @@ enum CareTenancyMockData {
                 homeId: mapleLodgeId,
                 wingId: wing,
                 roomLabel: room,
-                isActive: true
+                isActive: true,
+                groupComfort: GroupActivityPlanner.seededGroupComfort(forFirstName: first)
             )
         }
     }
@@ -529,7 +532,7 @@ enum CareTenancyMockData {
             let room = "Room \(20 + index)"
             let seed = ResidentProfileSeeds.seed(forFirstName: String(name.split(separator: " ").first ?? ""))
             return CarePatientProfile(
-                id: UUID(uuidString: String(format: "50000000-0000-4000-8000-%012x", index + 1))!,
+                id: UUID(uuidString: String(format: "70000000-0000-4000-8000-%012x", index + 1))!,
                 displayName: name,
                 careContextLabel: "\(room) · \(wingLabel)",
                 likes: seed.likes,

@@ -6,8 +6,8 @@ struct FlowRootView: View {
     @State private var launchComplete = false
     @State private var launchAnchor = Date()
     @State private var launchDidFinish = false
-    /// Set once `LaunchWarmUp.perform()` has run. The title screen will not dismiss (via the timer
-    /// or a tap-to-skip) until this is true, so the user can never land on a cold, unwarmed login.
+    /// Set once `LaunchWarmUp.performStaged()` has run. The title screen will not dismiss (via the
+    /// timer or a tap-to-skip) until this is true, so the user can never land on a cold, unwarmed login.
     @State private var warmUpComplete = false
     /// Set when the launch timer fires or the user taps to skip. The actual dismissal is deferred
     /// until `warmUpComplete` is also true.
@@ -90,12 +90,21 @@ struct FlowRootView: View {
         .accessibilityLabel(launchComplete ? "NoteStalgia" : "NoteStalgia is starting.")
         .accessibilityHint(launchComplete ? "" : "Tap anywhere to skip.")
         .onAppear {
+            // Main-thread-only warm-ups that would freeze an animation run here, before the first
+            // frame is committed — the system launch screen (a static brand colour) is still up,
+            // so nothing can stutter. The title timeline is anchored only once that is done.
+            LaunchWarmUp.performBeforeFirstFrame()
+            OrbFrameMonitor.shared.start()
             launchAnchor = Date()
+            AuthSession.shared.restore()
             state.resetAllForFreshAppLaunch()
             StreamAudioCache.prefetchLaunchEssentials()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             keyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            if APIConfig.isConfigured { state.sync.pullIfDue() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
@@ -104,12 +113,11 @@ struct FlowRootView: View {
             interactionAmbientPaused = (note.userInfo?[AmbientInteractionPause.isPausedKey] as? Bool) ?? false
         }
         .task {
-            // Let the first frame + launch animation start, then warm up the subsystems that
-            // otherwise hitch the main thread on first use (keyboard, audio/chime engine, haptics)
-            // while the title screen still covers the UI — so the sign-in form is responsive the
-            // instant it appears.
+            // Let the first frame + launch animation start, then warm up the remaining subsystems
+            // (audio/chime engine off-main, haptics, sprites) one small step per run-loop turn, so
+            // the breathing orb never loses a frame while the title screen covers the UI.
             try? await Task.sleep(nanoseconds: 400_000_000)
-            LaunchWarmUp.perform()
+            await LaunchWarmUp.performStaged()
             warmUpComplete = true
             finishLaunchIfReady()
         }
@@ -173,6 +181,16 @@ struct FlowRootView: View {
                 CareHomeAdminWelcomeView(state: state)
             case .careHomeAdminDashboard:
                 CareHomeAdminDashboardView(state: state)
+            case .householdSignUp:
+                HouseholdSignUpView(state: state)
+            case .householdResidentSetup:
+                HouseholdResidentSetupView(state: state)
+            case .householdHome:
+                HouseholdHomeView(state: state)
+            case .householdInsights:
+                HouseholdInsightsView(state: state)
+            case .careGroupPlanner:
+                GroupActivityPlannerView(state: state)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -215,30 +233,50 @@ struct FlowRootView: View {
 
 }
 
-/// One-time warm-up of subsystems that otherwise stutter the main thread on first use. Run behind
-/// the launch title screen so the sign-in form is fully responsive the moment it appears.
+/// One-time warm-up of subsystems that otherwise stutter the main thread on first use, so the
+/// sign-in form is fully responsive the moment it appears.
+///
+/// Two halves, because a blocked main thread is only invisible while nothing is animating:
+/// `performBeforeFirstFrame()` runs the main-thread-only, expensive steps under the static system
+/// launch screen; `performStaged()` runs the rest behind the (animating) title, one small step per
+/// run-loop turn with the heavy audio work on a background queue. Measured on the iPad simulator,
+/// the old single call blocked the title for ~2 s — mostly the keyboard subsystem's synchronous
+/// pasteboard round-trip — which read as a laggy opening.
 @MainActor
 enum LaunchWarmUp {
-    private static var didRun = false
+    private static var didRunBlocking = false
+    private static var didRunStaged = false
 
-    static func perform() {
-        guard !didRun else { return }
-        didRun = true
-
-        // First tap chime would otherwise start an AVAudioEngine + synthesise buffers on main.
-        AppAudioSession.activate()
-        DiscoveryEtherealTapChime.prewarm()
-        // Render the orb's cached halo / glow sprites before the first screen needs them.
+    /// Call before the first frame is committed (the root view's `onAppear`).
+    static func performBeforeFirstFrame() {
+        guard !didRunBlocking else { return }
+        didRunBlocking = true
+        // The very first `becomeFirstResponder` loads the keyboard subsystem — the biggest first-tap
+        // cost (~1.7 s on the simulator, a few hundred ms on device). Must be on main, so it goes here.
+        prewarmKeyboard()
+        // The orb's cached halo / glow sprites are rendered with `ImageRenderer` (main actor); the
+        // first title frame draws them, so render them before it.
         OrbGlowSprites.prewarm()
+    }
+
+    /// Call after the first frame; awaits only short hops so no single frame absorbs the work.
+    static func performStaged() async {
+        guard !didRunStaged else { return }
+        didRunStaged = true
         // Decode the 12 bundled resident portraits off-main so the roster paints them instantly.
         ResidentPortraitCatalog.startWarmUp()
+        // Audio session + chime buffers + engine start, all off the main thread.
+        DiscoveryEtherealTapChime.prewarm()
+        await nextTurn()
         // Tap-ripple sprite, so the very first tap doesn't render it on the spot.
         TouchRippleSprite.prewarm()
+        await nextTurn()
         // First button press would otherwise pay Taptic engine first-use latency.
         CalmExperienceFeedback.prewarm()
-        // The very first `becomeFirstResponder` loads the keyboard subsystem (the biggest first-tap
-        // cost). Prime it offscreen while the title screen is up.
-        prewarmKeyboard()
+    }
+
+    private static func nextTurn() async {
+        try? await Task.sleep(for: .milliseconds(40))
     }
 
     private static func prewarmKeyboard() {
@@ -278,7 +316,7 @@ private struct FlowAmbientBackdrop: View, Equatable {
             GoldAmbientSparklesView(
                 particleCount: BrandTheme.ambientSparkleParticleCount,
                 intensity: BrandTheme.ambientSparkleIntensity,
-                externallyPaused: ambientPaused
+                externallyPaused: ambientPaused || DemoLaunchOptions.freezeOrb
             )
             .ignoresSafeArea()
             .allowsHitTesting(false)
@@ -345,6 +383,7 @@ struct BrandCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(BrandTheme.cream.opacity(0.94))
                     .shadow(color: BrandTheme.brown.opacity(0.08), radius: 12, y: 5)
+                    .flattenedShadows(bleed: 40)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)

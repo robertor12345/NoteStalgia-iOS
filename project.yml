@@ -39,7 +39,12 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: NoteStalgia
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        CADisableMinimumFrameDurationOnPhone: true
+        # The simulator talks to `wrangler dev` on http://localhost:8787 (-NoteStalgiaAPIBaseURL); loopback only.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSFaceIDUsageDescription: Reserved for a future release; supervisor PIN is used for staff access in this build.
@@ -74,6 +79,9 @@ schemes:
         NoteStalgiaDemoUITests: [test]
     run:
       config: Debug
+      commandLineArguments:
+        # Deployed POC backend (Cloudflare Worker). Untick in Xcode to run fully offline.
+        "-NoteStalgiaAPIBaseURL https://notestalgia-api.fitraclesub.workers.dev": true
     test:
       config: Debug
       targets:

@@ -98,7 +98,12 @@ enum ResidentPlaybackTrackCatalog {
 enum ResidentPlaylistVisualCatalog {
     /// Mood that best fits the track — title keywords win, genre is the fallback.
     static func mood(for genre: ResidentMusicGenre, trackTitle: String) -> MusicVisualMood {
-        MusicVisualMood.resolve(title: trackTitle, genre: genre)
+        // Real song titles trip the keyword table ("Smoke Gets in Your Eyes" → country), so only the
+        // seven bundled stems resolve by title; everything else takes the genre's mood.
+        guard ResidentPlaybackTrackCatalog.allUniqueTitles.contains(trackTitle) else {
+            return MusicVisualMood.resolve(title: "", genre: genre)
+        }
+        return MusicVisualMood.resolve(title: trackTitle, genre: genre)
     }
 
     /// Clip that best matches the track's mood, rotated deterministically across the mood's pool so
@@ -131,6 +136,9 @@ struct ResidentPlaylistBackdropView: View {
     let genre: ResidentMusicGenre
     let trackTitle: String
     let trackIndex: Int
+    /// Apple cover art for a catalogue track — becomes the backdrop picture when present; the
+    /// mood's era scene stays the picture for bundled stems and tracks without art.
+    var artworkURL: URL? = nil
     /// Reports when the media is opaque on screen (still or clip decoded) — until then the
     /// layer is transparent and whatever sits behind it still shows.
     var onMediaReadyChange: ((Bool) -> Void)? = nil
@@ -209,7 +217,7 @@ struct ResidentPlaylistBackdropView: View {
     }
 
     private var sceneImageURL: URL? {
-        mood.sceneImageURL(variant: trackIndex + StableHash.of(trackTitle))
+        artworkURL ?? mood.sceneImageURL(variant: trackIndex + StableHash.of(trackTitle))
     }
 
     private var discoveryVisualAdapter: DiscoverySnippetEraVisual {
@@ -238,6 +246,7 @@ struct ResidentPlaylistPanelBackdropView: View {
     let genre: ResidentMusicGenre
     let trackTitle: String
     let trackIndex: Int
+    var artworkURL: URL? = nil
     let orbSize: CGSize
     var mediaFillScale: CGFloat = 0.90
     /// 0 = compact orb; 1 = full-page. Drives the circle→page shape morph.
@@ -255,6 +264,7 @@ struct ResidentPlaylistPanelBackdropView: View {
                 genre: genre,
                 trackTitle: trackTitle,
                 trackIndex: trackIndex,
+                artworkURL: artworkURL,
                 onMediaReadyChange: onMediaReadyChange
             )
         }

@@ -28,6 +28,16 @@ final class AmbientAudioSession: ObservableObject {
         didSet { reactiveAnalyzer.profile = musicReactiveProfile }
     }
 
+    /// Loop the item (ambient stems) or stop at the end and call `onItemEnd` (30-second previews).
+    var loops = true
+    /// Shown in the demo log next to each `music.start` (streamed previews have opaque file names).
+    var logTitle: String?
+    var onItemEnd: (() -> Void)?
+    /// Called once per `startFresh` when the item is ready (discovery arms its timer from here).
+    var onReady: (() -> Void)?
+    /// Called when the item cannot play and no fallback was requested (the caller skips ahead).
+    var onFailure: (() -> Void)?
+
     private var sourceRemoteURL = AmbientAudioSession.quickStartStreamURL
     private var playbackFallbackURL: URL?
     private var triedStreamFallback = false
@@ -76,14 +86,16 @@ final class AmbientAudioSession: ObservableObject {
         beginPlayback()
     }
 
-    func startFresh(streamURL: URL) {
+    /// `fallbackURL` is what plays if the stream fails; pass `nil` for catalogue previews so a dead
+    /// preview is reported (`onFailure`) instead of silently swapping in a bundled stem.
+    func startFresh(streamURL: URL, fallbackURL: URL? = AmbientAudioSession.quickStartStreamURL) {
         stop()
         triedStreamFallback = false
         triedCacheBypass = false
         sourceRemoteURL = streamURL
-        playbackFallbackURL = Self.quickStartStreamURL
+        playbackFallbackURL = fallbackURL
         StreamAudioCache.prefetch(streamURL)
-        StreamAudioCache.prefetch(Self.quickStartStreamURL)
+        if let fallbackURL { StreamAudioCache.prefetch(fallbackURL) }
         AppAudioSession.activate()
         beginPlayback()
     }
@@ -138,7 +150,7 @@ final class AmbientAudioSession: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.loopToStart(expecting: generation)
+                self?.itemDidEnd(expecting: generation)
             }
         }
 
@@ -146,15 +158,23 @@ final class AmbientAudioSession: ObservableObject {
         DemoAudioLog.record("music.start", [
             "player": logID,
             "file": remoteSource.lastPathComponent.removingPercentEncoding ?? remoteSource.lastPathComponent,
+            "title": logTitle ?? "",
+            "url": remoteSource.absoluteString,
             "volume": Double(avPlayer.volume),
         ])
     }
 
-    private func loopToStart(expecting generation: UInt) {
+    private func itemDidEnd(expecting generation: UInt) {
         guard generation == playbackGeneration, let player else { return }
-        DemoAudioLog.record("music.loop", ["player": logID])
-        player.seek(to: .zero) { [weak player] _ in
-            player?.play()
+        if loops {
+            DemoAudioLog.record("music.loop", ["player": logID])
+            player.seek(to: .zero) { [weak player] _ in
+                player?.play()
+            }
+        } else {
+            DemoAudioLog.record("music.end", ["player": logID])
+            player.pause()
+            onItemEnd?()
         }
     }
 
@@ -178,6 +198,7 @@ final class AmbientAudioSession: ObservableObject {
                 }
                 guard generation == playbackGeneration else { return }
                 player?.play()
+                onReady?()
             }
         case .failed:
             tearDownObservers()
@@ -195,7 +216,11 @@ final class AmbientAudioSession: ObservableObject {
     }
 
     private func retryWithFallbackIfNeeded() {
-        guard let fallback = playbackFallbackURL, !triedStreamFallback else { return }
+        guard let fallback = playbackFallbackURL, !triedStreamFallback else {
+            DemoAudioLog.record("music.failed", ["player": logID])
+            onFailure?()
+            return
+        }
         triedStreamFallback = true
         triedCacheBypass = false
         sourceRemoteURL = fallback

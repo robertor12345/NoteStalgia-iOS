@@ -9,3 +9,4 @@ DerivedData/
 *.mp4
 .demo-work/
 NoteStalgia-Walkthrough*.srt
+node_modules/

@@ -306,6 +306,8 @@ struct ResidentProfileView: View {
     @State private var activePlaylist: CarePlaylistEntry?
     /// Working queue for the active genre — sun-liked titles float to the front; cloud-skipped titles are removed.
     @State private var remainingTrackTitles: [String] = []
+    /// Playable reference behind each queued title (catalogue preview or bundled stem).
+    @State private var queueRefsByTitle: [String: ResidentTrackRef] = [:]
     @State private var activeTrackIndex: Int = 0
     @State private var activeAudioKey: String?
     @State private var comfortAffirmationChoice: ResidentPlaylistComfortChoice?
@@ -406,6 +408,7 @@ struct ResidentProfileView: View {
                         genre: genre,
                         trackTitle: title,
                         trackIndex: activeTrackIndex,
+                        artworkURL: queueRefsByTitle[title]?.artworkURL(side: 1200),
                         orbSize: mediaSize,
                         mediaFillScale: displayMediaFillScale(),
                         pageExpansion: mediaExpansion,
@@ -417,6 +420,9 @@ struct ResidentProfileView: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            // The backdrop is not hit-testable (so taps reach the glyphs), which left this container
+            // with nothing to hit — the swipe below never fired. The shape makes empty space swipeable.
+            .contentShape(Rectangle())
             .animation(CalmMotion.playlistOrbMorph, value: mediaExpansion)
             // Swipe for tracks — simultaneous so it never blocks genre-glyph taps.
             .simultaneousGesture(playlistSwipeGesture)
@@ -601,7 +607,7 @@ struct ResidentProfileView: View {
         guard let genre = selectedPlayingGenre,
               let title = currentTrackTitle
         else { return }
-        let track = ResidentPlaybackTrackCatalog.track(titled: title, genre: genre)
+        let ref = queueRefsByTitle[title] ?? ResidentTrackRef.bundled(title: title, genre: genre)
         let key = "\(genre.rawValue)|\(title)"
         guard activeAudioKey != key else { return }
         activeAudioKey = key
@@ -612,10 +618,48 @@ struct ResidentProfileView: View {
             index: activeTrackIndex,
             radius: 1
         )
-        state.noteResidentTrackStarted(title)
+        let upcoming = remainingTrackTitles.dropFirst(activeTrackIndex + 1).prefix(2).compactMap { queueRefsByTitle[$0]?.previewURL }
+        StreamAudioCache.prefetch(upcoming)
+        // Cover art for this track and its neighbours, so a swipe paints the next sleeve from cache.
+        let neighbourArt = remainingTrackTitles.indices
+            .filter { abs($0 - activeTrackIndex) <= 1 }
+            .compactMap { queueRefsByTitle[remainingTrackTitles[$0]]?.artworkURL(side: 1200) }
+        SceneImageCache.prefetch(neighbourArt)
+        state.noteResidentTrackStarted(ref)
         stopResidentAudio()
         residentAudio.musicReactiveProfile = .discovery
-        residentAudio.startFresh(streamURL: track.audioURL)
+        // Bundled stems loop as before; catalogue previews play once and move the queue along.
+        residentAudio.logTitle = ref.title
+        residentAudio.loops = ref.isBundled || remainingTrackTitles.count <= 1
+        residentAudio.onItemEnd = { advanceAfterTrackEnd() }
+        residentAudio.onFailure = { skipUnplayableTrack(ref) }
+        residentAudio.startFresh(streamURL: ref.audioURL, fallbackURL: ref.isBundled ? AmbientAudioSession.quickStartStreamURL : nil)
+    }
+
+    /// A preview finished: continue with the next queued song (no resident input needed).
+    private func advanceAfterTrackEnd() {
+        guard selectedPlayingGenre != nil else { return }
+        let count = remainingTrackTitles.count
+        guard count > 1 else { return }
+        withAnimation(.easeInOut(duration: 0.35)) {
+            activeTrackIndex = (activeTrackIndex + 1) % count
+        }
+        clearComfortAffirmation()
+    }
+
+    /// A preview that cannot play: drop it from the queue (not a cloud-skip — the resident never heard it).
+    private func skipUnplayableTrack(_ ref: ResidentTrackRef) {
+        state.noteTrackPreviewFailed(ref)
+        var next = remainingTrackTitles
+        next.removeAll { $0 == ref.title }
+        remainingTrackTitles = next
+        guard !next.isEmpty else {
+            stopPlayback()
+            return
+        }
+        activeTrackIndex = min(activeTrackIndex, next.count - 1)
+        activeAudioKey = nil
+        playCurrentTrack()
     }
 
     private func stopResidentAudio() {
@@ -631,6 +675,7 @@ struct ResidentProfileView: View {
         selectedPlayingGenre = nil
         activePlaylist = nil
         remainingTrackTitles = []
+        queueRefsByTitle = [:]
         activeTrackIndex = 0
         collapsePlaybackMedia()
         clearComfortAffirmation()
@@ -808,7 +853,8 @@ struct ResidentProfileView: View {
             return
         }
         let playlist = group.playlists.first(where: { !$0.trackTitles.isEmpty }) ?? group.playlists[0]
-        let titles = state.residentPlaylistTitles(for: genre)
+        let refs = state.residentPlaylistQueue(for: genre)
+        let titles = refs.map(\.title)
         guard titles.isEmpty == false else { return }
 
         // Invalidate any deferred empty-queue stop from a prior cloud-skip.
@@ -818,6 +864,7 @@ struct ResidentProfileView: View {
             selectedPlayingGenre = genre
             activePlaylist = playlist
             remainingTrackTitles = titles
+            queueRefsByTitle = Dictionary(refs.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
             activeTrackIndex = 0
             activeAudioKey = nil
         }
@@ -830,6 +877,7 @@ struct ResidentProfileView: View {
             index: 0,
             radius: 1
         )
+        SceneImageCache.prefetch(refs.prefix(2).compactMap { $0.artworkURL(side: 1200) })
     }
 
     private func floatingGlyphButton(

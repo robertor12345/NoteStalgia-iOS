@@ -5,7 +5,7 @@ import Foundation
 // consent before shipping.
 
 /// Person-centred profile for one-to-one calm moments — sensory hints, life themes, and adaptive sound shaping preferences.
-struct CarePatientProfile: Identifiable, Equatable {
+struct CarePatientProfile: Identifiable, Equatable, Codable {
     let id: UUID
     var displayName: String
     var careContextLabel: String
@@ -36,6 +36,8 @@ struct CarePatientProfile: Identifiable, Equatable {
     /// Supervisor-seeded track titles that boost playlist ordering on the resident surface
     /// (combined with live sun-likes; does not replace discovery or skips).
     var suggestedLikedTrackTitles: [String] = []
+    /// Catalogue ids behind `suggestedLikedTrackTitles` (title → id); nil before the catalogue existed.
+    var suggestedLikedTrackIds: [String: String]? = nil
     /// Bundled portrait in `Assets.xcassets`, assigned at seed time via
     /// `ResidentPortraitCatalog.assetName(displayName:)`; `nil` for a provisional resident mid-discovery.
     /// A captured photo (`CareDataStore.carePatientPortraitImages`) always wins.
@@ -48,26 +50,33 @@ struct CarePatientProfile: Identifiable, Equatable {
     var wingId: String = CareTenancyMockData.wingResidential
     var roomLabel: String = ""
     var isActive: Bool = true
+    /// How they do in company — staff-set; drives the group activity planner's suggestions.
+    var groupComfort: GroupComfort? = nil
+    /// Sync metadata (backend last-write-wins). Nil for mock data until the sync engine stamps it.
+    var updatedAt: Date? = nil
+    var schemaVersion: Int? = nil
 }
 
 /// Saved playlist linked to a genre for resident calm sessions (POC stubs).
-struct CarePlaylistEntry: Identifiable, Equatable {
+struct CarePlaylistEntry: Identifiable, Equatable, Codable {
     let id: UUID
     var title: String
     var trackCount: Int
     var durationMinutes: Int
     /// Song titles for the in-app playlist player (subset is fine for POC demos).
     var trackTitles: [String]
+    /// Playable references (catalogue previews or bundled stems); nil for stub playlists.
+    var tracks: [ResidentTrackRef]? = nil
 }
 
 /// Playlists grouped under one genre on a patient’s profile.
-struct CareGenrePlaylistGroup: Identifiable, Equatable {
+struct CareGenrePlaylistGroup: Identifiable, Equatable, Codable {
     var id: ResidentMusicGenre { genre }
     var genre: ResidentMusicGenre
     var playlists: [CarePlaylistEntry]
 }
 
-struct CareSessionRecord: Identifiable, Equatable {
+struct CareSessionRecord: Identifiable, Equatable, Codable {
     let id: UUID
     let patientId: UUID
     let date: Date
@@ -108,6 +117,9 @@ struct CareSessionRecord: Identifiable, Equatable {
     var insightSuggestedNextStep: String? = nil
     var insightHandoverText: String? = nil
     var insightFamilyText: String? = nil
+    /// Home the session happened in and who recorded it — filled by `appendCareSessionRecord` (synced to the backend).
+    var homeId: UUID?
+    var authorAccountId: UUID?
     var lightsDimmed: Bool? = nil
 }
 

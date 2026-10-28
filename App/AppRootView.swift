@@ -15,8 +15,9 @@ struct AppRootView: View {
         .preferredColorScheme(.dark)
         .environment(\.font, Font.system(.body, design: .rounded))
         .task {
-            // Warm the shared audio session so the first chime/music plays without delay.
-            AppAudioSession.activate()
+            // Warm the shared audio session so the first chime/music plays without delay —
+            // off the main thread (first activation is ~0.3 s on the simulator).
+            Task.detached(priority: .utility) { AppAudioSession.activate() }
         }
     }
 }

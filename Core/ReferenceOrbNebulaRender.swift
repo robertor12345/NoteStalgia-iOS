@@ -179,14 +179,10 @@ struct ReferenceOrbNebulaInterior: View {
 
 // MARK: - Domain-warped volumetric nebula field
 
-private struct ReferenceOrbNebulaVolumeField: View {
-    var diameter: CGFloat
-    var phase: Double
-    var glowPulse: Double
-
-    /// Per-cell sampling geometry is constant for a given canvas size — cache it so each frame
-    /// only runs the (time-dependent) noise + fill, not the grid math and in-circle culling.
-    private struct Cell {
+/// Per-cell sampling geometry is constant for a given canvas size — cache it so each frame only
+/// runs the (time-dependent) noise + fill, not the grid math and in-circle culling.
+private enum NebulaFieldGrid {
+    struct Cell {
         let nx: Double
         let ny: Double
         let splat: CGRect
@@ -200,7 +196,7 @@ private struct ReferenceOrbNebulaVolumeField: View {
     private static var gridKey: GridKey?
     private static var gridCells: [Cell] = []
 
-    private static func cells(for size: CGSize) -> [Cell] {
+    static func cells(for size: CGSize) -> [Cell] {
         let cols = OrbRenderBudget.nebulaGridColumns(for: size.width)
         let key = GridKey(w: size.width, h: size.height, cols: cols)
         if key == gridKey { return gridCells }
@@ -240,37 +236,114 @@ private struct ReferenceOrbNebulaVolumeField: View {
         gridCells = built
         return built
     }
+}
+
+/// The two domain-warped noise samples per cell are the orb's one real CPU cost (~2,000 cells ×
+/// 18 `sin` each, every frame, on every screen). They depend only on the field time, so they are
+/// computed **one frame ahead on a background queue** and the main thread just fills the splats.
+/// Same formula, same inputs → identical values; the only difference is *when* they are computed.
+/// If the buffer for the requested time isn't ready (first frame, after a pause, a dropped frame)
+/// the field is computed synchronously as before — a frame is never skipped or reused.
+private final class NebulaDensityPrecompute: @unchecked Sendable {
+    static let shared = NebulaDensityPrecompute()
+
+    private let lock = NSLock()
+    private let queue = DispatchQueue(label: "notestalgia.orb.nebula-precompute", qos: .userInteractive)
+    private var ready: (time: Double, count: Int, densities: [Double])?
+    private var inFlight = false
+    private var lastRequestedTime: Double?
+
+    /// Field-time advance per shell frame at 60 fps (`phase = elapsed × 0.32`, `time = phase × 0.22`).
+    private static let defaultStep = 0.32 * 0.22 / 60
+
+    func densities(for time: Double, cells: [NebulaFieldGrid.Cell]) -> [Double] {
+        if OrbRenderBudget.experimentSyncNebula {
+            return Self.compute(time: time, cells: cells)
+        }
+        lock.lock()
+        // Predict the next frame's field time from the actual cadence (handles 60 vs 120 Hz and
+        // Reduce Motion, where the time stands still and the one buffer is reused exactly).
+        let step: Double
+        let advancing: Bool
+        if let last = lastRequestedTime, time > last {
+            step = min(0.05, max(1e-6, time - last))
+            advancing = true
+        } else {
+            step = Self.defaultStep
+            advancing = lastRequestedTime == nil   // Reduce Motion / paused: the time stands still
+        }
+        lastRequestedTime = time
+        var hit: [Double]?
+        if let ready, ready.count == cells.count, abs(ready.time - time) <= step * 0.75 {
+            hit = ready.densities
+        }
+        let schedule = !inFlight
+        if schedule { inFlight = true }
+        lock.unlock()
+
+        if schedule {
+            let target = advancing ? time + step : time
+            queue.async { [self] in
+                let computed = Self.compute(time: target, cells: cells)
+                lock.lock()
+                ready = (target, cells.count, computed)
+                inFlight = false
+                lock.unlock()
+            }
+        }
+        return hit ?? Self.compute(time: time, cells: cells)
+    }
+
+    static func compute(time: Double, cells: [NebulaFieldGrid.Cell]) -> [Double] {
+        let secondaryTime = time * 0.72
+        var out = [Double](repeating: 0, count: cells.count)
+        for (index, cell) in cells.enumerated() {
+            let primary = ReferenceOrbNoise.warpedCloudDensity(
+                x: cell.nx * 1.15,
+                y: cell.ny * 1.15,
+                time: time,
+                seed: 0,
+                quality: .standard
+            )
+            let secondary = ReferenceOrbNoise.warpedCloudDensity(
+                x: cell.nx * 1.15,
+                y: cell.ny * 1.15,
+                time: secondaryTime,
+                seed: 41.7,
+                quality: .standard
+            )
+            out[index] = min(1, primary + secondary * 0.48)
+        }
+        return out
+    }
+}
+
+private struct ReferenceOrbNebulaVolumeField: View {
+    var diameter: CGFloat
+    var phase: Double
+    var glowPulse: Double
 
     var body: some View {
         Canvas { context, size in
+            let started = OrbFrameMonitor.isEnabled ? DispatchTime.now().uptimeNanoseconds : 0
             let time = phase * 0.22
-            let secondaryTime = time * 0.72
+            let cells = NebulaFieldGrid.cells(for: size)
+            let densities = NebulaDensityPrecompute.shared.densities(for: time, cells: cells)
 
-            for cell in Self.cells(for: size) {
-                let primary = ReferenceOrbNoise.warpedCloudDensity(
-                    x: cell.nx * 1.15,
-                    y: cell.ny * 1.15,
-                    time: time,
-                    seed: 0,
-                    quality: .standard
-                )
-                let secondary = ReferenceOrbNoise.warpedCloudDensity(
-                    x: cell.nx * 1.15,
-                    y: cell.ny * 1.15,
-                    time: secondaryTime,
-                    seed: 41.7,
-                    quality: .standard
-                )
-                let density = min(1, primary + secondary * 0.48)
+            for (index, cell) in cells.enumerated() {
                 let (color, alpha) = ReferenceOrbPalette.nebulaSample(
                     nx: cell.nx,
                     ny: cell.ny,
-                    density: density,
+                    density: densities[index],
                     glowPulse: glowPulse
                 )
                 if alpha < 0.035 { continue }
 
                 context.fill(Path(ellipseIn: cell.splat), with: .color(color.opacity(alpha * 0.78)))
+            }
+            if OrbFrameMonitor.isEnabled {
+                let nanos = DispatchTime.now().uptimeNanoseconds - started
+                Task { @MainActor in OrbFrameMonitor.shared.noteCanvas(nanoseconds: nanos) }
             }
         }
         .compositingGroup()

@@ -20,8 +20,28 @@ cmd="${1:-}"; take="${2:-take}"
 case "$cmd" in
   start)
     rm -f "$TAKES/$take.raw.mp4" "$TAKES/$take.audio.m4a"
-    xcrun simctl io "$UDID" recordVideo --codec=h264 --force "$TAKES/$take.raw.mp4" > "$TAKES/$take.video.log" 2>&1 &
-    echo $! > "$TAKES/$take.video.pid"
+    # The device records fine headless (`simctl boot`, no Simulator.app window). Wait until a
+    # screenshot succeeds — the same display pipeline the recorder uses. Note: the output path must
+    # be absolute ($TAKES is): the render server opens the file itself, and a relative path fails
+    # with "SimRenderServer.SimulatorError Code=2".
+    for _ in {1..30}; do
+      xcrun simctl io "$UDID" screenshot --type=png "$TAKES/.display-check.png" >/dev/null 2>&1 && break
+      sleep 1
+    done
+    xcrun simctl io "$UDID" screenshot --type=png "$TAKES/.display-check.png" >/dev/null 2>&1 || { echo "record.sh: the device's display is not available (is it booted?)"; exit 1; }
+    rm -f "$TAKES/.display-check.png"
+    # HEVC halves the raw take (h264 ran to 1–1.5 GB for five minutes); walkthrough.sh re-encodes anyway.
+    # recordVideo writes the file only when it stops, so the only cheap health check is that the
+    # recorder is still alive a few seconds in (a display it cannot attach to kills it at once).
+    for attempt in 1 2 3; do
+      xcrun simctl io "$UDID" recordVideo --codec="${DEMO_RAW_CODEC:-hevc}" --force "$TAKES/$take.raw.mp4" > "$TAKES/$take.video.log" 2>&1 &
+      echo $! > "$TAKES/$take.video.pid"
+      sleep 4
+      kill -0 "$(cat "$TAKES/$take.video.pid")" 2>/dev/null && break
+      echo "record.sh: the recorder exited at once (attempt $attempt): $(tr '\n' ' ' < "$TAKES/$take.video.log")"
+      rm -f "$TAKES/$take.video.pid"; sleep 3
+    done
+    [[ -f "$TAKES/$take.video.pid" ]] || { echo "record.sh: could not start the recorder"; exit 1; }
     # ffmpeg exits non-zero after listing devices; don't let pipefail turn a match into "not found".
     if [[ -n "$AUDIO_DEVICE" ]] && { ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 || true; } | grep -q "$AUDIO_DEVICE"; then
       ffmpeg -hide_banner -loglevel error -f avfoundation -i ":$AUDIO_DEVICE" -c:a aac -b:a 192k "$TAKES/$take.audio.m4a" > "$TAKES/$take.audio.log" 2>&1 &

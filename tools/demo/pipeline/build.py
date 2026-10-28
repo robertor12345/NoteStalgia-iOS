@@ -48,6 +48,7 @@ FLOWS = [
     "New-resident discovery",
     "Group mode",
     "Home admin insights",
+    "Care at home",
 ]
 FLOW_SUBTITLES = [
     "Fast, simple access for care staff",
@@ -58,6 +59,7 @@ FLOW_SUBTITLES = [
     "Finding the music that lands, with no reading required",
     "One shared playlist for a lounge or day room",
     "Session impact across the whole home",
+    "One person, cared for by family",
 ]
 
 CAPTIONS = {
@@ -175,6 +177,7 @@ OUTRO_DUR = 10.0
 CARD_FADE = 0.45
 CAPTION_FADE = 0.3
 INDEX_Y = 812       # top of the "THE WALKTHROUGH" flow index in the right-hand panel
+INDEX_ROW_H = 50    # row pitch of that index (build_story.py tightens it for nine flows)
 
 
 def font(path, size, variation="Regular"):
@@ -272,9 +275,9 @@ def chrome(chapter):
     f_lab_cur = font(SANS, 23, "Semibold")
     d.text((PANEL_X, INDEX_Y), "THE WALKTHROUGH", font=font(SANS, 18, "Semibold"), fill=DIM)
     for i, name in enumerate(FLOWS):
-        col, row = divmod(i, 4)
+        col, row = divmod(i, (len(FLOWS) + 1) // 2)
         cx = PANEL_X + col * 440
-        cy = INDEX_Y + 44 + row * 50
+        cy = INDEX_Y + 44 + row * INDEX_ROW_H
         r = 15
         if chapter is not None and i == chapter:
             d.ellipse((cx, cy, cx + 2 * r, cy + 2 * r), fill=CYAN)
@@ -396,7 +399,7 @@ def intro_card():
     colw = 520
     x0 = W / 2 - colw
     for i, name in enumerate(FLOWS):
-        col, row = divmod(i, 4)
+        col, row = divmod(i, (len(FLOWS) + 1) // 2)
         x = x0 + col * colw + 60
         y = 650 + row * 60
         d.text((x, y), f"{i + 1}", font=f_n, fill=CYAN)
