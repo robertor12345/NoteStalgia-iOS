@@ -19,6 +19,13 @@ enum DiscoveryEtherealTapChime {
         ChimeEngine.shared.play(.button)
     }
 
+    /// Lower and a little wistful (a minor third, not the open fifth of the others) — something needs a second look.
+    /// Never sharp: it is the sound for "check this field", not an alarm.
+    @MainActor
+    static func playAttention() {
+        ChimeEngine.shared.play(.attention)
+    }
+
     /// Pre-render every chime buffer and start the audio engine ahead of first use — on a
     /// background queue, so the launch animation never pays for `AVAudioEngine.start()` + synthesis.
     @MainActor
@@ -33,7 +40,7 @@ enum DiscoveryEtherealTapChime {
 private final class ChimeEngine {
     static let shared = ChimeEngine()
 
-    enum Variant: CaseIterable { case button, light, success }
+    enum Variant: CaseIterable { case button, light, success, attention }
 
     /// Created on the warm-up queue (`AVAudioEngine()` alone is ~0.25 s on the simulator) or,
     /// if a chime is requested before that finished, lazily in `ensureRunning()`.
@@ -190,6 +197,10 @@ private final class ChimeEngine {
             duration = 0.74
             (f1, f2, f3) = (392.0, 392.0 * 1.335, 392.0 * 2.0)
             (volume, decayRate, attackSeconds, swirlAmount) = (0.26, 3.35, 0.040, 0.06)
+        case .attention:
+            duration = 0.56
+            (f1, f2, f3) = (262.0, 262.0 * 1.189, 262.0 * 2.0)
+            (volume, decayRate, attackSeconds, swirlAmount) = (0.22, 4.0, 0.030, 0.05)
         }
 
         let frameCount = AVAudioFrameCount(sr * duration)

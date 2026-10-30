@@ -2052,7 +2052,7 @@ final class SessionPOCState: ObservableObject {
                 // A fortnight of group activities for the mock home, so the planner has history.
                 self.groupSession.groupSessionRecords = GroupActivityMockData.records(
                     residents: patients, sessionRecords: records, homeId: CareTenancyMockData.mapleLodgeId
-                )
+                ) + household.activities
                 if !household.portraits.isEmpty {
                     self.careData.carePatientPortraitImages.merge(household.portraits) { _, stored in stored }
                 }
@@ -2204,6 +2204,8 @@ enum FlowPhase: Int, CaseIterable, Identifiable {
     case orgCode = 33
     /// The org admin's six-step set-up (organisation, homes, team, residents, iPads, ready).
     case orgSetup = 34
+    /// Staff write up an activity held outside the app: what it was, who came, how each of them was.
+    case careActivityLog = 35
 
     var id: Int { rawValue }
 }

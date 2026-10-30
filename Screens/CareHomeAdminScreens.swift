@@ -134,6 +134,18 @@ struct CareHomeAdminDashboardView: View {
                         detail: "out of 10",
                         tint: g.averageMorale.map { BrandRatingTone.tint(outOfTen: $0) }
                     )
+                    // Activities staff logged as held outside the app, so the programme isn't only what the app played.
+                    BrandStatTile(
+                        value: "\(g.activities14d)",
+                        label: "Outside the app",
+                        detail: g.activities14d == 0 ? "none logged" : "\(g.activityAttendances14d) attended"
+                    )
+                    BrandStatTile(
+                        value: g.activityAverageEngagement.map { String(format: "%.1f", $0) } ?? "—",
+                        label: "Their engagement",
+                        detail: "out of 10",
+                        tint: g.activityAverageEngagement.map { BrandRatingTone.tint(outOfTen: $0) }
+                    )
                 }
                 if let best = g.bestActivity {
                     BrandInsetTile {

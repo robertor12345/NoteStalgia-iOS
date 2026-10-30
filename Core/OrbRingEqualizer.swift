@@ -287,7 +287,31 @@ struct OrbRadialBarEqualizerView: View {
     /// Lower = sharper per-bar variation (less cross-band smoothing).
     var neighbourMix: CGFloat = 0.32
 
+    @ObservedObject private var metal = OrbMetalPipeline.shared
+
+    /// Glowing wave bursts off the rim when the GPU can draw them; the bars where it cannot.
     var body: some View {
+        if metal.usesWaves {
+            OrbWaveBurstView(parameters: OrbWaveParameters(
+                canvas: canvasDiameter,
+                orbRadius: orbRadius,
+                reach: barReach,
+                openness: listenProgress,
+                reactsToMusic: reactsToMusic,
+                liveAudioOnly: liveAudioOnly,
+                bandLevels: bandLevels,
+                gain: liveAudioGain,
+                exponent: liveLevelExponent,
+                floor: barAmplitudeFloor,
+                paused: false,
+                framesPerSecond: min(120, UIScreen.main.maximumFramesPerSecond)
+            ))
+        } else {
+            bars
+        }
+    }
+
+    @ViewBuilder private var bars: some View {
         if reactsToMusic, liveAudioOnly, bandLevels == nil {
             // Live-only bars are a pure function of the bus snapshot (phase is ignored), so redraw
             // when the bus publishes — ≤48×/s while music plays, never while idle — instead of

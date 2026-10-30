@@ -183,7 +183,7 @@ private struct SupervisorAuthPanel: View {
             } label: {
                 Text("Forgot PIN?")
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(BrandTheme.gold)
+                    .orbLink()
                     // 44pt touch target without moving the form: hit area only, no layout height.
                     .expandedHitArea(vertical: 14, horizontal: 16)
             }
@@ -198,7 +198,7 @@ private struct SupervisorAuthPanel: View {
             } label: {
                 Text("Caring for someone at home? Create an account")
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(BrandTheme.gold)
+                    .orbLink()
                     .multilineTextAlignment(.center)
                     .expandedHitArea(vertical: 14, horizontal: 16)
             }
@@ -215,7 +215,7 @@ private struct SupervisorAuthPanel: View {
                 } label: {
                     Text("Setting up a care home or organisation? Request a workspace")
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(BrandTheme.gold)
+                        .orbLink()
                         .multilineTextAlignment(.center)
                         .expandedHitArea(vertical: 14, horizontal: 16)
                 }
@@ -230,7 +230,7 @@ private struct SupervisorAuthPanel: View {
                 } label: {
                     Text("I have an invite or activation code")
                         .font(.footnote.weight(.medium))
-                        .foregroundStyle(BrandTheme.gold)
+                        .orbLink()
                         .multilineTextAlignment(.center)
                         .expandedHitArea(vertical: 14, horizontal: 16)
                 }

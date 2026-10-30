@@ -164,7 +164,7 @@ enum GroupActivityPlanner {
         // Group records are shared across homes; only the ones that involved these residents count
         // (a record with no participants on file is a legacy whole-home session and is kept).
         let residentIds = Set(residents.map(\.id))
-        let groupRecords = groupRecords.filter { record in
+        let groupRecords = GroupSessionRecord.current(groupRecords).filter { record in
             record.participantIds.isEmpty || record.participantIds.contains { residentIds.contains($0) }
         }
         let recentGroups = groupRecords.filter { $0.date >= windowStart }
@@ -240,14 +240,13 @@ enum GroupActivityPlanner {
         let groups14 = myGroups.filter { $0.date >= windowStart }.count
         let daysSinceGroup = myGroups.first.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) }
         // Per-person engagement: a staff note about this resident outranks the room's score for
-        // that session ("engaged" lifts it to at least 7, "unsettled" 3, "left early" 2).
+        // that session. At a music group "engaged" lifts the room's score to at least 7; an activity logged afterwards
+        // has no room score, so the person's own note is the score (enjoyed 9 · engaged 7 · looked on 5 · unsettled 3
+        // · left early 2).
         let engagementScores = myGroups.prefix(5).compactMap { record -> Double? in
-            switch record.participantNote(for: resident.id) {
-            case .engaged: return max(Double(record.engagementRating ?? 7), 7)
-            case .unsettled: return 3
-            case .leftEarly: return 2
-            case nil: return record.engagementRating.map(Double.init)
-            }
+            guard let note = record.participantNote(for: resident.id) else { return record.engagementRating.map(Double.init) }
+            if note == .engaged, record.isMusic { return max(Double(record.engagementRating ?? 7), 7) }
+            return Double(note.engagementScore)
         }
         let avgEngagement = engagementScores.isEmpty ? nil : engagementScores.reduce(0, +) / Double(engagementScores.count)
         let recentNotes = myGroups.prefix(3).compactMap { $0.participantNote(for: resident.id) }
@@ -403,7 +402,7 @@ enum GroupActivityPlanner {
             return String(format: "group engagement has averaged %.1f/10", avg)
         }
         // Two check-ins in a row where staff noted them unsettled or leaving early.
-        let difficult = insight.recentGroupNotes.prefix(2).filter { $0 != .engaged }
+        let difficult = insight.recentGroupNotes.prefix(2).filter(\.isDifficult)
         if insight.recentGroupNotes.count >= 2, difficult.count == 2 {
             return "staff noted them \(difficult[0].label.lowercased()) at their last two groups"
         }
@@ -576,7 +575,7 @@ enum GroupActivityMockData {
             (3, .country, fans(of: .country, limit: 4), 6, 6, 5, 5, 20, 4),
             (1, .soul, fans(of: .soul, limit: 5), 8, 7, 7, 9, 27, 6),
         ]
-        return plan.enumerated().compactMap { index, p in
+        let music: [GroupSessionRecord] = plan.enumerated().compactMap { index, p in
             let (daysAgo, genre, participants, morale, alert, orientation, engagement, minutes, tracks) = p
             guard participants.count >= 3 else { return nil }
             return GroupSessionRecord(
@@ -593,6 +592,38 @@ enum GroupActivityMockData {
                 participantIds: participants,
                 activityTitle: GroupActivityPlanner.activityTitle(for: genre),
                 theme: .genre(genre)
+            )
+        }
+        return music + activitiesOutsideTheApp(roster: roster, now: now)
+    }
+
+    /// Two activities held away from the app, written up the way staff would (`ActivityLogDraft`), so the Home Admin
+    /// programme card, the profile line and the planner show them from the first launch.
+    private static func activitiesOutsideTheApp(roster: [CarePatientProfile], now: Date) -> [GroupSessionRecord] {
+        let alphabetical = roster.sorted { $0.displayName < $1.displayName }
+        let responses: [GroupParticipantState] = [.enjoyed, .engaged, .engaged, .lookedOn, .enjoyed, .engaged, .unsettled, .enjoyed]
+        // (days ago, kind, skip, count, minutes, note)
+        let plan: [(Int, OtherActivityKind, Int, Int, Int, String?)] = [
+            (5, .gamesAndQuizzes, 1, 8, 45, "Bingo in the lounge. Several called the numbers out with the caller."),
+            (2, .exercise, 3, 7, 30, "Seated exercise class — most joined the arm stretches."),
+        ]
+        return plan.enumerated().compactMap { index, p in
+            let (daysAgo, kind, skip, count, minutes, note) = p
+            let people = alphabetical.dropFirst(skip).prefix(count).map(\.id)
+            guard people.count >= 3 else { return nil }
+            var draft = ActivityLogDraft(now: now.addingTimeInterval(-Double(daysAgo) * 86_400 - 3_600 * 4))
+            draft.kind = kind
+            draft.durationMinutes = minutes
+            draft.note = note ?? ""
+            for (offset, id) in people.enumerated() {
+                draft.attendeeIds.append(id)
+                draft.responses[id] = responses[offset % responses.count]
+            }
+            return GroupSessionRecord(
+                loggedActivity: draft,
+                id: UUID(uuidString: String(format: "62000000-0000-4000-8000-%012x", 7 + index))!,
+                homeId: nil,
+                authorAccountId: nil
             )
         }
     }

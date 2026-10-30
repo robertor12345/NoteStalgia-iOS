@@ -124,3 +124,36 @@ extension OnboardingStore {
         }
     }
 }
+
+// MARK: - Logging an activity held outside the app
+
+extension ActivityLogDraft {
+    /// What is wrong with the form, in the order the sections appear. `names` maps each attendee to the name staff
+    /// know them by, so a missing line can be named ("Note how Irene K. got on.").
+    func problems(names: [UUID: String], now: Date = Date()) -> [OnboardingStore.FieldProblem] {
+        var out: [OnboardingStore.FieldProblem] = []
+        func add(_ message: String?, _ field: String) {
+            if let message { out.append(.init(field: field, message: message)) }
+        }
+        if kind == nil { add("Choose what the activity was.", "activity.kind") }
+        if kind == .other {
+            add(InputRules.businessName(customTitle, label: "the activity’s name", required: true, min: 2, max: Self.titleMaxLength), "activity.title")
+        }
+        if date > now.addingTimeInterval(60) { add("That time hasn’t happened yet. Choose when it started.", "activity.when") }
+        if attendeeIds.isEmpty {
+            add("Choose who came.", "activity.attendees")
+        } else {
+            // In the order the list shows them (A–Z), not the order they were added.
+            let missing = unnotedIds.map { names[$0] ?? "a resident" }.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            switch missing.count {
+            case 0: break
+            case 1 where solo: add("Say how \(missing[0]) was.", "activity.responses")
+            case 1: add("Note how \(missing[0]) got on.", "activity.responses")
+            case 2: add("Note how \(missing[0]) and \(missing[1]) got on.", "activity.responses")
+            default: add("Note how \(missing[0]), \(missing[1]) and \(missing.count - 2) other\(missing.count == 3 ? "" : "s") got on.", "activity.responses")
+            }
+        }
+        add(InputRules.freeText(note, label: "notes", max: Self.noteMaxLength), "activity.note")
+        return out
+    }
+}

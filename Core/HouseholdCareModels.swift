@@ -131,6 +131,9 @@ enum HouseholdCareStore {
     struct Data: Codable {
         var residents: [CarePatientProfile] = []
         var records: [CareSessionRecord] = []
+        /// Activities logged outside the app (`ActivityLogDraft`), including corrections and removals. Optional so a file
+        /// written before they existed still decodes — a missing key must never cost a household its history.
+        var activities: [GroupSessionRecord]? = nil
     }
 
     // MARK: Accounts
@@ -246,11 +249,35 @@ enum HouseholdCareStore {
 
     /// Everything the launch seed appends to the mock roster: the demo household plus the
     /// accounts, residents, history and portraits stored on this device.
-    static func seedContent(now: Date = Date()) -> (residents: [CarePatientProfile], records: [CareSessionRecord], portraits: [UUID: UIImage]) {
+    static func seedContent(now: Date = Date()) -> (residents: [CarePatientProfile], records: [CareSessionRecord], activities: [GroupSessionRecord], portraits: [UUID: UIImage]) {
         let stored = loadData()
         let residents = [demoResident] + stored.residents
         let records = demoRecords(now: now) + stored.records
-        return (residents, records, loadPortraits(for: stored.residents.map(\.id)))
+        let activities = demoActivities(now: now) + (stored.activities ?? [])
+        return (residents, records, activities, loadPortraits(for: stored.residents.map(\.id)))
+    }
+
+    /// Two things Claire logged for Harold, so the Care at home insights have an "outside the app" card from the first launch.
+    static func demoActivities(now: Date = Date()) -> [GroupSessionRecord] {
+        let plan: [(Int, OtherActivityKind, GroupParticipantState, String?)] = [
+            (6, .petVisit, .enjoyed, "Biscuit the spaniel came round. He talked to her the whole time."),
+            (2, .gardening, .engaged, nil),
+        ]
+        return plan.enumerated().compactMap { index, p in
+            var draft = ActivityLogDraft(now: now.addingTimeInterval(-Double(p.0) * 86_400 - 3_600 * 5))
+            draft.kind = p.1
+            draft.solo = true
+            draft.durationMinutes = 45
+            draft.attendeeIds = [HouseholdCare.demoResidentId]
+            draft.responses[HouseholdCare.demoResidentId] = p.2
+            draft.note = p.3 ?? ""
+            return GroupSessionRecord(
+                loggedActivity: draft,
+                id: UUID(uuidString: String(format: "62000000-0000-4000-8000-%012x", 0xc1 + index))!,
+                homeId: HouseholdCare.demoHomeId,
+                authorAccountId: HouseholdCare.demoAccountId
+            )
+        }
     }
 
     // MARK: Demo household

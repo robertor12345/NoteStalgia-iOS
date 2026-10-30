@@ -316,8 +316,8 @@ private struct GroupTransportButton: View {
                 // One slot height for all three buttons, so "Previous", "Pause" and "Next" share a baseline.
                 .frame(height: 80)
                 Text(label)
-                    .font(.caption.weight(.medium))
-                    .orbOverlayText(muted: true)
+                    .font(.caption.weight(.semibold))
+                    .orbOverlayText()
             }
             .frame(width: 88)
         }
@@ -540,7 +540,8 @@ struct GroupSessionFeedbackView: View {
 
     private func participantTint(_ note: GroupParticipantState) -> Color {
         switch note {
-        case .engaged: return BrandTheme.statusPositive
+        case .engaged, .enjoyed: return BrandTheme.statusPositive
+        case .lookedOn: return BrandTheme.logoLavenderBlue
         case .unsettled: return BrandTheme.statusAttention
         case .leftEarly: return BrandTheme.statusCaution
         }

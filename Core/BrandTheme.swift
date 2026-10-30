@@ -7,10 +7,12 @@ enum BrandTheme {
     static let creamMid = Color(red: 0.12, green: 0.11, blue: 0.20)
     static let creamDeep = Color(red: 0.10, green: 0.09, blue: 0.17)
 
-    // MARK: - Canvas (soft lavender–teal field drawn from the nebula palette)
-    static let skyBackgroundTop = Color(red: 0.46, green: 0.42, blue: 0.62)
-    static let skyBackgroundMid = Color(red: 0.40, green: 0.46, blue: 0.64)
-    static let skyBackgroundDeep = Color(red: 0.36, green: 0.44, blue: 0.60)
+    // MARK: - Canvas (indigo field — a lighter, calmer version of the reference clip's near-black navy)
+    // The clip runs #282541 → #171624. These are the same hue lifted to a mid-indigo (about 33 % lightness against the
+    // clip's 16 %), so the pastel orb still glows against it and light text keeps 8–10:1 directly on it.
+    static let skyBackgroundTop = Color(red: 0.290, green: 0.267, blue: 0.533)    // #4A4488
+    static let skyBackgroundMid = Color(red: 0.247, green: 0.231, blue: 0.486)    // #3F3B7C
+    static let skyBackgroundDeep = Color(red: 0.196, green: 0.196, blue: 0.431)   // #32326E
 
     // MARK: - Nebula orb palette
     static let nebulaMagenta = Color(red: 0.82, green: 0.38, blue: 0.78)
@@ -105,6 +107,13 @@ enum BrandTheme {
         colors: [skyBackgroundTop, skyBackgroundMid, skyBackgroundDeep],
         startPoint: .top,
         endPoint: .bottom
+    )
+
+    /// The wordmark in the reference clip: lilac-white to periwinkle, kept pale so it holds 7:1 or better on the orb.
+    static let wordmarkGradient = LinearGradient(
+        colors: [Color(red: 0.99, green: 0.93, blue: 1.0), Color(red: 0.84, green: 0.85, blue: 1.0)],
+        startPoint: .leading,
+        endPoint: .trailing
     )
 
     static let brandWordmarkGradient = LinearGradient(

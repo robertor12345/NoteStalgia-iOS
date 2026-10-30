@@ -24,4 +24,8 @@ final class GroupSessionStore: ObservableObject {
     @Published var plannerActivityId: String?
     /// The activity the running session was started from (nil = whole-home playlist).
     @Published var plannedActivity: GroupActivityPlan?
+
+    // "Log an activity" (`ActivityLogDraft`): an activity held outside the app, written up afterwards.
+    @Published var activityDraft = ActivityLogDraft()
+    @Published var activityErrors: [String: String] = [:]
 }

@@ -22,18 +22,24 @@ struct GroupSessionTrack: Identifiable, Equatable {
     }
 }
 
-/// How one resident was in the room — optional, noted by staff at the check-in. The room's four
-/// ratings stay the session's score; this is the per-person line the profile and planner read.
+/// How one resident was in the room — optional, noted by staff. At a music group's check-in the first three are
+/// offered ("Who stood out?"); an activity logged afterwards (`ActivityLogDraft`) offers all five, because there the
+/// per-person line is the whole record. The room's four ratings stay a music session's score.
 enum GroupParticipantState: String, Codable, CaseIterable, Identifiable {
     case engaged
     case unsettled
     case leftEarly
+    /// Only noted for an activity logged afterwards.
+    case enjoyed
+    case lookedOn
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
+        case .enjoyed: return "Enjoyed it"
         case .engaged: return "Engaged"
+        case .lookedOn: return "Looked on"
         case .unsettled: return "Unsettled"
         case .leftEarly: return "Left early"
         }
@@ -41,18 +47,39 @@ enum GroupParticipantState: String, Codable, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .enjoyed: return "heart.fill"
         case .engaged: return "face.smiling"
+        case .lookedOn: return "eye"
         case .unsettled: return "exclamationmark.triangle"
         case .leftEarly: return "figure.walk"
         }
     }
 
-    /// Tap cycles engaged → unsettled → left early → none.
+    /// Where the person sits on the 1–10 scale the planner and dashboards average (the same scale as the room's
+    /// engagement rating): engaged 7, unsettled 3 and left early 2 as at a group check-in, with enjoyed above and
+    /// looking on between.
+    var engagementScore: Int {
+        switch self {
+        case .enjoyed: return 9
+        case .engaged: return 7
+        case .lookedOn: return 5
+        case .unsettled: return 3
+        case .leftEarly: return 2
+        }
+    }
+
+    /// The two that count towards a one-to-one nudge when they repeat.
+    var isDifficult: Bool { self == .unsettled || self == .leftEarly }
+
+    /// Best to least, the order an activity log offers them in.
+    static let activityOptions: [GroupParticipantState] = [.enjoyed, .engaged, .lookedOn, .unsettled, .leftEarly]
+
+    /// Tap cycles engaged → unsettled → left early → none at a music group's check-in.
     var next: GroupParticipantState? {
         switch self {
         case .engaged: return .unsettled
         case .unsettled: return .leftEarly
-        case .leftEarly: return nil
+        case .leftEarly, .enjoyed, .lookedOn: return nil
         }
     }
 }
@@ -60,6 +87,14 @@ enum GroupParticipantState: String, Codable, CaseIterable, Identifiable {
 struct GroupParticipantNote: Equatable, Codable {
     var residentId: UUID
     var state: GroupParticipantState
+}
+
+/// What a group record is. Absent on every record written before activities could be logged, which were all music.
+enum GroupSessionKind: String, Codable {
+    /// Run in the app: a compiled playlist, the room's four ratings at the check-in.
+    case music
+    /// Held outside the app and logged afterwards (`ActivityLogDraft`): who came and how each of them was.
+    case otherActivity
 }
 
 struct GroupSessionRecord: Identifiable, Equatable, Codable {
@@ -84,6 +119,22 @@ struct GroupSessionRecord: Identifiable, Equatable, Codable {
     var authorAccountId: UUID? = nil
     /// Who stood out, per resident (optional; absent on records written before the check-in asked).
     var participantNotes: [GroupParticipantNote]? = nil
+    /// `nil` = music. An activity logged afterwards carries `.otherActivity`, its category (`OtherActivityKind.rawValue`,
+    /// kept as text so a newer app's category never stops an older one reading the record) and no playlist or ratings.
+    var kind: GroupSessionKind? = nil
+    var activityCategory: String? = nil
+    /// Records are immutable once synced, so a correction is a new record that names the one it replaces, and removing a
+    /// logged activity is a record that supersedes it with `withdrawn == true`. `current(_:)` applies both.
+    var supersedes: UUID? = nil
+    var withdrawn: Bool? = nil
+
+    var isMusic: Bool { kind != .otherActivity }
+
+    /// The records that count: those not replaced by a later correction or withdrawn.
+    static func current(_ records: [GroupSessionRecord]) -> [GroupSessionRecord] {
+        let replaced = Set(records.compactMap(\.supersedes))
+        return records.filter { !replaced.contains($0.id) && $0.withdrawn != true }
+    }
 
     func participantNote(for residentId: UUID) -> GroupParticipantState? {
         participantNotes?.first { $0.residentId == residentId }?.state

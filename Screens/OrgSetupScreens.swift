@@ -249,17 +249,8 @@ private struct OrgSetupContent: View {
         .frame(maxWidth: BrandLayout.menuColumnMaxWidth)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
-        .padding(.top, 10)
         .padding(.bottom, 6)
-        .background {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(BrandTheme.creamDeep.opacity(0.55))
-                .overlay(alignment: .top) {
-                    Rectangle().fill(BrandTheme.hairline).frame(height: 1)
-                }
-                .ignoresSafeArea(edges: .bottom)
-        }
+        .brandBottomBarSurface()
     }
 }
 
@@ -349,10 +340,10 @@ struct SetupBanner: View {
         .animation(.easeOut(duration: 0.2), value: onboarding.error)
         .animation(.easeOut(duration: 0.2), value: onboarding.notice)
         .onChange(of: onboarding.error) { _, text in
-            if let text, !text.isEmpty { UIAccessibility.post(notification: .announcement, argument: text) }
+            if let text, !text.isEmpty { CalmExperienceFeedback.attention(announcing: text) }
         }
         .onChange(of: onboarding.notice) { _, text in
-            if let text, !text.isEmpty { UIAccessibility.post(notification: .announcement, argument: text) }
+            if let text, !text.isEmpty { CalmExperienceFeedback.saved(announcing: text) }
         }
         .task(id: onboarding.notice) {
             guard let current = onboarding.notice, !current.isEmpty else { return }

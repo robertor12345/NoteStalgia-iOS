@@ -1,0 +1,397 @@
+// OrbFlow.msl — the NoteStalgia orb, drawn per pixel on the GPU.
+//
+// Compiled at runtime (`MTLDevice.makeLibrary(source:)`) by `OrbMetalRenderer`; it is not part of the Xcode
+// Metal build, so it needs no Metal toolchain. `tools/orb/orbshot.swift` renders it to PNG on the Mac for look
+// development. The Swift side must keep `OrbUniforms` in step with `OrbMetalUniforms` (48 bytes: size, then ten floats in this order).
+//
+// One full-screen triangle over a square canvas that is wider than the orb (the orb is `radius` of the half
+// width) so the corona and the heartbeat ripple have room. Everything is premultiplied alpha.
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct OrbUniforms {
+    float2 size;        // drawable size in pixels
+    float  time;        // seconds on the orb's own clock (frozen by the host for Reduce Motion)
+    float  pulse;       // 0…1 breathing (heartbeat or music)
+    float  glow;        // 0.5…1 radiance
+    float  energy;      // 0…1 extra drive (music level, success flash)
+    float  brightness;  // overall tone of the interior; 1 = full, lower on card-heavy pages
+    float  radius;      // orb radius as a fraction of the canvas half width
+    float  detail;      // 0 = lite (small orbs), 1 = full
+    float  seed;        // per-orb phase so neighbours do not swirl in unison
+    float  beat;        // 0…1 phase of the 6 s breath (the pulse peaks at 0.5); the ripple leaves the rim then
+    float  fill;        // 0…1 opacity of the interior (media shows through when low)
+};
+
+struct VOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex VOut orbVertex(uint vid [[vertex_id]]) {
+    const float2 corners[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
+    VOut o;
+    o.position = float4(corners[vid], 0.0, 1.0);
+    o.uv = float2(corners[vid].x * 0.5 + 0.5, 0.5 - corners[vid].y * 0.5);
+    return o;
+}
+
+static inline float hash12(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+static inline float hash13(float3 p3) {
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+static inline float3 rotateAxis(float3 v, float3 axis, float a) {
+    float c = cos(a), s = sin(a);
+    return v * c + cross(axis, v) * s + axis * dot(axis, v) * (1.0 - c);
+}
+
+// Deep violet → violet → periwinkle → lilac → pink → near white. Taken from the reference clip, with the
+// shadows kept deeper so the swirl has depth and white text over a card keeps its contrast.
+static inline float3 ramp(float t) {
+    const float3 c0 = float3(0.145, 0.105, 0.430);   // #251b6e
+    const float3 c1 = float3(0.330, 0.270, 0.780);   // #5445c7
+    const float3 c2 = float3(0.560, 0.620, 0.940);   // #8f9ef0
+    const float3 c3 = float3(0.770, 0.660, 0.930);   // #c4a8ed
+    const float3 c4 = float3(0.965, 0.760, 0.930);   // #f6c2ed
+    const float3 c5 = float3(1.000, 0.950, 0.985);   // #fff2fb
+    t = clamp(t, 0.0, 1.0) * 5.0;
+    if (t < 1.0) return mix(c0, c1, t);
+    if (t < 2.0) return mix(c1, c2, t - 1.0);
+    if (t < 3.0) return mix(c2, c3, t - 2.0);
+    if (t < 4.0) return mix(c3, c4, t - 3.0);
+    return mix(c4, c5, t - 4.0);
+}
+
+fragment float4 orbFragment(VOut in [[stage_in]], constant OrbUniforms &u [[buffer(0)]]) {
+    const float2 p = (in.uv * 2.0 - 1.0) / u.radius;     // the orb's edge is |p| = 1
+    const float r = length(p);
+    const float aa = max(fwidth(r), 1.0e-4);
+    const float t = u.time;
+    const float glow = u.glow;
+    // The soft white edge: how much of it a page can take. Light text over a half-transparent card needs what is behind
+    // the card dark, so the pages that carry text (low brightness tiers) get a faint edge and the pages that are only
+    // the orb (resident, immersive) the full one.
+    const float edgeK = mix(0.35, 1.0, smoothstep(0.45, 1.0, u.brightness));
+
+    // ------------------------------------------------------------------ interior
+    float3 interior = float3(0.0);
+    const float orbA = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
+
+    if (orbA > 0.0) {
+        const float z = sqrt(max(0.0, 1.0 - r * r));
+        const float3 N = float3(p, z);                    // screen-aligned sphere normal
+
+        // Vortex: the core turns faster than the rim, so the ribbons wind into spiral arms.
+        const float spin = t * 0.085 + u.seed;
+        const float twist = (1.0 - r) * (1.15 + 0.55 * sin(t * 0.13 + u.seed * 1.7)) + spin * 0.7;
+        float3 c = N;
+        c.xy = float2(cos(twist) * c.x - sin(twist) * c.y, sin(twist) * c.x + cos(twist) * c.y);
+        c = rotateAxis(c, normalize(float3(0.32, 1.0, 0.22)), spin);
+
+        // Domain warp in 3D: marbled, never repeating, and continuous in time (no stepping).
+        float3 w = c * 2.15;
+        const int iterations = u.detail > 0.5 ? 5 : 3;
+        for (int i = 1; i <= 5; ++i) {
+            if (i > iterations) { break; }
+            const float fi = float(i);
+            w += (0.52 / (fi * sqrt(fi))) * sin(w.yzx * (1.7 * fi) + float3(t * 0.19, t * 0.15, t * 0.23) * (0.5 + 0.22 * fi) + fi * 2.1);
+        }
+
+        const float b1 = 0.5 + 0.5 * sin(w.x * 1.9 + w.y * 1.2 + w.z * 0.7 + 0.8 * sin(w.z * 1.4 - w.x * 0.6) + t * 0.11);
+        const float b2 = 0.5 + 0.5 * sin(w.y * 2.3 - w.z * 1.1 + w.x * 0.5 + 1.7 - t * 0.09);
+        const float b3 = 0.5 + 0.5 * sin(w.z * 2.7 + w.x * 0.9 - w.y * 0.8 + 4.1 + t * 0.07);
+
+        // Where the light falls: cyan up and to the right, pink across the middle, violet low left.
+        const float side = clamp(N.x * 0.62 - N.y * 0.66 + 0.12, -1.0, 1.0);   // + = upper right
+        const float cyanW = smoothstep(0.15, 0.95, side);
+        const float violetW = smoothstep(0.10, 0.95, -side);
+
+        // Body: deep violet with the ramp winding through it.
+        float body = b1 * 0.62 + b2 * 0.30 + b3 * 0.12;
+        float3 col = ramp(0.14 + 0.70 * smoothstep(0.08, 0.92, body));
+        col = mix(col, col * float3(0.70, 0.64, 1.02) + float3(0.00, 0.00, 0.05), violetW * 0.55);
+        col = mix(col, float3(0.42, 0.86, 0.95) * (0.65 + 0.5 * b2) + col * 0.25, cyanW * smoothstep(0.30, 0.85, b2) * 0.70);
+
+        // Mid-scale marbling keeps the broad areas from going flat: lilac to pink to periwinkle drifts.
+        const float b4 = 0.5 + 0.5 * sin(w.x * 3.3 + w.z * 2.0 + 1.3 * sin(w.y * 2.6 + t * 0.10));
+        col = mix(col, ramp(0.22 + 0.58 * b4), 0.30 * smoothstep(0.10, 0.60, b2));
+
+        // Teal ribbons in the upper right, as in the reference.
+        col = mix(col, float3(0.34, 0.84, 0.95) * (0.70 + 0.45 * b3) + col * 0.22, cyanW * smoothstep(0.42, 0.82, b3) * 0.62);
+
+        // Silk: long, nearly parallel threads. The stripe coordinate is a straight line through the *warped*
+        // space, so the threads bend and flow with the marbling instead of closing into contour loops; a bundle
+        // mask groups them like strands of hair. Where they would pack closer than a few pixels they fade out.
+        const float stripe = dot(w, float3(0.80, 0.52, 0.28)) * 2.1 + b3 * 0.9;
+        const float cd = abs(fract(stripe) - 0.5);
+        const float cw = fwidth(stripe);
+        const float lw = 0.15 + cw * 0.85;
+        const float strand = pow(1.0 - smoothstep(0.0, lw, cd), 2.2) * (1.0 - smoothstep(0.22, 0.55, cw));
+        const float bundle = smoothstep(0.34, 0.78, b2) * (0.30 + 0.70 * smoothstep(0.15, 0.85, b3));
+        const float3 strandCol = mix(float3(0.74, 0.84, 1.00), float3(1.00, 0.82, 0.95), smoothstep(-0.4, 0.6, -side + b3 * 0.5));
+        col += strandCol * strand * bundle * 0.30;
+
+        // A second, finer set of threads at a different angle, fainter, for depth.
+        if (u.detail > 0.5) {
+            const float fine = dot(w, float3(-0.35, 0.70, 0.62)) * 3.4 + b1 * 1.3;
+            const float fd = abs(fract(fine) - 0.5);
+            const float fw = fwidth(fine);
+            const float fl = 0.16 + fw * 0.85;
+            const float strand2 = pow(1.0 - smoothstep(0.0, fl, fd), 2.2) * (1.0 - smoothstep(0.25, 0.6, fw));
+            col += strandCol * strand2 * smoothstep(0.30, 0.80, b1) * 0.10;
+        }
+
+        // Soft pastel clouds riding the ribbons (the white / pink drifts in the reference).
+        const float cloud = pow(smoothstep(0.42, 1.0, b2 * 0.55 + b1 * 0.50), 1.7);
+        col += mix(float3(0.95, 0.72, 0.95), float3(0.80, 0.90, 1.00), cyanW) * cloud * 0.30;
+
+        // Fine grain inside the ribbons gives them texture, not plastic.
+        if (u.detail > 0.5) {
+            const float grain = hash13(floor(w * 38.0)) - 0.5;
+            col += grain * 0.045 * (0.4 + b2);
+            // Star dust: tiny stationary-in-flow points that twinkle.
+            const float3 sc = c * 17.0;
+            const float3 cell = floor(sc);
+            const float3 f = fract(sc) - 0.5;
+            const float h = hash13(cell);
+            const float star = smoothstep(0.972, 1.0, h) * smoothstep(0.22, 0.0, length(f)) * (0.5 + 0.5 * sin(t * 1.7 + h * 40.0));
+            col += float3(1.0, 0.96, 1.0) * star * 0.9;
+        }
+
+        // Sphere shading: soft limb, a bloom of light high and to the left, a glowing rim.
+        const float limb = mix(0.52, 1.0, pow(z, 0.55));
+        const float rim = pow(1.0 - z, 1.7) * 0.62;
+        const float spec = exp(-pow(length(p - float2(-0.34, -0.42)) * 1.9, 2.0));
+        const float core = exp(-r * r * 2.4) * (0.05 + 0.09 * u.pulse + 0.10 * u.energy);
+        col *= limb;
+        col += mix(float3(0.62, 0.54, 1.00), float3(0.55, 0.92, 1.00), cyanW) * rim * (0.26 + 0.34 * glow);
+        col += float3(1.0, 0.93, 0.99) * spec * (0.10 + 0.06 * u.pulse);
+        col += float3(0.80, 0.70, 1.00) * core;
+
+        // Breathing: the whole body lifts a little on the in-breath.
+        col *= (0.92 + 0.12 * u.pulse) * (0.96 + 0.08 * u.energy);
+
+        // Tone: soft shoulder so highlights stay luminous rather than clipping flat.
+        col = col / (1.0 + col * 0.42) * 1.42;
+        // Tone for the page behind it. `brightness` is a ceiling on the interior's (encoded) luminance; 1 = no ceiling.
+        // Light text over a 50 % card needs what is behind the card below ~0.23 relative luminance to hold 4.5:1, which
+        // is a ceiling near 0.58 here. Under it the shadows keep their colour (deep violet, teal, magenta) and only the
+        // luminous parts settle, so the orb stays vivid, just deeper; the silk and the rim still carry the energy.
+        if (u.brightness < 0.995) {
+            const float ceiling = clamp(u.brightness, 0.30, 1.0);
+            const float knee = ceiling * 0.72;
+            const float lum = dot(col, float3(0.2126, 0.7152, 0.0722));
+            if (lum > knee) {
+                // Lower the luminance but keep (indeed raise) the colour: scaling a pastel down only makes it grey.
+                const float target = knee + (lum - knee) * 0.18;
+                const float3 chroma = col - float3(lum);
+                col = float3(target) + chroma * min(pow(lum / target, 0.95), 2.4);
+                col = clamp(col, 0.0, 1.0);
+            }
+        }
+        // A soft white edge: the body brightens towards white over its last fifth, with no line anywhere in it.
+        const float edgeIn = pow(smoothstep(0.80, 1.0, r), 2.0);
+        col = mix(col, float3(1.0, 0.98, 1.0), edgeIn * 0.55 * edgeK);
+        interior = col;
+    }
+
+    // ------------------------------------------------------------------ corona (outside the orb)
+    float3 corona = float3(0.0);
+    float coronaA = 0.0;
+    const float beyond = max(r - 1.0, 0.0);
+    if (r > 1.0 - 3.0 * aa) {
+        const float ang = atan2(p.y, p.x);
+        const float side = sin(ang + 0.8 + t * 0.10 + u.seed);                    // -1 … 1 around the rim, cool at the upper right
+        const float3 warm = float3(0.96, 0.62, 0.90);                             // pink
+        const float3 cool = float3(0.42, 0.78, 1.00);                             // cyan
+        const float3 violet = float3(0.52, 0.42, 1.00);
+        float3 tone = mix(mix(violet, warm, smoothstep(-0.2, 0.9, -side)), cool, smoothstep(0.1, 0.95, side));
+
+        const float broad = exp(-beyond * 3.1) * (0.34 + 0.26 * glow + 0.10 * u.energy);
+        const float tight = exp(-beyond * 7.0) * (0.26 + 0.16 * u.pulse);
+
+        // Slow plasma tongues licking off the rim — the "energy".
+        const float tongues = pow(max(0.0, sin(ang * 5.0 + t * 0.55 + 1.6 * sin(ang * 2.0 - t * 0.31) + u.seed)), 3.0)
+                            * exp(-beyond * 5.5) * (0.20 + 0.30 * u.energy + 0.12 * u.pulse);
+
+        // Heartbeat: a soft, wide ripple leaves the rim once per breath, at the peak of the in-breath. Its strength is
+        // sin²(π·s), zero with zero slope at both ends of its life, so it blooms out of nothing and fades back into
+        // nothing — and the 6 s cycle closes with no seam. (It used to start at full strength: a visible pop.)
+        const float s = fract(u.beat - 0.5);
+        const float bloom = pow(sin(3.14159265 * s), 2.0) * (1.0 - 0.40 * s);
+        const float ringR = 1.0 + 0.62 * s;
+        const float ring = exp(-pow((r - ringR) / (0.075 + 0.10 * s), 2.0)) * bloom * (0.26 + 0.22 * u.energy);
+
+        const float amount_ = broad + tight + tongues;
+        const float2 qa = abs(in.uv * 2.0 - 1.0);
+        const float edgeFade = 1.0 - smoothstep(0.70, 0.98, max(qa.x, qa.y));
+        const float amount = (amount_ + ring) * edgeFade;
+        corona = tone * amount * (0.55 + 0.45 * u.brightness);
+        // ...and the same white glow continuing just outside, falling away within a few percent of the radius.
+        const float whiteEdge = exp(-beyond * 18.0) * 0.38 * edgeK * edgeFade;
+        corona += float3(1.0, 0.98, 1.0) * whiteEdge;
+        coronaA = clamp(amount * 0.85 + whiteEdge * 0.9, 0.0, 1.0) * (1.0 - orbA);
+        corona *= (1.0 - orbA);
+    }
+
+    // ------------------------------------------------------------------ compose (premultiplied)
+    const float interiorA = orbA * u.fill;
+    // The corona is already cut away where the body is (`* (1 - orbA)` above); attenuating it again here dipped the
+    // anti-aliased pixels at the edge into a dark hairline, which a white edge would have made obvious.
+    float3 rgb = interior * interiorA + corona;
+    float a = clamp(interiorA + coronaA, 0.0, 1.0);
+
+    // Dither: dark gradients over 8 bits band without it.
+    const float d = (hash12(in.position.xy) - 0.5) * (1.5 / 255.0);
+    rgb = max(rgb + float3(d) * step(0.002, a), float3(0.0));
+    rgb = min(rgb, float3(a));
+    return float4(rgb, a);
+}
+
+// ============================================================================================================
+// Wave bursts — the music equaliser. Replaces the ring of bars with a glowing waveform that hugs the orb's rim and
+// sends wavefronts off it on the beat. Same vertex stage as the orb; a second fragment function and pipeline.
+//
+// The host (`OrbWaveBurstCanvas`) smooths the 32 spectrum bands, detects onsets in the low bands and hands over up to
+// six live bursts, each with its age, power and a snapshot of the spectrum it was born with (so a wavefront keeps the
+// music's shape as it spreads). Keep `WaveUniforms` in step with `OrbWaveModel.pack` in OrbWaveBursts.swift:
+// 8 header floats, then 32 + 6 + 6 + 192 = 244 floats, 976 bytes in all.
+// ============================================================================================================
+
+struct WaveUniforms {
+    float2 size;
+    float  time;
+    float  orbR;        // the orb's (glyph disk's) radius as a fraction of the canvas half width
+    float  reach;       // outward reach as a fraction of the orb radius
+    float  frac;        // 0…1 openness (discovery ramps it while a clip plays)
+    float  energy;      // overall level, 0…1
+    float  seed;
+    float  bands[32];   // smoothed spectrum 0…1, bass first
+    float  burstAge[6];     // seconds since birth; negative = unused
+    float  burstPower[6];   // 0…1
+    float  burstBands[192]; // 6 × 32 spectrum snapshots
+};
+
+// Cyan → lilac → pink → peach → back to cyan, the orb's own palette.
+static inline float3 waveColour(float t) {
+    const float3 c0 = float3(0.40, 0.88, 0.96);
+    const float3 c1 = float3(0.70, 0.60, 0.98);
+    const float3 c2 = float3(0.98, 0.64, 0.86);
+    const float3 c3 = float3(1.00, 0.76, 0.60);
+    t = fract(t) * 4.0;
+    if (t < 1.0) return mix(c0, c1, smoothstep(0.0, 1.0, t));
+    if (t < 2.0) return mix(c1, c2, smoothstep(0.0, 1.0, t - 1.0));
+    if (t < 3.0) return mix(c2, c3, smoothstep(0.0, 1.0, t - 2.0));
+    return mix(c3, c0, smoothstep(0.0, 1.0, t - 3.0));
+}
+
+// Smooth read of the 32 bands at m in 0…1 (cosine interpolation, so the waveform has no corners).
+static inline float waveBand(constant float *b, float m) {
+    const float x = clamp(m, 0.0, 1.0) * 31.0;
+    const int i0 = int(floor(x));
+    const int i1 = min(i0 + 1, 31);
+    const float f = smoothstep(0.0, 1.0, x - float(i0));
+    const float a = b[i0], c = b[i1];
+    const float l = b[max(i0 - 1, 0)], r = b[min(i1 + 1, 31)];
+    return mix(a, c, f) * 0.72 + (l + r) * 0.14;
+}
+
+fragment float4 waveFragment(VOut in [[stage_in]], constant WaveUniforms &u [[buffer(0)]]) {
+    const float2 q = in.uv * 2.0 - 1.0;
+    const float r = length(q);
+    const float2 qa = abs(q);
+    const float edge = 1.0 - smoothstep(0.82, 0.99, max(qa.x, qa.y));
+    if (r < u.orbR * 0.985 || edge <= 0.0) { return float4(0.0); }
+
+    const float ang = atan2(q.y, q.x);                           // 0 at the right, clockwise on screen
+    const float t = fract((ang + 1.5707963) / 6.2831853);        // 0 at the top, clockwise
+    // The spectrum runs bass at the top to treble at the bottom on both sides (a seamless, mirrored ring), and the
+    // whole picture turns slowly so no side is always the loud one.
+    const float turn = fract(t + u.time * 0.018 + u.seed);
+    const float m = 1.0 - abs(2.0 * turn - 1.0);
+
+    const float R0 = u.orbR * 1.03;
+    const float span = u.reach * u.orbR;
+
+    // The live ring: the rim's own waveform, with a ripple that travels round it so it reads as a wave.
+    float amp = waveBand(&u.bands[0], m);
+    amp *= 1.0 + 0.16 * sin(ang * 6.0 - u.time * 2.3) * clamp(amp * 1.6, 0.0, 1.0)
+               + 0.07 * sin(ang * 11.0 + u.time * 3.1) * clamp(amp * 1.6, 0.0, 1.0);
+    amp = clamp(amp, 0.0, 1.0);
+    const float Rr = R0 + amp * span * 0.85;
+
+    const float d = r - Rr;
+    const float w = u.orbR * 0.024;
+    float level = exp(-(d * d) / (w * w));                                       // the bright crest of the wave
+    level += exp(-abs(d) / (u.orbR * 0.13)) * (0.30 + 0.60 * amp);               // its glow, both sides
+    // Between the rim and the crest the orb pours light outward — a swell that is brightest at the rim and thins to the
+    // crest, stronger the louder the band. This is what makes the ring read as energy leaving the orb, not a hoop.
+    if (r < Rr) {
+        const float pour = 1.0 - smoothstep(R0, max(Rr, R0 + 0.001), r);
+        level += pow(pour, 1.35) * (0.16 + 0.84 * amp) * 0.80;
+    }
+    float3 col = waveColour(t * 1.0 + u.time * 0.03) * level;
+    col += float3(1.0, 0.96, 1.0) * exp(-(d * d) / (w * w * 0.30)) * amp * 0.60;   // white-hot crest
+
+    // Bursts: wavefronts that left the orb on earlier beats.
+    for (int bi = 0; bi < 6; ++bi) {
+        const float a = u.burstAge[bi];
+        if (a < 0.0) { continue; }
+        const float life = 1.7;
+        const float k = clamp(a / life, 0.0, 1.0);
+        const float p = u.burstPower[bi];
+        const float env = p * pow(1.0 - k, 2.0) * smoothstep(0.0, 0.07, a);       // blooms in, fades out
+        const float bm = waveBand(&u.burstBands[bi * 32], m);
+        const float Rb = R0 + span * (0.20 + 0.78 * k * (0.7 + 0.5 * p)) + bm * span * 0.30 * (1.0 - k);
+        const float wb = u.orbR * (0.032 + 0.095 * k);
+        const float db = r - Rb;
+        const float ring = exp(-(db * db) / (wb * wb)) + exp(-abs(db) / (wb * 2.5)) * 0.45;
+        col += waveColour(t + 0.17 * float(bi) + u.time * 0.03) * ring * env * (0.95 + 0.9 * bm);
+    }
+
+    col *= edge * (0.80 + 0.30 * u.energy);
+    const float alpha = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+    return float4(min(col, float3(alpha)), alpha);
+}
+
+// ============================================================================================================
+// Tap pulse. A screen tap blooms as one wavefront from the point touched — the same burst the equaliser sends off the
+// orb, smaller: the orb's palette round the ring (cyan, lilac, pink, peach), a bright core with a soft shoulder, a
+// white-hot crest and the light the wave leaves behind it. Drawn once into a sprite (`OrbTapSprite`); SwiftUI then
+// scales and fades it, so a tap costs no per-frame GPU work. No uniforms: the geometry is fixed in the sprite and the
+// ring sits at 0.6 of its half width, leaving room for the shoulder and the glow.
+// ============================================================================================================
+fragment float4 tapFragment(VOut in [[stage_in]]) {
+    const float2 q = in.uv * 2.0 - 1.0;
+    const float r = length(q);
+    const float2 qa = abs(q);
+    const float edge = 1.0 - smoothstep(0.84, 0.99, max(qa.x, qa.y));
+    if (edge <= 0.0) { return float4(0.0); }
+
+    const float ang = atan2(q.y, q.x);
+    const float t = fract((ang + 1.5707963) / 6.2831853);          // 0 at the top, clockwise
+    const float R = 0.60;
+    const float w = 0.052;
+    const float d = r - R;
+
+    // The wavefront profile of a burst in `waveFragment`: a bright core and a softer shoulder.
+    float level = exp(-(d * d) / (w * w)) + exp(-abs(d) / (w * 2.5)) * 0.45;
+    // The light the wave drags behind it: brightest just inside the crest and gone by the middle, so the colours never
+    // gather into a point at the centre.
+    if (r < R) { level += pow(smoothstep(0.05, R, r), 2.4) * 0.34; }
+    float3 col = waveColour(t) * level;
+    col += float3(1.0, 0.96, 1.0) * exp(-(d * d) / (w * w * 0.30)) * 0.60;     // white-hot crest
+
+    col *= edge;
+    const float alpha = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+    return float4(min(col, float3(alpha)), alpha);
+}

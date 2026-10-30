@@ -60,7 +60,7 @@ struct OrbInteriorMediaPanel<Media: View>: View {
                     .scaleEffect(contentScale)
 
                 // Large panels have no visible frame (the old ripple-rings canvas drew nothing).
-                if showArcFrame, expansion < 0.02, shortDiameter < 96 {
+                if OrbRenderBudget.drawsLogoArcFrame, showArcFrame, expansion < 0.02, shortDiameter < 96 {
                     NoteStalgiaOrbAnimatedArcFrame(
                         diameter: shortDiameter * 1.02,
                         lineWidth: max(1.5, shortDiameter * 0.004),

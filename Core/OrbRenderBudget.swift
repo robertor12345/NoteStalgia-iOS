@@ -66,6 +66,9 @@ enum OrbRenderBudget {
     /// flattening them with `drawingGroup` — the pre-optimisation path, for back-to-back A/B.
     static let experimentCAShadows = UserDefaults.standard.bool(forKey: "NoteStalgiaPerfCAShadows")
 
+    /// The logo's interlocking ring around small orbs. Off: the orb stands on its own (no white border).
+    static let drawsLogoArcFrame = false
+
     static var usesLiteNebulaInterior: (CGFloat, CGFloat) -> Bool {
         { diameter, fillOpacity in
             diameter < 96 || fillOpacity < 0.22

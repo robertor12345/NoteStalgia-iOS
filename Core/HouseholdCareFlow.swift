@@ -211,10 +211,10 @@ extension SessionPOCState {
     /// Writes household residents, their history and portraits back to the device whenever the
     /// shared care data changes. Debounced; a no-op until the seed has merged the stored data.
     func makeHouseholdPersistence() -> [AnyCancellable] {
-        let data = Publishers.CombineLatest(careData.$carePatients, careData.$careSessionRecords)
+        let data = Publishers.CombineLatest3(careData.$carePatients, careData.$careSessionRecords, groupSession.$groupSessionRecords)
             .debounce(for: .seconds(0.8), scheduler: DispatchQueue.main)
-            .sink { [weak self] patients, records in
-                self?.persistHouseholdData(patients: patients, records: records)
+            .sink { [weak self] patients, records, activities in
+                self?.persistHouseholdData(patients: patients, records: records, activities: activities)
             }
         let portraits = careData.$carePatientPortraitImages
             .debounce(for: .seconds(0.8), scheduler: DispatchQueue.main)
@@ -224,7 +224,7 @@ extension SessionPOCState {
         return [data, portraits]
     }
 
-    private func persistHouseholdData(patients: [CarePatientProfile], records: [CareSessionRecord]) {
+    private func persistHouseholdData(patients: [CarePatientProfile], records: [CareSessionRecord], activities: [GroupSessionRecord]) {
         guard householdUI.persistenceArmed else { return }
         let homeIds = Set(HouseholdCareStore.allAccounts()
             .filter { $0.id != HouseholdCare.demoAccountId }
@@ -233,7 +233,9 @@ extension SessionPOCState {
         let residents = patients.filter { homeIds.contains($0.homeId) && !$0.isProvisional }
         let residentIds = Set(residents.map(\.id))
         let history = records.filter { residentIds.contains($0.patientId) }
-        let snapshot = HouseholdCareStore.Data(residents: residents, records: history)
+        // Only what a household logged itself: activities outside the app (and their corrections / removals) in a household home.
+        let logged = activities.filter { !$0.isMusic && $0.homeId.map(homeIds.contains) == true }
+        let snapshot = HouseholdCareStore.Data(residents: residents, records: history, activities: logged)
         Task.detached(priority: .utility) {
             HouseholdCareStore.persist(snapshot)
         }

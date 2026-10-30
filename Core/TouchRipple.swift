@@ -53,28 +53,39 @@ struct TouchRippleOverlay: View {
 }
 
 private struct TouchRippleView: View {
-    @State private var expanded = false
+    /// Where the pulse is in its life; driven by keyframes so it blooms in quickly and fades slowly, as a burst does.
+    private struct Frame {
+        var scale: CGFloat = 0.18
+        var opacity: Double = 0
+        var turn: Double = 0
+    }
 
     var body: some View {
-        // The blurred disc and glowing ring never change shape — only scale and opacity animate —
-        // so draw the pre-rendered sprite (see `TouchRippleSprite`) instead of re-blurring and
-        // re-shadowing two circles on every frame of the ripple.
+        // The sprite never changes shape — only scale, opacity and a slight turn animate — so it is drawn once (by the
+        // GPU from the equaliser's wave shader, see `TouchRippleSprite`) instead of being re-blurred every frame.
+        let life = TouchRippleStore.lifetime * 0.9
         TouchRippleSprite.image()
             .resizable()
             .interpolation(.medium)
             .frame(width: TouchRippleSprite.canvas, height: TouchRippleSprite.canvas)
-            .scaleEffect(expanded ? 1 : 0.18)
-            .opacity(expanded ? 0 : 0.95)
-            .onAppear {
-                withAnimation(.easeOut(duration: TouchRippleStore.lifetime * 0.9)) {
-                    expanded = true
+            .keyframeAnimator(initialValue: Frame()) { content, frame in
+                content
+                    .scaleEffect(frame.scale)
+                    .rotationEffect(.degrees(frame.turn))
+                    .opacity(frame.opacity)
+            } keyframes: { _ in
+                KeyframeTrack(\.scale) { CubicKeyframe(1, duration: life, startVelocity: 3) }
+                KeyframeTrack(\.opacity) {
+                    LinearKeyframe(0.95, duration: 0.07)
+                    CubicKeyframe(0, duration: life - 0.07)
                 }
+                KeyframeTrack(\.turn) { LinearKeyframe(36, duration: life) }
             }
     }
 }
 
-/// The ripple artwork, rendered once at 3× and cached. Prewarmed from `LaunchWarmUp` so the first
-/// tap pays nothing.
+/// The ripple artwork, rendered once at 3× and cached: the GPU's wave burst (`tapFragment` in OrbFlow.msl) once the
+/// shader is ready, a SwiftUI approximation of it until then. Prewarmed from `LaunchWarmUp` so the first tap pays nothing.
 @MainActor
 enum TouchRippleSprite {
     static let diameter: CGFloat = 92
@@ -82,12 +93,20 @@ enum TouchRippleSprite {
     static let canvas: CGFloat = 92 + 2 * 24
 
     private static var cached: Image?
+    /// The GPU sprite, once the shader is ready; `cached` (the CPU artwork) covers the first moments after launch.
+    private static var metal: Image?
 
     static func prewarm() {
         _ = image()
     }
 
     static func image() -> Image {
+        if let metal { return metal }
+        if let sprite = OrbTapSprite.image(canvas: canvas, scale: 3) {
+            let image = Image(uiImage: sprite)
+            metal = image
+            return image
+        }
         if let cached { return cached }
         let renderer = ImageRenderer(content: TouchRippleArtwork().frame(width: canvas, height: canvas))
         renderer.scale = 3

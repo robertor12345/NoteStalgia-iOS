@@ -512,6 +512,18 @@ struct BrandMessageTile: View {
         .padding(12)
         .brandCardSurface(cornerRadius: 14, edge: tint.opacity(0.65), opacity: 0.75)
         .accessibilityElement(children: .combine)
+        // A message that appears on its own is silent to VoiceOver and to the hand: an error gets the attention cue and
+        // is read out, a confirmation the success cue.
+        .onAppear(perform: cue)
+        .onChange(of: text) { _, _ in cue() }
+    }
+
+    private func cue() {
+        switch kind {
+        case .error: CalmExperienceFeedback.attention(announcing: text)
+        case .success: CalmExperienceFeedback.saved(announcing: text)
+        case .notice: break
+        }
     }
 }
 
@@ -533,5 +545,96 @@ struct BrandRowsTile<Content: View>: View {
         .padding(.vertical, verticalPadding)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(BrandTheme.surfaceInset))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(BrandTheme.insetBorder, lineWidth: 1))
+    }
+}
+
+// MARK: - Toggle row
+
+/// A switch row that is 44 pt tall and tappable anywhere on it. SwiftUI's own `Toggle` keeps its row at the height of
+/// its text (28 pt) whatever the label asks for, so the whole row is built here: the label, a switch in the brand
+/// colours, and the state as an accessibility value ("On" / "Off") rather than colour alone.
+struct BrandRowToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: 12) {
+                configuration.label
+                Spacer(minLength: 8)
+                SwitchGlyph(isOn: configuration.isOn)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ChimingPlainButtonStyle())
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(configuration.isOn ? "On" : "Off")
+    }
+
+    private struct SwitchGlyph: View {
+        let isOn: Bool
+
+        var body: some View {
+            ZStack(alignment: isOn ? .trailing : .leading) {
+                Capsule()
+                    .fill(isOn ? BrandTheme.logoCyan.opacity(0.88) : BrandTheme.surfaceInset)
+                    .overlay(Capsule().stroke(isOn ? BrandTheme.logoCyan : BrandTheme.insetBorder, lineWidth: 1))
+                Circle()
+                    .fill(isOn ? BrandTheme.onPrimaryAction : BrandTheme.textSecondary)
+                    .padding(3)
+            }
+            .frame(width: 51, height: 31)
+            .animation(.easeOut(duration: 0.18), value: isOn)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+
+// MARK: - Pinned bottom bar
+
+/// The surface behind a bar pinned to the bottom of a scrolling page (the planner's Start, the set-up wizard's Next).
+/// It is not a slab: the page's own content, and the orb behind it, dissolve into it. A progressive blur and a tint of
+/// the card ink both ramp up from nothing at the top edge, so rows scroll away under the bar instead of being cut off
+/// by a line. The tint settles at about the card's own weight, enough to keep the gold links and the primary button
+/// legible over whatever sits beneath.
+struct BrandBottomBarFade: View {
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear, location: 0),
+                            .init(color: .black.opacity(0.85), location: 0.55),
+                            .init(color: .black, location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            LinearGradient(
+                stops: [
+                    .init(color: BrandTheme.cardInk.opacity(0), location: 0),
+                    .init(color: BrandTheme.cardInk.opacity(0.34), location: 0.4),
+                    .init(color: BrandTheme.cardInk.opacity(0.58), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Gives a pinned bar the fading surface above. `fade` is the height of the dissolve, added above the bar's own
+    /// content; the page ends where the dissolve begins, and scrolls away beneath it.
+    func brandBottomBarSurface(fade: CGFloat = 30) -> some View {
+        padding(.top, fade)
+            .background { BrandBottomBarFade() }
     }
 }

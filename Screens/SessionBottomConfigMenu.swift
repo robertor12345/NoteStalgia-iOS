@@ -48,8 +48,8 @@ struct SessionBottomConfigMenu: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .toggleStyle(BrandRowToggleStyle())
                     .accessibilityIdentifier("immersive.lights")
-                    .tint(BrandTheme.goldDeep)
                     .chimeOnChange(of: vitals.sessionHomeLightsSyncEnabled)
 
                     Button {

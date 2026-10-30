@@ -23,6 +23,14 @@ extension View {
         modifier(FlattenedShadows(bleed: bleed))
     }
 
+    /// A tappable line that sits directly on the orb (sign-in's "Forgot PIN?" and friends). Light, underlined — it never
+    /// relies on a colour that can disappear into the pastel — and with the same dark halo as the copy around it.
+    func orbLink() -> some View {
+        foregroundStyle(BrandTheme.textOnOrb)
+            .underline(true, color: BrandTheme.textOnOrb.opacity(0.75))
+            .orbOverlayTextStyle(intensity: 1)
+    }
+
     func orbOverlayText(muted: Bool = false, intensity: CGFloat = 1) -> some View {
         foregroundStyle(muted ? BrandTheme.textOnOrbMuted : BrandTheme.textOnOrb)
             .orbOverlayTextStyle(intensity: muted ? intensity * 0.94 : intensity)

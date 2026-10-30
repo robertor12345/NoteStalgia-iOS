@@ -21,6 +21,9 @@ final class OrbFrameMonitor: NSObject {
     private var canvasFrames = 0
     private var canvasNanos: UInt64 = 0
     private var canvasMaxNanos: UInt64 = 0
+    private var gpuFrames = 0
+    private var gpuNanos: UInt64 = 0
+    private var gpuMaxNanos: UInt64 = 0
     private var lastTimestamp: CFTimeInterval = 0
     private var windowStart: CFTimeInterval = 0
 
@@ -39,6 +42,13 @@ final class OrbFrameMonitor: NSObject {
     static func noteShellDrawIfEnabled() {
         guard isEnabled else { return }
         shared.noteShellDraw()
+    }
+
+    /// GPU time of one Metal orb frame (`OrbMetalCanvas`).
+    func noteGPU(nanoseconds: UInt64) {
+        gpuFrames += 1
+        gpuNanos += nanoseconds
+        gpuMaxNanos = max(gpuMaxNanos, nanoseconds)
     }
 
     func noteCanvas(nanoseconds: UInt64) {
@@ -64,12 +74,15 @@ final class OrbFrameMonitor: NSObject {
         let elapsed = now - windowStart
         guard elapsed >= 2 else { return }
         let canvasAvgMs = canvasFrames > 0 ? Double(canvasNanos) / Double(canvasFrames) / 1_000_000 : 0
+        let gpuAvgMs = gpuFrames > 0 ? Double(gpuNanos) / Double(gpuFrames) / 1_000_000 : 0
         DemoAudioLog.record("orb.frames", [
             "displayFps": (Double(ticks) / elapsed * 10).rounded() / 10,
             "hitches": hitches,
             "shellDrawsPerSecond": (Double(shellDraws) / elapsed * 10).rounded() / 10,
             "canvasAvgMs": (canvasAvgMs * 100).rounded() / 100,
             "canvasMaxMs": (Double(canvasMaxNanos) / 1_000_000 * 100).rounded() / 100,
+            "gpuAvgMs": (gpuAvgMs * 100).rounded() / 100,
+            "gpuMaxMs": (Double(gpuMaxNanos) / 1_000_000 * 100).rounded() / 100,
             "maxDisplayFps": UIScreen.main.maximumFramesPerSecond,
         ])
         ticks = 0
@@ -78,6 +91,9 @@ final class OrbFrameMonitor: NSObject {
         canvasFrames = 0
         canvasNanos = 0
         canvasMaxNanos = 0
+        gpuFrames = 0
+        gpuNanos = 0
+        gpuMaxNanos = 0
         windowStart = now
     }
 }

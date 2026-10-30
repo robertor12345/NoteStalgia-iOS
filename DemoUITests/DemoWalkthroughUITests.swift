@@ -504,6 +504,173 @@ final class DemoWalkthroughUITests: XCTestCase {
         mark("end")
     }
 
+    // MARK: - Activity log · roster → Log an activity → who came and how → saved → programme card
+
+    func testActivityLogWalkthrough() throws {
+        launch(autoSignIn: true, skipLaunch: true)
+        let log = app.buttons["roster.logActivity"]
+        XCTAssertTrue(log.waitForExistence(timeout: 30), "Roster did not appear")
+
+        // Sounds and haptics card (bottom of the roster): off, then on again — turning one on plays what it controls.
+        let sounds = app.descendants(matching: .any)["settings.sounds"]
+        XCTAssertTrue(scrollTo(sounds, assert: false), "Sounds and haptics card missing from the roster")
+        mark("settings_card")
+        sounds.tap()
+        hold(0.8)
+        sounds.tap()
+        hold(0.8)
+
+        scrollTo(log).tap()
+        let save = app.buttons["activity.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 20), "Activity log did not appear")
+        mark("activity_open")
+        hold(2)
+
+        // Saving an empty form names what is missing instead of doing nothing.
+        save.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.kind.error"].waitForExistence(timeout: 5), "No message for the missing activity")
+        hold(1)
+
+        scrollTo(app.buttons["activity.kind.gamesAndQuizzes"]).tap()
+        hold(0.8)
+        scrollTo(app.buttons["activity.duration.60"]).tap()
+        hold(0.8)
+
+        let residents = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.resident.'"))
+        XCTAssertTrue(residents.firstMatch.waitForExistence(timeout: 5), "No residents listed")
+        scrollTo(residents.element(boundBy: 0)).tap()
+        hold(0.6)
+        scrollTo(residents.element(boundBy: 1)).tap()
+        hold(0.6)
+        scrollTo(residents.element(boundBy: 2)).tap()
+        hold(1)
+
+        // Three people came and none has a line yet: Save says who is missing.
+        save.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.responses.error"].waitForExistence(timeout: 5), "No message for the missing lines")
+        mark("activity_missing")
+        hold(1.5)
+
+        // One chip per attendee per option: tap each attendee's own row of options in turn.
+        let enjoyed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.response.' AND identifier ENDSWITH '.enjoyed'"))
+        let engaged = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.response.' AND identifier ENDSWITH '.engaged'"))
+        let lookedOn = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.response.' AND identifier ENDSWITH '.lookedOn'"))
+        scrollTo(enjoyed.element(boundBy: 0)).tap()
+        hold(0.5)
+        scrollTo(engaged.element(boundBy: 1)).tap()
+        hold(0.5)
+        scrollTo(lookedOn.element(boundBy: 2)).tap()
+        hold(1)
+        mark("activity_noted")
+
+        scrollTo(save).tap()
+        XCTAssertTrue(app.buttons["roster.groupMode"].waitForExistence(timeout: 15), "Did not return to the roster")
+        XCTAssertTrue(scrollTo(app.descendants(matching: .any)["roster.lastLoggedActivity"], assert: false), "Roster does not show the logged activity")
+        mark("activity_saved")
+        hold(1.5)
+
+        // Correct it: the form comes back filled in, and saving replaces the original.
+        scrollTo(app.buttons["roster.logActivity"]).tap()
+        let recent = app.buttons["activity.recent"]
+        XCTAssertTrue(recent.waitForExistence(timeout: 15), "Logged recently card missing")
+        recent.tap()
+        let correct = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.recent.correct.'")).firstMatch
+        XCTAssertTrue(correct.waitForExistence(timeout: 5), "No Correct button")
+        correct.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.correcting"].waitForExistence(timeout: 5), "Correcting notice missing")
+        mark("activity_correcting")
+        hold(1.5)
+        scrollTo(app.buttons["activity.save"]).tap()
+        XCTAssertTrue(app.buttons["roster.groupMode"].waitForExistence(timeout: 15), "Did not return to the roster after correcting")
+
+        // Repeat it: same activity and people, nothing yet said about how anyone was; backing out saves nothing.
+        scrollTo(app.buttons["roster.logActivity"]).tap()
+        XCTAssertTrue(recent.waitForExistence(timeout: 15), "Logged recently card missing")
+        recent.tap()
+        let again = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.recent.repeat.'")).firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 5), "No Repeat button")
+        again.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.repeating"].waitForExistence(timeout: 5), "Repeat notice missing")
+        XCTAssertTrue(app.staticTexts["3 to note"].waitForExistence(timeout: 5) || app.staticTexts["3 to note"].exists, "A repeat should come back with everyone still to note")
+        mark("activity_repeating")
+        hold(1.5)
+        waitTap(app.buttons["chrome.back"])
+        XCTAssertTrue(scrollTo(app.buttons["roster.logActivity"], assert: false), "Did not return to the roster after repeating")
+
+        // Remove it: it comes off the roster line (the earlier demo activity is the last one again).
+        scrollTo(app.buttons["roster.logActivity"]).tap()
+        XCTAssertTrue(recent.waitForExistence(timeout: 15), "Logged recently card missing")
+        recent.tap()
+        let remove = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.recent.remove.'")).firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "No Remove button")
+        remove.tap()
+        let confirm = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Remove “'")).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Remove was not confirmed")
+        mark("activity_remove")
+        hold(1.2)
+        confirm.tap()
+        hold(0.8)
+        waitTap(app.buttons["chrome.back"])
+        XCTAssertTrue(app.buttons["roster.groupMode"].waitForExistence(timeout: 15), "Did not return to the roster after removing")
+        let last = app.descendants(matching: .any)["roster.lastLoggedActivity"]
+        XCTAssertTrue(scrollTo(last, assert: false), "Roster lost its last-logged line")
+        XCTAssertTrue(last.label.contains("Exercise"), "The removed activity still shows: \(last.label)")
+        mark("activity_removed")
+        hold(1)
+
+        // Home admin: the programme card counts it.
+        waitTap(app.buttons["chrome.logout"])
+        XCTAssertTrue(app.textFields["signin.email"].waitForExistence(timeout: 15))
+        typeSignIn(email: "alex@sunrise-care.co.uk")
+        waitTap(app.buttons["homePicker.Maple Lodge"], timeout: 25)
+        XCTAssertTrue(app.buttons["chrome.back"].waitForExistence(timeout: 25), "Dashboard did not appear")
+        XCTAssertTrue(scrollTo(app.staticTexts["admin.groupProgramme"], assert: false), "Group programme card missing")
+        XCTAssertTrue(app.descendants(matching: .any)["Outside the app"].exists || app.staticTexts["Outside the app"].exists, "Outside the app tile missing")
+        mark("end")
+    }
+
+    // MARK: - Care at home · log an activity for the one person → their insights
+
+    func testHouseholdActivityLogWalkthrough() throws {
+        launchAs("claire@example.com", pin: "123456")
+        let log = app.buttons["household.logActivity"]
+        XCTAssertTrue(log.waitForExistence(timeout: 30), "Care at home did not show the Log an activity card")
+        mark("hh_home")
+        hold(1.5)
+        scrollTo(log).tap()
+        let save = app.buttons["activity.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 20), "Activity log did not appear")
+        // One person: no list to pick from, only how they were.
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.resident.'")).firstMatch.exists, "A Care at home form should not list residents")
+        mark("hh_open")
+        hold(1.5)
+
+        save.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.kind.error"].waitForExistence(timeout: 5), "No message for the missing activity")
+        scrollTo(app.buttons["activity.kind.outing"]).tap()
+        hold(0.6)
+        save.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["activity.responses.error"].waitForExistence(timeout: 5), "No message for how they were")
+        mark("hh_missing")
+        hold(1.2)
+
+        let enjoyed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.response.' AND identifier ENDSWITH '.enjoyed'")).firstMatch
+        scrollTo(enjoyed).tap()
+        hold(1)
+        mark("hh_noted")
+        scrollTo(save).tap()
+        XCTAssertTrue(app.buttons["household.openSurface"].waitForExistence(timeout: 20), "Did not return to the household home")
+
+        waitTap(app.buttons["household.insights"])
+        XCTAssertTrue(app.staticTexts["Harold’s insights"].waitForExistence(timeout: 15), "Insights did not appear")
+        let card = app.descendants(matching: .any)["household.activities"]
+        XCTAssertTrue(scrollTo(card, assert: false), "Outside the app card missing from the insights")
+        XCTAssertTrue(app.staticTexts["Outing"].waitForExistence(timeout: 5) || app.staticTexts["Outing"].exists, "The logged outing is not listed")
+        mark("hh_insights")
+        hold(2)
+        mark("end")
+    }
+
     // MARK: - Care at home · sign-up → register resident → home → session → insights → relaunch → demo household
 
     func testHouseholdWalkthrough() throws {
@@ -2044,8 +2211,16 @@ final class DemoWalkthroughUITests: XCTestCase {
         var swipes = 0
         for step in 1...8 {
             app.swipeUp(velocity: .slow)
-            Thread.sleep(forTimeInterval: 0.7)
-            let next = auditRows()
+            Thread.sleep(forTimeInterval: 0.9)
+            // Wait until the page has stopped moving (two inventories in a row agree), so the screenshot and the control
+            // frames describe the same picture.
+            var next = auditRows()
+            for _ in 0..<4 {
+                Thread.sleep(forTimeInterval: 0.3)
+                let again = auditRows()
+                if again.signature == next.signature { next = again; break }
+                next = again
+            }
             if next.signature == page.signature { break }   // nothing moved: the end of the page
             page = next
             swipes += 1

@@ -1335,7 +1335,6 @@ private struct PlaylistComfortDock: View {
         HStack(spacing: 52 * BrandLayout.compactPhoneScale(for: flowContainerSize)) {
             PlaylistComfortChoiceButton(
                 choice: .feelsGood,
-                systemImage: SFCompat.resolve("sun.max.fill", "sun.max"),
                 palette: .sun,
                 affirmationChoice: affirmationChoice,
                 affirmationTick: affirmationTick,
@@ -1343,7 +1342,6 @@ private struct PlaylistComfortDock: View {
             )
             PlaylistComfortChoiceButton(
                 choice: .trySomethingElse,
-                systemImage: SFCompat.resolve("cloud.fill", "cloud"),
                 palette: .cloud,
                 affirmationChoice: affirmationChoice,
                 affirmationTick: affirmationTick,
@@ -1387,6 +1385,13 @@ private enum ComfortChoicePalette {
 
     var icon: Color { .white }
 
+    var glyph: ComfortGlyphKind {
+        switch self {
+        case .sun: return .sun
+        case .cloud: return .cloud
+        }
+    }
+
     var iconShadow: Color {
         switch self {
         case .sun: return Color(red: 0.78, green: 0.45, blue: 0.0).opacity(0.55)
@@ -1397,7 +1402,6 @@ private enum ComfortChoicePalette {
 
 private struct PlaylistComfortChoiceButton: View {
     let choice: ResidentPlaylistComfortChoice
-    let systemImage: String
     let palette: ComfortChoicePalette
     let affirmationChoice: ResidentPlaylistComfortChoice?
     let affirmationTick: UInt
@@ -1464,11 +1468,8 @@ private struct PlaylistComfortChoiceButton: View {
                     )
                     .shadow(color: palette.glow.opacity(0.4 + luminousLevel * 0.5), radius: 14 + luminousLevel * 20)
 
-                Image(systemName: systemImage)
-                    .font(.system(size: diameter * 0.4, weight: .bold))
-                    .foregroundStyle(palette.icon)
-                    .shadow(color: palette.iconShadow, radius: 3, y: 1.5)
-                    .shadow(color: .white.opacity(0.5), radius: 0.5, y: -0.5)
+                ComfortGlyph(kind: palette.glyph, color: palette.icon, shadow: palette.iconShadow)
+                    .frame(width: diameter * 0.6, height: diameter * 0.6)
             }
             .frame(width: diameter, height: diameter)
             .scaleEffect(pressPopScale)

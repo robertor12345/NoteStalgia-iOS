@@ -410,6 +410,40 @@ at `.demo-work/NoteStalgia-Walkthrough-v7-before-partI.mp4`.
       records that involved the residents it is given.
 - [ ] **Android TODO:** planner screen, heuristics, `groupComfort` (+ the profile picker and participation line),
       participants on group records, roster copy, the admin "Group programme" card.
+- [x] **Activity log — activities held outside the app (30 Oct 2026).** Roster → Group sessions → **Log an
+      activity** (`Screens/ActivityLogScreens.swift`, `Core/ActivityLog.swift`, phase `.careActivityLog`): category,
+      start and length, who came, and how each of them was (enjoyed it · engaged · looked on · unsettled · left
+      early), plus a note; "Note the rest as…" fills in everyone not yet noted. Saved as a `GroupSessionRecord` with
+      `kind = .otherActivity` — no new entity, table or route: it syncs through the existing immutable `groupSessions`
+      push, and the Worker stores the blob as given (`contracts/openapi.yaml` `GroupSession` documents `kind`,
+      `activityCategory`, `supersedes`, `withdrawn` and the two new participant states; `worker/test/sync.test.ts`
+      proves the round trip). **Corrections are append-only:** the "Logged recently" card offers Correct (the form
+      refills; saving writes a record that `supersedes` the old one) and Remove (a `withdrawn` record that supersedes
+      it); `GroupSessionRecord.current(_:)` hides both from the planner, the profile line, the programme card and the
+      roster, and the history keeps everything. Read paths: planner (counts as company, per-person engagement from
+      their own line; "difficult" is only unsettled / left early), profile participation line, the programme card's
+      **Outside the app** + **Their engagement** tiles, roster "last logged" line; "Last group session" ratings skip
+      it (and pick the newest music record by date — seeded and pulled history is oldest-first). **Repeat** starts a new entry from an earlier one
+      (same activity, length and people, as of now; nobody noted). **Care at home accounts can log too:** a one-person
+      form (`ActivityLogDraft.solo`, a "Log an activity" card on their home page) saves a group record for the one
+      resident they look after, persisted in `HouseholdCareStore.Data.activities` (optional, so older files load) and
+      shown as the **Outside the app** card on their insights (`ActivityInsights`, 30 days). The Worker accepts from a
+      household only `otherActivity` records about at most one resident, plus withdrawals (`routes/sync.ts`; tested).
+      Not done: a Worker-side hard delete (by design none — a mistake is a correcting record), and the Care at home
+      insights narrative / handover text do not yet mention these activities.
+- [x] **Sounds and haptics (30 Oct 2026).** `CalmExperienceFeedback` gives every press a chime + selection tick,
+      every save a soft impact + success chime, every error the lower "attention" chime + warning haptic + a VoiceOver
+      announcement (`BrandMessageTile` and the set-up banner do it themselves). Two per-device switches on the roster
+      and the Care at home page (`FeedbackPreferencesCard`), no longer tied to Reduce Motion. Verified from the app's
+      event log in the UI walkthrough; the haptics themselves cannot be felt in the simulator, and iPads have no
+      haptic motor. Android TODO: the same cue map and switches.
+- [x] **Orb:** `OrbClock` (no jump on resume), no pause for scroll / keyboard on the GPU path, soft white glowing edge,
+      flat sun and cloud glyphs (`ComfortGlyphs.swift`), the equaliser as wave bursts (`OrbWaveBursts.swift`) and the
+      tap pulse as the same burst, smaller. Still to measure: GPU cost of all of it on a real iPad / iPhone, Release.
+- [ ] **Android TODO:** planner screen, heuristics, `groupComfort` (+ the profile picker and participation line),
+      participants on group records, roster copy, the admin "Group programme" card, and the activity log (record
+      `kind` / `activityCategory` / `supersedes` / `withdrawn`, the two participant states, form with correct / repeat /
+      remove, programme tiles, the Care at home one-person form and insights card), plus the sounds-and-haptics cue map.
 - [ ] **Open — UX review round 5 (26 Oct 2026):** findings and the suggested order live in
       [`docs/UX_REVIEW_2026-10-26.md`](UX_REVIEW_2026-10-26.md). Headline items: a skipped whole-home session counts as
       a group for every resident; the chosen activity theme does not shape the compiled playlist; Start is buried under

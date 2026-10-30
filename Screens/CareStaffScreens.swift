@@ -80,6 +80,10 @@ struct CarePatientListView: View {
                         .accessibilityIdentifier("roster.switchHome")
                         .padding(.horizontal, 24)
                     }
+
+                    if !presentation.isSearching {
+                        FeedbackPreferencesCard()
+                    }
                 }
                 .padding(.vertical, 28)
             }
@@ -447,6 +451,24 @@ struct CarePatientListView: View {
                     state.beginGroupActivityPlanning()
                 }
                 .accessibilityIdentifier("roster.groupMode")
+                BrandHairline()
+                // Not everything is music: bingo, a class, a visit. Logging it keeps the dashboards and the planner honest.
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Held something away from the app?")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    if let last = state.latestLoggedActivity() {
+                        Label(last.line, systemImage: "clock.arrow.circlepath")
+                            .font(.caption)
+                            .foregroundStyle(BrandTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("roster.lastLoggedActivity")
+                    }
+                    SecondaryButton(title: "Log an activity") {
+                        state.beginActivityLog()
+                    }
+                    .accessibilityIdentifier("roster.logActivity")
+                }
             }
         }
         .padding(.horizontal, 4)
@@ -930,8 +952,8 @@ struct CareSessionPrepView: View {
                 .multilineTextAlignment(.leading)
                 .frame(minHeight: 44, alignment: .leading)   // inside the label, so the toggle's own row is 44 pt
         }
+        .toggleStyle(BrandRowToggleStyle())
         .accessibilityIdentifier("prep.toggle.\(title)")
-        .tint(BrandTheme.goldDeep)
         .chimeOnChange(of: isOn.wrappedValue)
     }
 }
@@ -2082,8 +2104,8 @@ private struct SessionContextCaptureCard: View {
                         .foregroundStyle(BrandTheme.textPrimary)
                         .frame(minHeight: 44, alignment: .leading)
                 }
+                .toggleStyle(BrandRowToggleStyle())
                 .accessibilityIdentifier("observation.residentLed")
-                .tint(BrandTheme.goldDeep)
                 .chimeOnChange(of: context.residentLedSession)
 
                 Toggle(isOn: $context.distressOrPRNNearby) {
@@ -2092,8 +2114,8 @@ private struct SessionContextCaptureCard: View {
                         .foregroundStyle(BrandTheme.textPrimary)
                         .frame(minHeight: 44, alignment: .leading)
                 }
+                .toggleStyle(BrandRowToggleStyle())
                 .accessibilityIdentifier("observation.distress")
-                .tint(BrandTheme.goldDeep)
                 .chimeOnChange(of: context.distressOrPRNNearby)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -2348,12 +2370,12 @@ struct CareSessionInsightView: View {
                 }
             }
             if !summary.liked.isEmpty {
-                trackGroup("Enjoyed", systemImage: "sun.max.fill", tint: Tone.sun, tracks: summary.liked)
+                trackGroup("Enjoyed", glyph: .sun, tint: Tone.sun, tracks: summary.liked)
             }
             if !summary.skipped.isEmpty {
                 trackGroup(
                     "Moved on from",
-                    systemImage: "cloud.fill",
+                    glyph: .cloud,
                     tint: Tone.cloud,
                     tracks: summary.skipped.map { .init(title: $0, detail: nil) }
                 )
@@ -2564,7 +2586,8 @@ struct CareSessionInsightView: View {
 
     private func trackGroup(
         _ title: String,
-        systemImage: String,
+        systemImage: String? = nil,
+        glyph: ComfortGlyphKind? = nil,
         tint: Color,
         tracks: [CareSessionInsightSummary.TrackListen]
     ) -> some View {
@@ -2573,8 +2596,12 @@ struct CareSessionInsightView: View {
                 Text(title)
                     .foregroundStyle(BrandTheme.textSecondary)
             } icon: {
-                Image(systemName: systemImage)
-                    .foregroundStyle(tint)
+                if let glyph {
+                    ComfortGlyph(kind: glyph, color: tint).frame(width: 18, height: 18)
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(tint)
+                }
             }
             .font(.subheadline.weight(.semibold))
             ForEach(tracks) { track in

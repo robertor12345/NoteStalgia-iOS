@@ -409,6 +409,18 @@ struct HouseholdHomeView: View {
                             state.selectedCarePatientId = resident.id
                             state.startDiscoveryCalibration(for: resident.id)
                         }
+
+                        actionCard(
+                            title: "Log an activity",
+                            subtitle: "A walk, a visit, a game — anything done away from the app. Say how they were and it shows in their insights.",
+                            systemImage: "figure.walk.circle",
+                            identifier: "household.logActivity"
+                        ) {
+                            state.selectedCarePatientId = resident.id
+                            state.beginActivityLog()
+                        }
+
+                        FeedbackPreferencesCard()
                     } else {
                         FadeInTitle(text: "Care at home", delay: 0)
                         FadeInLine(text: "Register the person you care for to begin.", delay: 0.08)
@@ -550,6 +562,7 @@ struct HouseholdHomeView: View {
 
 struct HouseholdInsightsView: View {
     @ObservedObject var state: SessionPOCState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var presentation: ResidentInsightsPresentation? {
         state.householdInsightsPresentation()
@@ -582,6 +595,7 @@ struct HouseholdInsightsView: View {
                         } else {
                             emptyState(p)
                         }
+                        activitiesCard(p)
                     }
                 }
                 .padding(.vertical, 20)
@@ -592,6 +606,76 @@ struct HouseholdInsightsView: View {
                 state.phase = .home
             }
         }
+    }
+
+    /// What was done away from the app and how they were: the household's own log (`ActivityInsights`), over 30 days.
+    private func activitiesCard(_ p: ResidentInsightsPresentation) -> some View {
+        let activities = state.householdActivityInsights()
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                BrandSectionHeader(
+                    title: "Outside the app",
+                    systemImage: "figure.walk.circle",
+                    subtitle: "What you have done together away from the app, and how \(firstName(p.residentName)) was, over the last 30 days.",
+                    identifier: "household.activities"
+                )
+                if let activities, !activities.isEmpty {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
+                        BrandStatTile(value: "\(activities.count)", label: "Activities", detail: "in 30 days")
+                        BrandStatTile(
+                            value: activities.averageEngagement.map { String(format: "%.1f", $0) } ?? "—",
+                            label: "How they were",
+                            detail: "out of 10",
+                            tint: activities.averageEngagement.map { BrandRatingTone.tint(outOfTen: $0) }
+                        )
+                    }
+                    InsightChipFlow(spacing: 8) {
+                        ForEach(GroupParticipantState.activityOptions) { option in
+                            if let n = activities.byResponse[option], n > 0 {
+                                BrandStatusChip(text: "\(n) · \(option.label)", systemImage: option.systemImage, tint: option.brandTint)
+                            }
+                        }
+                    }
+                    BrandRowsTile {
+                        ForEach(Array(activities.rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 { BrandHairline() }
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(row.title)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(BrandTheme.textPrimary)
+                                    Spacer(minLength: 8)
+                                    Text(row.date.formatted(.dateTime.day().month(.abbreviated)))
+                                        .font(.caption)
+                                        .foregroundStyle(BrandTheme.textSecondary)
+                                }
+                                if let response = row.response {
+                                    BrandStatusChip(text: response.label, systemImage: response.systemImage, tint: response.brandTint)
+                                }
+                                if let note = row.note, !note.isEmpty {
+                                    Text(note)
+                                        .font(.caption)
+                                        .foregroundStyle(BrandTheme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                } else {
+                    Text("Nothing logged yet. Log a walk, a visit or a game and how \(firstName(p.residentName)) was will show here.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                SecondaryButton(title: "Log an activity") {
+                    state.beginActivityLog()
+                }
+                .accessibilityIdentifier("household.insights.logActivity")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 4)
     }
 
     private func header(_ p: ResidentInsightsPresentation) -> some View {
@@ -706,15 +790,23 @@ struct HouseholdInsightsView: View {
                         .accessibilityElement(children: .combine)
                     }
                     if let liked = p.likedLine {
-                        Label("Liked · \(liked)", systemImage: "sun.max.fill")
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.statusCaution)
+                        Label {
+                            Text("Liked · \(liked)")
+                        } icon: {
+                            ComfortGlyph(kind: .sun, color: BrandTheme.statusCaution).frame(width: 16, height: 16)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(BrandTheme.statusCaution)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let skipped = p.skippedLine {
-                        Label("Moved on from · \(skipped)", systemImage: "cloud.fill")
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.statusNeutral)
+                        Label {
+                            Text("Moved on from · \(skipped)")
+                        } icon: {
+                            ComfortGlyph(kind: .cloud, color: BrandTheme.statusNeutral).frame(width: 16, height: 16)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(BrandTheme.statusNeutral)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

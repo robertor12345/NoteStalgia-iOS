@@ -443,7 +443,8 @@ struct GroupActivityPlannerView: View {
 
     // MARK: Start
 
-    /// Pinned under the list: the primary action plus the whole-home alternative as a text link.
+    /// Pinned under the list: the primary action plus the whole-home alternative as a text link, on a surface that fades
+    /// in from the list instead of cutting it off.
     private var startBar: some View {
         VStack(spacing: 8) {
             PrimaryButton(title: selectedIds.isEmpty ? "Select residents to start" : "Start group session (\(selectedIds.count))") {
@@ -456,10 +457,13 @@ struct GroupActivityPlannerView: View {
             Button {
                 state.beginGroupSession()
             } label: {
-                Text("Whole-home playlist instead")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(BrandTheme.gold)
-                    .frame(minHeight: 44)
+                HStack(spacing: 4) {
+                    Text("Whole-home playlist instead")
+                    Image(systemName: "chevron.right").font(.caption.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(BrandTheme.gold)
+                .frame(minHeight: 44)
                     .contentShape(Rectangle())
                     .expandedHitArea(horizontal: 16)
             }
@@ -469,16 +473,7 @@ struct GroupActivityPlannerView: View {
         .frame(maxWidth: BrandLayout.menuColumnMaxWidth)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
-        .padding(.top, 12)
         .padding(.bottom, 10)
-        .background {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(BrandTheme.creamDeep.opacity(0.55))
-                .overlay(alignment: .top) {
-                    Rectangle().fill(BrandTheme.hairline).frame(height: 1)
-                }
-                .ignoresSafeArea(edges: .bottom)
-        }
+        .brandBottomBarSurface()
     }
 }

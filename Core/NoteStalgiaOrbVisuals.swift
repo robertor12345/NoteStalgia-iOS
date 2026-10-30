@@ -212,6 +212,7 @@ struct NoteStalgiaNebulaOrbShell: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.flowAmbientPaused) private var flowAmbientPaused
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var metal = OrbMetalPipeline.shared
 
     private var bounds: CGFloat { min(width, height) }
 
@@ -228,6 +229,29 @@ struct NoteStalgiaNebulaOrbShell: View {
     }
 
     var body: some View {
+        if metal.usesMetal {
+            metalOrb
+        } else {
+            classicOrb
+        }
+    }
+
+    /// The GPU orb. Small orbs are cached images; a large one breathes on its own display link unless the parent
+    /// drives it (`animationElapsed`), in which case it follows the parent's pulse.
+    private var metalOrb: some View {
+        let live = bounds >= OrbMetalPipeline.snapshotMaxDiameter
+        let selfDriven = live && animationElapsed == nil
+        return NoteStalgiaMetalOrb(
+            baseDiameter: bounds,
+            drive: selfDriven ? .heartbeat : .fixed(pulse: pulse, glow: glowPulse),
+            anchor: OrbMetalPipeline.clockAnchor,
+            fill: nebulaFillOpacity,
+            glowBoost: min(1.2, 0.85 + 0.2 * shellGlowScale),
+            externallyPaused: flowAmbientPaused && OrbMetalPipeline.pausesForInteraction
+        )
+    }
+
+    private var classicOrb: some View {
         Group {
             if let animationElapsed {
                 orbShellContent(elapsed: animationElapsed)
@@ -317,7 +341,7 @@ struct NoteStalgiaNebulaOrbShell: View {
 
         // Large shells used to add a "ripple rings" Canvas here that drew nothing; only small
         // orbs show an arc frame.
-        if showArcFrame, diameter < 96 {
+        if OrbRenderBudget.drawsLogoArcFrame, showArcFrame, diameter < 96 {
             NoteStalgiaOrbAnimatedArcFrame(
                 diameter: diameter * 1.01,
                 lineWidth: max(1.5, diameter * 0.004),
@@ -347,7 +371,7 @@ struct NoteStalgiaWordmark: View {
          + Text("™")
             .font(.system(size: trademarkSize, weight: .medium, design: .default))
             .baselineOffset(trademarkBaselineOffset))
-            .foregroundStyle(BrandTheme.textOnOrb)
+            .foregroundStyle(BrandTheme.wordmarkGradient)
             .orbOverlayTextStyle()
             .accessibilityLabel("NoteStalgia")
     }

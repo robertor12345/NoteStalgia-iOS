@@ -51,12 +51,16 @@
 		5270E839CE9A8AF73F021884 /* SessionPOCState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C24F0E3B65BF5289378C685C /* SessionPOCState.swift */; };
 		539D8BB0D13E3F59C86C98B9 /* DiscoveryEraMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */; };
 		58DB7569B4DB62EB4ABC01E1 /* ExperienceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E147C0264ECDF103E99D97A /* ExperienceScreens.swift */; };
+		5A1D8360CF3B65C42C992502 /* ComfortGlyphs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463AF9466CA041B803E2537A /* ComfortGlyphs.swift */; };
 		60AC56A7B9226EFB3A2DD879 /* PatientFaceIDSignInControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDF5AF16686875DB0B53E60 /* PatientFaceIDSignInControls.swift */; };
+		643B73EBAB35C3D924D93EC9 /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FDF48CF9B5AEED494CF21E8 /* ActivityLog.swift */; };
+		69EB544DCB96E03A98C19137 /* OrbShaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC302E1282DDF34831C42211 /* OrbShaderTests.swift */; };
 		6A978F7E588ADFC3E3DE588E /* ResidentCSVImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B06A1F59550F48E25B524BD /* ResidentCSVImport.swift */; };
 		6D86D5A4ABEE1FD644AD9271 /* ScrollContentEdgeFade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B49A44F89439AE6A04D10A7 /* ScrollContentEdgeFade.swift */; };
 		70962D0FB4753EDBC105A201 /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B8857F999401E5C9CB9D1CF /* APIConfig.swift */; };
 		70D05D5386FD1A9BD956BCD0 /* Pine Smoke Drift (1).mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 3E1FDF7A48B5719F505ABEBB /* Pine Smoke Drift (1).mp3 */; };
 		7212EAC58C5F57302799672D /* OrbOverlayTextStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A56F33E38CBA4DBE4E1EDC /* OrbOverlayTextStyle.swift */; };
+		7293F5E45242942966941CF6 /* FeedbackPreferencesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D940BDC06B218F3B600D43 /* FeedbackPreferencesCard.swift */; };
 		7419FA19C741ED96D703D8AE /* CenteredScrollScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC262E7C97631F8EA58E1DB /* CenteredScrollScreen.swift */; };
 		74BB58E3AECB286BC0878370 /* MusicVisualMood.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15241077582F9D338D59B10A /* MusicVisualMood.swift */; };
 		7641814CC300DB6C08A357CA /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71418B517D8A0D859F3DC871 /* SyncEngine.swift */; };
@@ -107,6 +111,7 @@
 		B4FC569A1E2BE2699294C16B /* CareHomeAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6557C281671AA42E18D424E7 /* CareHomeAnalytics.swift */; };
 		B80D21DEF1227E3864D45B31 /* HouseholdScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4112815F5C7076B302ADFD73 /* HouseholdScreens.swift */; };
 		B8B40BABF1928F0D2633F0B8 /* InputRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9FC6C8636CC186021F0853 /* InputRulesTests.swift */; };
+		BB91A8008939978A08D930C3 /* OrbFlow.msl in Resources */ = {isa = PBXBuildFile; fileRef = 9D4105DCB87ADD5B9246A3C8 /* OrbFlow.msl */; };
 		BCC4753FD1D37FC0CCBED02F /* OnboardingScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82273F8463F0FE8123AEBB41 /* OnboardingScreens.swift */; };
 		BFD49F18D60DBB0201205FE3 /* BundledAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688824863BB9DA9977E5E56F /* BundledAudio.swift */; };
 		C12BD4D4AA2DE138A5DBDC51 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EFC9CE953656FF19A47817 /* OnboardingFlow.swift */; };
@@ -124,6 +129,7 @@
 		D04A96016105877DEB4874A2 /* ResidentPlaylistComfort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1629AD9DA286A45E70E52EA3 /* ResidentPlaylistComfort.swift */; };
 		D10B25E09D486559829A45E2 /* OrbContentMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CB0633B698D0C549C1D75B /* OrbContentMotion.swift */; };
 		D231FE611D571E6023F8A112 /* CareStaffModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 750B86EC8F15A1842583BB25 /* CareStaffModels.swift */; };
+		D34D94DFF5B837203ADDDDA7 /* OrbMetal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E5EBC6FC941B91811230F5 /* OrbMetal.swift */; };
 		D391236AAD42331074539C03 /* OrbFrameMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7069049D1C9AFE70AFBF56BF /* OrbFrameMonitor.swift */; };
 		D4BDDFA2DC23C6B0C3D96F6A /* ResidentExperienceScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39D0171AB6386A5B0D685AE8 /* ResidentExperienceScreens.swift */; };
 		D5F8DA71EF6AFCCFF6676A76 /* NoteStalgiaOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5B813D50C80B05C4BDA95E /* NoteStalgiaOrbView.swift */; };
@@ -132,6 +138,9 @@
 		DF9AAD10BDC467C367E982C1 /* OrbHeartbeat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6777C1D1D1A4834A251DA4DE /* OrbHeartbeat.swift */; };
 		E19D0C7450B16B90DF67FCE9 /* CareRosterUIStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88D02D7DC5D72572A5909480 /* CareRosterUIStore.swift */; };
 		E5703A7D91124E99EF9A1691 /* SongSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1242E7DCE8919767AF46AE13 /* SongSearchSheet.swift */; };
+		E77E1D674D3AD4650F565924 /* ActivityLogScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9779AABB4C1A648B7725F524 /* ActivityLogScreens.swift */; };
+		EC3B498912ED4D081C395AF7 /* ActivityLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A6A7DC91B507EA22094EB5 /* ActivityLogTests.swift */; };
+		ECF9AACEADC4EFD6C243B380 /* OrbWaveBursts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B807CB8DF61F03AA5AED0F /* OrbWaveBursts.swift */; };
 		F3A795C4B697292297FB9C45 /* GoldAmbientSparklesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BEA93FFD064D5D3BC21EB0 /* GoldAmbientSparklesView.swift */; };
 		F3C66B3FF2BFAA64C7BB5A13 /* OnboardingClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C23986604733341BBCC6618 /* OnboardingClient.swift */; };
 		F4B054FD5A920C3E5C4EB0E3 /* DemoWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8597166A879216BABBAFBF4 /* DemoWalkthroughUITests.swift */; };
@@ -196,7 +205,9 @@
 		4112815F5C7076B302ADFD73 /* HouseholdScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdScreens.swift; sourceTree = "<group>"; };
 		421549F8A8EADA4521CF029B /* DiscoveryFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryFlow.swift; sourceTree = "<group>"; };
 		42CD973945EB93A5C1EC0A7F /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
+		43E5EBC6FC941B91811230F5 /* OrbMetal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbMetal.swift; sourceTree = "<group>"; };
 		45F1525B52278FA2FC7D9227 /* ResidentNationality.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentNationality.swift; sourceTree = "<group>"; };
+		463AF9466CA041B803E2537A /* ComfortGlyphs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComfortGlyphs.swift; sourceTree = "<group>"; };
 		4733E2F12334954C0B7EAD63 /* CarePatientPortrait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarePatientPortrait.swift; sourceTree = "<group>"; };
 		494513B683F1354BD77085EF /* TouchRipple.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchRipple.swift; sourceTree = "<group>"; };
 		4A0F8F4E67F48B3B90D54420 /* DiscoveryPlaylistTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryPlaylistTuning.swift; sourceTree = "<group>"; };
@@ -212,11 +223,14 @@
 		5C2D65B9BF9CA75B02771697 /* SeedExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedExport.swift; sourceTree = "<group>"; };
 		5CA18FDA494AA5DB9AF7319F /* ReferenceOrbNebulaRender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceOrbNebulaRender.swift; sourceTree = "<group>"; };
 		60592EA6AB1938391A5ABA6D /* ResidentPortraitCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentPortraitCatalog.swift; sourceTree = "<group>"; };
+		61A6A7DC91B507EA22094EB5 /* ActivityLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogTests.swift; sourceTree = "<group>"; };
 		645E52D08B060E81A5F4C277 /* AmbientInteractionPause.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientInteractionPause.swift; sourceTree = "<group>"; };
+		64D940BDC06B218F3B600D43 /* FeedbackPreferencesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackPreferencesCard.swift; sourceTree = "<group>"; };
 		6557C281671AA42E18D424E7 /* CareHomeAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareHomeAnalytics.swift; sourceTree = "<group>"; };
 		6777C1D1D1A4834A251DA4DE /* OrbHeartbeat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbHeartbeat.swift; sourceTree = "<group>"; };
 		688824863BB9DA9977E5E56F /* BundledAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledAudio.swift; sourceTree = "<group>"; };
 		6A0F9B5ABF54746B8BEEC35C /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		6FDF48CF9B5AEED494CF21E8 /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
 		7069049D1C9AFE70AFBF56BF /* OrbFrameMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbFrameMonitor.swift; sourceTree = "<group>"; };
 		706F5B3C05618C27B2BEE70C /* AmbientAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientAudioSession.swift; sourceTree = "<group>"; };
 		7134A4BA9021687F65A06A51 /* ITunesDirectSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITunesDirectSearch.swift; sourceTree = "<group>"; };
@@ -241,11 +255,13 @@
 		8FC262E7C97631F8EA58E1DB /* CenteredScrollScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CenteredScrollScreen.swift; sourceTree = "<group>"; };
 		91BC864FE5949576A98B67C3 /* AppAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSession.swift; sourceTree = "<group>"; };
 		97044ED3FA3DBF15327445D3 /* SupervisorAuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupervisorAuthStore.swift; sourceTree = "<group>"; };
+		9779AABB4C1A648B7725F524 /* ActivityLogScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogScreens.swift; sourceTree = "<group>"; };
 		992C564F19EBC31E9AC3B4C8 /* SceneImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneImageCache.swift; sourceTree = "<group>"; };
 		9A6CA906201E4447B2C696CB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9A77D9E1626BC5A406E0DABB /* OrbNavControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbNavControls.swift; sourceTree = "<group>"; };
 		9B49A44F89439AE6A04D10A7 /* ScrollContentEdgeFade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollContentEdgeFade.swift; sourceTree = "<group>"; };
 		9BBEF8EE9ACD4116F3EE26BC /* HouseholdCareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HouseholdCareModels.swift; sourceTree = "<group>"; };
+		9D4105DCB87ADD5B9246A3C8 /* OrbFlow.msl */ = {isa = PBXFileReference; path = OrbFlow.msl; sourceTree = "<group>"; };
 		A1F5D587236F479A7116F526 /* NoteStalgiaLogoImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStalgiaLogoImage.swift; sourceTree = "<group>"; };
 		A317F2DFDC71F9C399CD4BD0 /* NoteStalgiaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteStalgiaApp.swift; sourceTree = "<group>"; };
 		A5A596CF4765246D1EADB5D5 /* FlowContainerSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowContainerSize.swift; sourceTree = "<group>"; };
@@ -255,6 +271,7 @@
 		A8A6F422C7F6732D2142B4C2 /* TrackArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackArtworkView.swift; sourceTree = "<group>"; };
 		A8BE5B85364B1D190077BB5D /* GroupActivityFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupActivityFlow.swift; sourceTree = "<group>"; };
 		A92DAB218105E00FC2CCEA5C /* ResidentSurfaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentSurfaceStore.swift; sourceTree = "<group>"; };
+		AC302E1282DDF34831C42211 /* OrbShaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbShaderTests.swift; sourceTree = "<group>"; };
 		ACA5A09C641708ED9DCB441C /* OnboardingValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingValidation.swift; sourceTree = "<group>"; };
 		AE863506720CC8170BD83954 /* UIImage+SyncJPEG.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+SyncJPEG.swift"; sourceTree = "<group>"; };
 		B00F5132BEFFF09FCEF9D499 /* DiscoveryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryModels.swift; sourceTree = "<group>"; };
@@ -265,6 +282,7 @@
 		BF28FC77C3F799DDA3C8972D /* OrbInteriorMediaPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbInteriorMediaPanel.swift; sourceTree = "<group>"; };
 		BFADE22ECDA1B31306992177 /* ResidentMusicModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResidentMusicModel.swift; sourceTree = "<group>"; };
 		C24F0E3B65BF5289378C685C /* SessionPOCState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPOCState.swift; sourceTree = "<group>"; };
+		C2B807CB8DF61F03AA5AED0F /* OrbWaveBursts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrbWaveBursts.swift; sourceTree = "<group>"; };
 		C2D4E751998837BDBB0CEBB5 /* Models+Wire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models+Wire.swift"; sourceTree = "<group>"; };
 		C303864A8BA734AAD2B37BAD /* BrandDataDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandDataDisplay.swift; sourceTree = "<group>"; };
 		C35093FF297C5AB86C27B6B5 /* ImageDownscaling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaling.swift; sourceTree = "<group>"; };
@@ -303,7 +321,9 @@
 		17316A07E13401BC64F30E08 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				61A6A7DC91B507EA22094EB5 /* ActivityLogTests.swift */,
 				EB9FC6C8636CC186021F0853 /* InputRulesTests.swift */,
+				AC302E1282DDF34831C42211 /* OrbShaderTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -318,6 +338,14 @@
 				93C68686DE0595849AC7B77C /* Resources */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		310AD14CE482A1E215ABCDCF /* Shaders */ = {
+			isa = PBXGroup;
+			children = (
+				9D4105DCB87ADD5B9246A3C8 /* OrbFlow.msl */,
+			);
+			path = Shaders;
 			sourceTree = "<group>";
 		};
 		331C2121FE961C26A331A334 = {
@@ -344,11 +372,13 @@
 		8ECF1C4609A8D112383020F7 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
+				9779AABB4C1A648B7725F524 /* ActivityLogScreens.swift */,
 				75EE6925280DAA00A9924D3D /* CaptureScreens.swift */,
 				FF42203AC4A30DC54AAAAE8C /* CareHomeAdminScreens.swift */,
 				211A39512A67C0F51263EB2E /* CareStaffScreens.swift */,
 				EE5A9D4FF7238E5685832515 /* DiscoveryScreens.swift */,
 				2E147C0264ECDF103E99D97A /* ExperienceScreens.swift */,
+				64D940BDC06B218F3B600D43 /* FeedbackPreferencesCard.swift */,
 				15EC295E2E12BB61BFCACB20 /* GroupActivityPlannerScreens.swift */,
 				CEC3F0B319DC8A9D35957B9A /* GroupSessionScreens.swift */,
 				4112815F5C7076B302ADFD73 /* HouseholdScreens.swift */,
@@ -370,6 +400,7 @@
 			isa = PBXGroup;
 			children = (
 				ADC687C67AC740F2505958FF /* Music */,
+				310AD14CE482A1E215ABCDCF /* Shaders */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -387,6 +418,7 @@
 		A4D677D55A863B1BFAF76328 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				6FDF48CF9B5AEED494CF21E8 /* ActivityLog.swift */,
 				706F5B3C05618C27B2BEE70C /* AmbientAudioSession.swift */,
 				645E52D08B060E81A5F4C277 /* AmbientInteractionPause.swift */,
 				91BC864FE5949576A98B67C3 /* AppAudioSession.swift */,
@@ -403,6 +435,7 @@
 				750B86EC8F15A1842583BB25 /* CareStaffModels.swift */,
 				3A944D80479F51DD56CB787E /* CareTenancyModels.swift */,
 				8FC262E7C97631F8EA58E1DB /* CenteredScrollScreen.swift */,
+				463AF9466CA041B803E2537A /* ComfortGlyphs.swift */,
 				B016B6E491EEFED64A3796DF /* DemoAudioLog.swift */,
 				F9D570CB8C55D6430D6AF4B8 /* DemoLaunchOptions.swift */,
 				A7B747E2C9B5AB9610687DDD /* DiscoveryEraMedia.swift */,
@@ -432,6 +465,7 @@
 				7069049D1C9AFE70AFBF56BF /* OrbFrameMonitor.swift */,
 				6777C1D1D1A4834A251DA4DE /* OrbHeartbeat.swift */,
 				BF28FC77C3F799DDA3C8972D /* OrbInteriorMediaPanel.swift */,
+				43E5EBC6FC941B91811230F5 /* OrbMetal.swift */,
 				9A77D9E1626BC5A406E0DABB /* OrbNavControls.swift */,
 				2577CCB02E27E0398C7C9802 /* OrbNavigationStyle.swift */,
 				C7A56F33E38CBA4DBE4E1EDC /* OrbOverlayTextStyle.swift */,
@@ -439,6 +473,7 @@
 				3C5A1F7D6CFB1042EA787C45 /* OrbRenderBudget.swift */,
 				795D94D01ECCD77AAB686BCC /* OrbRingEqualizer.swift */,
 				3AA8A7D314D94998B58BB867 /* OrbShellConfiguration.swift */,
+				C2B807CB8DF61F03AA5AED0F /* OrbWaveBursts.swift */,
 				4E804FD11A95AE15C0481009 /* PatientBiometricAuth.swift */,
 				DF40DF8F235D4897A5681BC3 /* PatientFaceIDLinkStore.swift */,
 				3FDF5AF16686875DB0B53E60 /* PatientFaceIDSignInControls.swift */,
@@ -649,6 +684,7 @@
 				B3297E8D278DB0AD57E236EA /* Assets.xcassets in Resources */,
 				38345C926C07D18F6C725F67 /* Drift Between Rooms.mp3 in Resources */,
 				C7E8B9C0E12854F39EA74878 /* Echoes of Yesterday.mp3 in Resources */,
+				BB91A8008939978A08D930C3 /* OrbFlow.msl in Resources */,
 				70D05D5386FD1A9BD956BCD0 /* Pine Smoke Drift (1).mp3 in Resources */,
 				7BBDE61652D19C68BA6B94C6 /* Pine Smoke Drift.mp3 in Resources */,
 				0F7E62D9E3A8936EF61A8D4B /* Velvet Afterhours.mp3 in Resources */,
@@ -666,6 +702,8 @@
 			files = (
 				9A6BDF3182D77CBCE94778B1 /* APIClient.swift in Sources */,
 				70962D0FB4753EDBC105A201 /* APIConfig.swift in Sources */,
+				643B73EBAB35C3D924D93EC9 /* ActivityLog.swift in Sources */,
+				E77E1D674D3AD4650F565924 /* ActivityLogScreens.swift in Sources */,
 				87C21F8E1C2A88402D7BF8DC /* AmbientAudioSession.swift in Sources */,
 				7C2DBB6BC638C2C4C16ABC5B /* AmbientInteractionPause.swift in Sources */,
 				2F6F1C4420BD46310BA8569B /* AppAudioSession.swift in Sources */,
@@ -689,6 +727,7 @@
 				F522E5BC9B4E78DDFB079415 /* CareTenancyModels.swift in Sources */,
 				7419FA19C741ED96D703D8AE /* CenteredScrollScreen.swift in Sources */,
 				4AD2377334E11E617CAEA16D /* Collection+Safe.swift in Sources */,
+				5A1D8360CF3B65C42C992502 /* ComfortGlyphs.swift in Sources */,
 				D84D9AF1DBB1C3928E4CC51F /* DemoAudioLog.swift in Sources */,
 				C1B5E297F2D2FD15069E163E /* DemoLaunchOptions.swift in Sources */,
 				539D8BB0D13E3F59C86C98B9 /* DiscoveryEraMedia.swift in Sources */,
@@ -699,6 +738,7 @@
 				8337625ED3E619EA1321444B /* DiscoveryScreens.swift in Sources */,
 				58DB7569B4DB62EB4ABC01E1 /* ExperienceScreens.swift in Sources */,
 				A9F3F2A362F2EE76C4324ED6 /* FadeText.swift in Sources */,
+				7293F5E45242942966941CF6 /* FeedbackPreferencesCard.swift in Sources */,
 				CCF2083C3D8361F6DCE30A4A /* FlowContainerSize.swift in Sources */,
 				090D00871B7C699C7D558944 /* FlowRootView.swift in Sources */,
 				F3A795C4B697292297FB9C45 /* GoldAmbientSparklesView.swift in Sources */,
@@ -742,6 +782,7 @@
 				D391236AAD42331074539C03 /* OrbFrameMonitor.swift in Sources */,
 				DF9AAD10BDC467C367E982C1 /* OrbHeartbeat.swift in Sources */,
 				F7FB1916109B99A65486ACCB /* OrbInteriorMediaPanel.swift in Sources */,
+				D34D94DFF5B837203ADDDDA7 /* OrbMetal.swift in Sources */,
 				22FAD610B5C2EE2362788239 /* OrbNavControls.swift in Sources */,
 				308AB85046B93542B40AEE8B /* OrbNavigationStyle.swift in Sources */,
 				7212EAC58C5F57302799672D /* OrbOverlayTextStyle.swift in Sources */,
@@ -749,6 +790,7 @@
 				FFE46080094D1CE8A5B2736F /* OrbRenderBudget.swift in Sources */,
 				B314930D3EF15DCD3785D95A /* OrbRingEqualizer.swift in Sources */,
 				968D460CE28FBA5154D66EE5 /* OrbShellConfiguration.swift in Sources */,
+				ECF9AACEADC4EFD6C243B380 /* OrbWaveBursts.swift in Sources */,
 				A0017A0D87EE6D7694553B45 /* OrgSetupScreens.swift in Sources */,
 				18DC7A586024264ED5950C33 /* PatientBiometricAuth.swift in Sources */,
 				41DE539B1605F262F329DDBC /* PatientFaceIDLinkStore.swift in Sources */,
@@ -794,7 +836,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EC3B498912ED4D081C395AF7 /* ActivityLogTests.swift in Sources */,
 				B8B40BABF1928F0D2633F0B8 /* InputRulesTests.swift in Sources */,
+				69EB544DCB96E03A98C19137 /* OrbShaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

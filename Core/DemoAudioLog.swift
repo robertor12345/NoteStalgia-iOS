@@ -32,9 +32,13 @@ enum DemoAudioLog {
             guard let data = try? JSONSerialization.data(withJSONObject: entry),
                   let handle = try? FileHandle(forWritingTo: fileURL)
             else { return }
-            handle.seekToEndOfFile()
-            handle.write(data)
-            handle.write(Data([0x0A]))
+            // The throwing API, not `write(_:)`: that one raises an Objective-C exception when a write fails (a full
+            // disk), which would take the app down over a log line.
+            do {
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+                try handle.write(contentsOf: Data([0x0A]))
+            } catch {}
             try? handle.close()
         }
     }

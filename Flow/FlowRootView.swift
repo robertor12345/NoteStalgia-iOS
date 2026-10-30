@@ -201,6 +201,8 @@ struct FlowRootView: View {
                 HouseholdInsightsView(state: state)
             case .careGroupPlanner:
                 GroupActivityPlannerView(state: state)
+            case .careActivityLog:
+                ActivityLogView(state: state)
             case .orgRequest:
                 OrgRequestView(state: state)
             case .orgCode:
@@ -280,6 +282,8 @@ enum LaunchWarmUp {
         // The very first `becomeFirstResponder` loads the keyboard subsystem — the biggest first-tap
         // cost (~1.7 s on the simulator, a few hundred ms on device). Must be on main, so it goes here.
         prewarmKeyboard()
+        // The orb's shader compiles on a background queue; the orb fades in when it is ready.
+        OrbMetalPipeline.shared.prepare()
         // The orb's cached halo / glow sprites are rendered with `ImageRenderer` (main actor); the
         // first title frame draws them, so render them before it.
         OrbGlowSprites.prewarm()
