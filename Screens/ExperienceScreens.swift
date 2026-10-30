@@ -221,14 +221,7 @@ private struct ImmersiveVitalsReadout: View {
                 BrandStatTile(value: "\(Int(vitals.calmScore * 100))%", label: "Calm", tint: CareAtEaseTone.tint(percent: Int(vitals.calmScore * 100)), centered: true)
             }
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.94))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(BrandTheme.cardBorder, lineWidth: 1)
-            )
+            .brandCardSurface(cornerRadius: 16)
         }
     }
 }

@@ -385,6 +385,13 @@ extension SessionPOCState {
         let name = InputRules.tidy(ob.homeName)
         let wings = ob.homeWings.map { InputRules.tidy($0) }.filter { !$0.isEmpty }
         let cqc = ob.homeCqc.trimmingCharacters(in: .whitespacesAndNewlines)
+        let homeAddress = OrgAddress(
+            line1: InputRules.tidy(ob.homeAddressLine1),
+            line2: nil,
+            town: InputRules.tidy(ob.homeAddressTown),
+            postcode: InputRules.normalisePostcode(ob.homeAddressPostcode),
+            country: "United Kingdom"
+        )
         var lead: NewHomeLead? = NewHomeLead(email: nil, displayName: nil, me: true)
         if !ob.homeLeadIsMe {
             let email = ob.homeLeadEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -396,7 +403,7 @@ extension SessionPOCState {
                 name: name,
                 cqcLocationId: cqc.isEmpty ? nil : cqc,
                 capacity: Int(ob.homeCapacity.trimmingCharacters(in: .whitespacesAndNewlines)),
-                address: nil,
+                address: homeAddress,
                 wings: wings,
                 lead: lead
             ))
@@ -516,7 +523,16 @@ extension SessionPOCState {
                 if let code = invite.code { ob.issuedCodes[invite.email] = code }
             }
             ob.bulkErrors = localErrors + response.errors
-            if ob.bulkErrors.isEmpty { ob.bulkText = "" }
+            if ob.bulkErrors.isEmpty {
+                ob.bulkText = ""
+            } else {
+                // Keep only the lines that still need fixing, so a second tap never re-sends the ones that went.
+                let failed = Set(ob.bulkErrors.map { $0.email.lowercased() })
+                ob.bulkText = lines.filter { line in
+                    let email = (line.split(separator: ",", omittingEmptySubsequences: false).first ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+                    return failed.contains(email)
+                }.joined(separator: "\n")
+            }
             ob.notice = "\(response.sent.count) invite\(response.sent.count == 1 ? "" : "s") sent" + (ob.bulkErrors.isEmpty ? "." : ", \(ob.bulkErrors.count) skipped.") + ((response.warnings ?? []).first.map { " \($0)" } ?? "")
             await self.loadOrganisation()
         }

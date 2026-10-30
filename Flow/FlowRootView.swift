@@ -68,8 +68,15 @@ struct FlowRootView: View {
                     .environment(\.flowPanelPulseSpeed, shellConfig.panelPulseSpeed)
 
                 if !launchComplete {
+                    // The label lives on the splash itself. On the root it was inherited by the shared
+                    // Back and Log out buttons, which VoiceOver then announced as "NoteStalgia".
                     LaunchIntroOverlay(anchor: launchAnchor, totalDuration: launchTotalDuration)
                         .zIndex(8)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("NoteStalgia is starting.")
+                        .accessibilityHint("Double-tap to skip.")
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction(.default) { skipLaunchIfNeeded() }
                 }
 
                 if state.residentHandoffActive {
@@ -87,8 +94,6 @@ struct FlowRootView: View {
         // Full-screen skip tap only while the launch overlay is up — otherwise it competes with
         // resident genre glyphs and other controls.
         .modifier(LaunchSkipTapModifier(enabled: !launchComplete, onSkip: skipLaunchIfNeeded))
-        .accessibilityLabel(launchComplete ? "NoteStalgia" : "NoteStalgia is starting.")
-        .accessibilityHint(launchComplete ? "" : "Tap anywhere to skip.")
         .onAppear {
             // Main-thread-only warm-ups that would freeze an animation run here, before the first
             // frame is committed — the system launch screen (a static brand colour) is still up,
@@ -400,15 +405,6 @@ struct BrandCard<Content: View>: View {
         content()
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.94))
-                    .shadow(color: BrandTheme.brown.opacity(0.08), radius: 12, y: 5)
-                    .flattenedShadows(bleed: 40)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(BrandTheme.cardBorder, lineWidth: 1)
-            )
+            .brandCardSurface(cornerRadius: 20)
     }
 }

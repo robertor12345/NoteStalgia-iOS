@@ -326,7 +326,7 @@ struct SetupBanner: View {
                         Image(systemName: "xmark")
                             .font(.footnote.weight(.bold))
                             .foregroundStyle(BrandTheme.textSecondary)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(ChimingPlainButtonStyle())
@@ -393,6 +393,7 @@ private struct OrgSetupPageBody: View {
         case .orgDefaults: orgDefaults
         case .homesOverview: homesOverview
         case .homeDetails: homeDetails
+        case .homeAddress: homeAddress
         case .homeWings: homeWings
         case .homeLead: homeLead
         case .teamOverview: teamOverview
@@ -637,9 +638,15 @@ private struct OrgSetupPageBody: View {
                 VStack(spacing: 0) {
                     BrandKeyValueRow(label: "Residents", value: "\(home.residentCount)")
                     BrandKeyValueRow(label: "Staff with access", value: "\(home.staffCount)")
+                    BrandKeyValueRow(label: "Address", value: OnboardingFormat.address(home.address))
                     BrandKeyValueRow(label: "CQC location", value: home.cqcLocationId ?? "—")
                     BrandKeyValueRow(label: "Capacity", value: home.capacity.map { "\($0) beds" } ?? "—", isLast: true)
                 }
+                BrandHairline()
+                Text("Export")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BrandTheme.textSecondary)
+                    .accessibilityAddTraits(.isHeader)
                 InsightChipFlow(spacing: 18) {
                     OnboardingActionLink(title: onboarding.exportingHomeId == home.id ? "Exporting…" : "Residents (CSV)") {
                         Task { @MainActor in await state.exportHome(home, format: "csv", kind: "residents") }
@@ -669,6 +676,7 @@ private struct OrgSetupPageBody: View {
                     }
                 }
                 if home.status != "archived", home.residentCount == 0 {
+                    BrandHairline()
                     OnboardingActionLink(title: "Archive this home", tint: BrandTheme.statusAttention) {
                         Task { @MainActor in await state.archiveHome(home) }
                     }
@@ -683,6 +691,23 @@ private struct OrgSetupPageBody: View {
                 OnboardingField(title: "Home name", text: $onboarding.homeName, prompt: "Willow Lodge", identifier: "onboarding.home.name", contentType: .organizationName, maxLength: 80)
                 OnboardingField(title: "CQC location ID (optional)", text: $onboarding.homeCqc, prompt: "1-987654321", identifier: "onboarding.home.cqc", keyboard: .numbersAndPunctuation, autocapitalises: false, filter: .cqcId)
                 OnboardingField(title: "Beds (optional)", text: $onboarding.homeCapacity, prompt: "40", identifier: "onboarding.home.capacity", keyboard: .numberPad, autocapitalises: false, filter: .digits(max: 4))
+            }
+        }
+    }
+
+    private var homeAddress: some View {
+        BrandCard {
+            VStack(alignment: .leading, spacing: 16) {
+                OnboardingField(title: "Address", text: $onboarding.homeAddressLine1, prompt: "1 Willow Street", identifier: "onboarding.home.address", contentType: .streetAddressLine1, maxLength: 120)
+                HStack(alignment: .top, spacing: 12) {
+                    OnboardingField(title: "Town", text: $onboarding.homeAddressTown, prompt: "Stockport", identifier: "onboarding.home.town", contentType: .addressCity, maxLength: 60)
+                    OnboardingField(title: "Postcode", text: $onboarding.homeAddressPostcode, prompt: "SK1 1AA", identifier: "onboarding.home.postcode", contentType: .postalCode, autocapitalises: false, filter: .postcode)
+                        .frame(maxWidth: 160)
+                }
+                if onboarding.storedAddressIsComplete {
+                    OnboardingActionLink(title: "Use the head-office address") { onboarding.useOrganisationAddressForHome() }
+                        .accessibilityIdentifier("onboarding.home.useOfficeAddress")
+                }
             }
         }
     }
@@ -887,8 +912,10 @@ private struct OrgSetupPageBody: View {
             }
             HStack(spacing: 18) {
                 OnboardingActionLink(title: "Resend") { Task { @MainActor in await state.resendInvite(invite) } }
+                    .accessibilityLabel("Resend invite to \(invite.displayName ?? invite.email)")
                     .accessibilityIdentifier("onboarding.invite.resend.\(invite.email)")
                 OnboardingActionLink(title: "Revoke", tint: BrandTheme.statusAttention) { Task { @MainActor in await state.revokeInvite(invite) } }
+                    .accessibilityLabel("Revoke invite for \(invite.displayName ?? invite.email)")
                     .accessibilityIdentifier("onboarding.invite.revoke.\(invite.email)")
             }
             if !isLast { BrandHairline() }

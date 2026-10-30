@@ -39,13 +39,7 @@ struct CarePatientListView: View {
                 VStack(spacing: 22) {
                     rosterHeader
 
-                    searchField
-
-                    if !presentation.isSearching, let home = currentHome {
-                        wingFilterRow(home: home)
-                            .centeredScrollFullBleed()
-                        displayModePicker
-                    }
+                    findResidentCard
 
                     // While searching, results sit directly under the field — the home summary
                     // and session shortcuts would otherwise push them below the fold.
@@ -58,19 +52,7 @@ struct CarePatientListView: View {
                         .accessibilityIdentifier("roster.startDiscovery")
                         .padding(.horizontal, 24)
 
-                        SecondaryButton(title: "Group activities") {
-                            state.beginGroupActivityPlanning()
-                        }
-                        .accessibilityIdentifier("roster.groupMode")
-                        .padding(.horizontal, 24)
-
-                        groupModeHint
-
-                        if let groupLine = state.latestGroupSessionSummaryLine() {
-                            FadeInLine(text: groupLine, font: BrandTheme.orbHintFont(), muted: true, delay: 0.12)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 12)
-                        }
+                        groupSessionsCard
                     }
 
                     rosterSections
@@ -140,10 +122,28 @@ struct CarePatientListView: View {
         }
     }
 
+    /// Search, wing filter and display mode in one card, so nothing floats on the orb.
+    private var findResidentCard: some View {
+        BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                BrandSectionHeader(title: "Find a resident", systemImage: "magnifyingglass")
+                searchField
+                if !presentation.isSearching, let home = currentHome {
+                    wingFilterRow(home: home)
+                        // The scroller pads its content; pull it back so the chips line up with the field.
+                        .padding(.horizontal, -BrandLayout.scrollEdgeFadeComfortPaddingHorizontal)
+                    displayModePicker
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
     private var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(BrandTheme.textSecondary)
+                .accessibilityHidden(true)
             TextField("Search residents", text: $state.rosterSearchQuery, prompt: BrandTheme.fieldPrompt("Search name, room, or wing"))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -155,7 +155,8 @@ struct CarePatientListView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(BrandTheme.textSecondary)
-                        .expandedHitArea(vertical: 12, horizontal: 12)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(ChimingPlainButtonStyle())
                 .accessibilityLabel("Clear search")
@@ -163,18 +164,18 @@ struct CarePatientListView: View {
         }
         .font(.body)
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(BrandTheme.creamMid.opacity(0.95))
+        .padding(.vertical, 2)
+        .frame(minHeight: 48)
+        .background(BrandTheme.surfaceInset)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
+                .stroke(BrandTheme.insetBorder, lineWidth: 1)
         )
-        .padding(.horizontal, 4)
     }
 
     private func wingFilterRow(home: CareHome) -> some View {
-        HorizontalScrollEdgeFade(coordinateSpace: "rosterWingFilter") {
+        HorizontalScrollEdgeFade(coordinateSpace: "rosterWingFilter", centersWhenContentFits: false) {
             HStack(spacing: 10) {
                 wingChip(title: "All wings", wingId: nil)
                 ForEach(home.wings) { wing in
@@ -186,7 +187,7 @@ struct CarePatientListView: View {
 
     private func wingChip(title: String, wingId: String?) -> some View {
         let selected = state.rosterSelectedWingId == wingId || (wingId == nil && state.rosterSelectedWingId == nil)
-        return Button {
+        return BrandSelectableChip(label: title, selected: selected) {
             if wingId == nil {
                 state.rosterSelectedWingId = nil
             } else if state.rosterSelectedWingId == wingId {
@@ -194,18 +195,7 @@ struct CarePatientListView: View {
             } else {
                 state.rosterSelectedWingId = wingId
             }
-        } label: {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(selected ? BrandTheme.textPrimary : BrandTheme.textSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(selected ? BrandTheme.gold.opacity(0.22) : BrandTheme.cream.opacity(0.85))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(BrandTheme.gold.opacity(selected ? 0.5 : 0.22), lineWidth: 1))
         }
-        .buttonStyle(ChimingPlainButtonStyle())
-        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("roster.wing.\(title)")
     }
 
@@ -217,7 +207,6 @@ struct CarePatientListView: View {
         )
         .chimeOnChange(of: state.rosterDisplayMode)
         .accessibilityIdentifier("roster.displayMode")
-        .padding(.horizontal, 4)
     }
 
     // `LazyVStack` defers building each row until it's about to scroll into view (this still
@@ -243,39 +232,72 @@ struct CarePatientListView: View {
     }
 
     private var rosterSectionList: some View {
-        LazyVStack(alignment: .leading, spacing: 22) {
+        LazyVStack(alignment: .leading, spacing: 18) {
             ForEach(presentation.sections) { section in
-                VStack(alignment: .leading, spacing: 12) {
+                BrandCard {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(section.title)
-                            .font(.subheadline.weight(.semibold))
-                            .orbOverlayText()
-                            .accessibilityAddTraits(.isHeader)
-                        if let subtitle = section.subtitle {
-                            Text(subtitle)
-                                .font(.caption)
-                                .orbOverlayText(muted: true)
+                        BrandSectionHeader(
+                            title: section.title,
+                            systemImage: sectionIcon(section.kind),
+                            subtitle: section.subtitle
+                        )
+                        if section.patientIds.isEmpty {
+                            // A search that matches nobody says so and says what to try, instead of an empty card.
+                            BrandHairline()
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: "questionmark.circle")
+                                    .foregroundStyle(BrandTheme.statusNeutral)
+                                    .accessibilityHidden(true)
+                                Text("No resident matches “\(state.rosterSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines))”. Try a first name, a room number or a wing.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(BrandTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.vertical, 12)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("roster.noMatches")
                         }
-                    }
-                    .padding(.horizontal, 8)
-
-                    ForEach(section.patientIds, id: \.self) { patientId in
-                        if let patient = state.carePatient(id: patientId) {
-                            rosterRow(for: patient)
+                        if !section.patientIds.isEmpty {
+                            BrandRowsTile(spacing: 0, verticalPadding: 0) {
+                                LazyVStack(spacing: 0) {
+                                    ForEach(Array(section.patientIds.enumerated()), id: \.element) { index, patientId in
+                                        if let patient = state.carePatient(id: patientId) {
+                                            if index > 0 { BrandHairline() }
+                                            rosterRow(for: patient)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, 8)
                         }
                     }
                 }
+                .padding(.horizontal, 4)
             }
         }
     }
 
+    private func sectionIcon(_ kind: CareRosterSection.Kind) -> String {
+        switch kind {
+        case .pinned: return "star.fill"
+        case .recent: return "clock.arrow.circlepath"
+        case .due: return "calendar.badge.exclamationmark"
+        case .wing: return "building.2"
+        case .searchResults: return "magnifyingglass"
+        case .allResidents: return "person.2.fill"
+        }
+    }
+
+    /// One resident inside a section card: portrait, name, where they are, how the last visit went
+    /// (icon + word, never colour alone) and a pin. Rows are separated by hairlines, not boxes.
     @ViewBuilder
     private func rosterRow(for patient: CarePatientProfile) -> some View {
         let subtitle = rosterSubtitle(for: patient)
+        let chip = rosterChip(for: patient)
         let isPinned = state.rosterPinnedResidentIds.contains(patient.id)
 
         if state.rosterDisplayMode == .compact {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Button {
                     openPatient(patient)
                 } label: {
@@ -285,70 +307,63 @@ struct CarePatientListView: View {
                             customImage: state.portraitImage(for: patient.id),
                             size: 44
                         )
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(patient.displayName)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(BrandTheme.textPrimary)
                             Text(subtitle)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(BrandTheme.textSecondary)
                                 .lineLimit(2)
+                            BrandStatusChip(text: chip.text, systemImage: chip.systemImage, tint: chip.tint)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.right")
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(BrandTheme.gold.opacity(0.8))
+                            .accessibilityHidden(true)
                     }
-                    .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(BrandTheme.cream.opacity(0.9))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(ChimingPlainButtonStyle())
                 .accessibilityIdentifier("roster.resident.\(patient.displayName)")
 
-                Button {
-                    state.toggleRosterPin(patient.id)
-                } label: {
-                    Image(systemName: isPinned ? "star.fill" : "star")
-                        .foregroundStyle(isPinned ? BrandTheme.gold : BrandTheme.textSecondary)
-                        .frame(width: 36, height: 36)
-                        .expandedHitArea(vertical: 4, horizontal: 4)
-                }
-                .accessibilityIdentifier("roster.pin.\(patient.displayName)")
-                .buttonStyle(ChimingPlainButtonStyle())
-                .accessibilityLabel(isPinned ? "Unpin \(patient.displayName)" : "Pin \(patient.displayName)")
+                pinButton(for: patient, isPinned: isPinned)
             }
-            .padding(.horizontal, 4)
         } else {
             ZStack(alignment: .topTrailing) {
                 OrbPortraitNavButton(
                     portraitAssetName: patient.stockPortraitAssetName,
                     customPortraitImage: state.portraitImage(for: patient.id),
                     title: patient.displayName,
-                    subtitle: subtitle
+                    subtitle: subtitle,
+                    chip: chip,
+                    embedded: true
                 ) {
                     openPatient(patient)
                 }
                 .accessibilityIdentifier("roster.resident.\(patient.displayName)")
 
-                Button {
-                    state.toggleRosterPin(patient.id)
-                } label: {
-                    Image(systemName: isPinned ? "star.fill" : "star")
-                        .font(.body)
-                        .foregroundStyle(isPinned ? BrandTheme.gold : BrandTheme.textSecondary)
-                        .padding(10)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(.interaction, Rectangle())
-                }
-                .accessibilityIdentifier("roster.pin.\(patient.displayName)")
-                .buttonStyle(ChimingPlainButtonStyle())
-                .accessibilityLabel(isPinned ? "Unpin \(patient.displayName)" : "Pin \(patient.displayName)")
+                pinButton(for: patient, isPinned: isPinned)
             }
-            .padding(.horizontal, 4)
         }
+    }
+
+    private func pinButton(for patient: CarePatientProfile, isPinned: Bool) -> some View {
+        Button {
+            state.toggleRosterPin(patient.id)
+        } label: {
+            Image(systemName: isPinned ? "star.fill" : "star")
+                .font(.body)
+                .foregroundStyle(isPinned ? BrandTheme.statusCaution : BrandTheme.textSecondary)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.interaction, Rectangle())
+        }
+        .accessibilityIdentifier("roster.pin.\(patient.displayName)")
+        .buttonStyle(ChimingPlainButtonStyle())
+        .accessibilityLabel(isPinned ? "Unpin \(patient.displayName)" : "Pin \(patient.displayName)")
     }
 
     private func openPatient(_ patient: CarePatientProfile) {
@@ -357,16 +372,25 @@ struct CarePatientListView: View {
         state.transitionToPhase(.carePatientDetail)
     }
 
-    /// Kept short so the roster scans at a glance — where they are and how the last visit went.
-    /// Full sentiment averages live on the resident's profile.
+    /// Kept short so the roster scans at a glance — where they are and when they were last seen.
+    /// How the visit went is the status chip; full sentiment averages live on the profile.
     private func rosterSubtitle(for patient: CarePatientProfile) -> String {
         var parts = [patient.careContextLabel]
         if let last = state.recordsForPatient(patient.id).first {
-            parts.append("Last visit \(relativeDay(last.date)) · \(last.calmPercent)% at ease")
-        } else {
-            parts.append("No visits yet")
+            parts.append("Last visit \(relativeDay(last.date))")
         }
         return parts.joined(separator: " · ")
+    }
+
+    private func rosterChip(for patient: CarePatientProfile) -> OrbPortraitNavChip {
+        if let last = state.recordsForPatient(patient.id).first {
+            return OrbPortraitNavChip(
+                text: "\(last.calmPercent)% at ease",
+                systemImage: "leaf.fill",
+                tint: CareAtEaseTone.tint(percent: last.calmPercent)
+            )
+        }
+        return OrbPortraitNavChip(text: "No visits yet", systemImage: "clock", tint: BrandTheme.statusNeutral)
     }
 
     private func relativeDay(_ date: Date) -> String {
@@ -403,15 +427,62 @@ struct CarePatientListView: View {
         }
     }
 
-    private var groupModeHint: some View {
-        FadeInLine(
-            text: "Pick who joins. The app suggests an activity from shared tastes, flags residents who have been overlooked, and compiles the playlist from the people you choose.",
-            font: BrandTheme.orbHintFont(),
-            muted: true,
-            delay: 0.08
+    /// Group activities on the same card grammar as the dashboard's Group programme: what it does,
+    /// how the last group went (four tiles, tone-tinted) and the one way in.
+    private var groupSessionsCard: some View {
+        BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                BrandSectionHeader(
+                    title: "Group sessions",
+                    systemImage: "person.3.fill",
+                    subtitle: "Pick who joins. The app suggests an activity from shared tastes, flags residents who have been overlooked and builds the playlist from the people you choose."
+                )
+                if let last = state.latestGroupSessionRatings() {
+                    Text("Last group session")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BrandTheme.textSecondary)
+                    GroupRatingTiles(ratings: last)
+                }
+                SecondaryButton(title: "Group activities") {
+                    state.beginGroupActivityPlanning()
+                }
+                .accessibilityIdentifier("roster.groupMode")
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+/// The four 1–10 ratings from a group check-in, tinted by the same tone as the carer observations.
+struct GroupRatingTiles: View {
+    let ratings: GroupSessionRatings
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var items: [(label: String, value: Int)] {
+        [
+            ("Morale / affect", ratings.morale),
+            ("Alertness", ratings.alertness),
+            ("Orientation", ratings.orientation),
+            ("Engagement", ratings.engagement),
+        ]
+    }
+
+    var body: some View {
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: BrandLayout.statTileColumns(regularWidth: BrandLayout.isRegularWidth(horizontalSizeClass), dynamicTypeSize: dynamicTypeSize)
         )
-        .multilineTextAlignment(.center)
-        .padding(.horizontal, 12)
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(items, id: \.label) { item in
+                BrandStatTile(
+                    value: "\(item.value)",
+                    label: item.label,
+                    detail: "out of 10",
+                    tint: BrandRatingTone.tint(outOfTen: Double(item.value))
+                )
+            }
+        }
     }
 }
 
@@ -473,11 +544,9 @@ struct CareDiscoveryAgeInputView: View {
                     .padding(.horizontal, 4)
 
                     if let errorMessage, !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 12)
+                        BrandMessageTile(text: errorMessage)
+                            .padding(.horizontal, 4)
+                            .accessibilityIdentifier("discovery.error")
                     }
 
                     PrimaryButton(title: "Begin listening discovery") {
@@ -514,7 +583,8 @@ struct CareNewResidentProfileView: View {
                 backTitle: "Discard",
                 backAccessibilityLabel: "Discard new resident",
                 onBack: { showDiscardConfirm = true },
-                onLogout: { state.signOutSupervisor() }
+                onLogout: { state.signOutSupervisor() },
+                logoutWarning: "This resident hasn’t been saved yet."
             ) {
                 VStack(spacing: 22) {
                     FadeInTitle(text: "Save this resident", delay: 0)
@@ -541,11 +611,9 @@ struct CareNewResidentProfileView: View {
                     .padding(.horizontal, 4)
 
                     if let errorMessage, !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 12)
+                        BrandMessageTile(text: errorMessage)
+                            .padding(.horizontal, 4)
+                            .accessibilityIdentifier("newResident.error")
                     }
 
                     PrimaryButton(title: "Save to roster") {
@@ -767,17 +835,13 @@ struct CareSessionPrepView: View {
                         .padding(.horizontal, 4)
                     }
 
-                    Text("Smart lighting")
-                        .font(.subheadline.weight(.semibold))
-                        .orbOverlayText()
-                        .padding(.horizontal, 4)
-                        .accessibilityAddTraits(.isHeader)
-
                     BrandCard {
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("Pair a bridge if you have one — then a calm scene can drift with the session: warmer dim, slow fades, no sudden bright flashes.")
-                                .font(.caption)
-                                .foregroundStyle(BrandTheme.textSecondary)
+                            BrandSectionHeader(
+                                title: "Smart lighting",
+                                systemImage: "lightbulb.fill",
+                                subtitle: "Pair a bridge if you have one — then a calm scene can drift with the session: warmer dim, slow fades, no sudden bright flashes."
+                            )
                             iotToggle("Philips Hue scenes", isOn: $state.iotPhilipsHueEnabled)
                             iotToggle("Apple HomeKit rooms", isOn: $state.iotHomeKitEnabled)
                             iotToggle("Matter accessories", isOn: $state.iotMatterEnabled)
@@ -803,19 +867,13 @@ struct CareSessionPrepView: View {
                     }
                     .padding(.horizontal, 4)
 
-                    Text("Immersive & VR")
-                        .font(.subheadline.weight(.semibold))
-                        .orbOverlayText()
-                        .padding(.horizontal, 4)
-                        .accessibilityAddTraits(.isHeader)
-
                     BrandCard {
                         VStack(alignment: .leading, spacing: 14) {
-                            Text(
-                                "Some teams use a headset or a wall screen for nature-led calm, with you right beside the person. In a real setting, consent, policy, and infection control come first — this is just the rehearsal."
+                            BrandSectionHeader(
+                                title: "Immersive & VR",
+                                systemImage: "eyeglasses",
+                                subtitle: "Some teams use a headset or a wall screen for nature-led calm, with you right beside the person. In a real setting, consent, policy, and infection control come first — this is just the rehearsal."
                             )
-                            .font(.caption)
-                            .foregroundStyle(BrandTheme.textSecondary)
                             iotToggle(
                                 "VR / headset path (when your kit supports it)",
                                 isOn: $state.carePrepVRImmersiveRoute
@@ -829,26 +887,27 @@ struct CareSessionPrepView: View {
                     }
                     .padding(.horizontal, 4)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Rough length")
-                            .font(.subheadline.weight(.semibold))
-                            .orbOverlayText()
-                            .accessibilityAddTraits(.isHeader)
-                        BrandSegmentedChoice(
-                            title: "Minutes",
-                            selection: $state.carePlannedDurationMinutes,
-                            options: durationChoices.map { BrandChoiceOption(value: $0, label: "\($0) min") }
-                        )
-                        .accessibilityIdentifier("prep.minutes")
-                        .chimeOnChange(of: state.carePlannedDurationMinutes)
-                        Text("Only a guide — stop whenever it feels right. Lights can ease down with the closing breath.")
-                            .font(.caption2)
-                            .orbOverlayText(muted: true)
+                    BrandCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            BrandSectionHeader(
+                                title: "Rough length",
+                                systemImage: "timer",
+                                subtitle: "Only a guide — stop whenever it feels right. Lights can ease down with the closing breath."
+                            )
+                            BrandSegmentedChoice(
+                                title: "Minutes",
+                                selection: $state.carePlannedDurationMinutes,
+                                options: durationChoices.map { BrandChoiceOption(value: $0, label: "\($0) min") }
+                            )
+                            .accessibilityIdentifier("prep.minutes")
+                            .chimeOnChange(of: state.carePlannedDurationMinutes)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 4)
 
                     Text("Wellness support only — not clinical advice or a medical device. Device names here are examples.")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary.opacity(0.9))
                         .padding(.horizontal, 4)
 
@@ -869,6 +928,7 @@ struct CareSessionPrepView: View {
                 .font(.subheadline)
                 .foregroundStyle(BrandTheme.textPrimary)
                 .multilineTextAlignment(.leading)
+                .frame(minHeight: 44, alignment: .leading)   // inside the label, so the toggle's own row is 44 pt
         }
         .accessibilityIdentifier("prep.toggle.\(title)")
         .tint(BrandTheme.goldDeep)
@@ -950,14 +1010,22 @@ struct CarePatientDetailView: View {
                         BrandCard {
                             VStack(alignment: .leading, spacing: 16) {
                                 BrandSectionHeader(title: "Listening profile", systemImage: "person.text.rectangle")
-                                Stepper(value: Binding(
-                                    get: { patient.residentAgeYears },
-                                    set: { state.setResidentAge(for: patient.id, age: $0) }
-                                ), in: 55 ... 105) {
+                                // Two 44 pt buttons: the system stepper is 47 × 32 pt.
+                                HStack(spacing: 10) {
                                     Text("Approx. age: \(patient.residentAgeYears)")
                                         .font(DetailTypography.body)
                                         .foregroundStyle(BrandTheme.textPrimary)
+                                    Spacer(minLength: 8)
+                                    ageStepButton(systemImage: "minus", label: "Decrease age", identifier: "profile.age-Decrement",
+                                                  enabled: patient.residentAgeYears > 55) {
+                                        state.setResidentAge(for: patient.id, age: patient.residentAgeYears - 1)
+                                    }
+                                    ageStepButton(systemImage: "plus", label: "Increase age", identifier: "profile.age-Increment",
+                                                  enabled: patient.residentAgeYears < 105) {
+                                        state.setResidentAge(for: patient.id, age: patient.residentAgeYears + 1)
+                                    }
                                 }
+                                .accessibilityElement(children: .contain)
                                 .accessibilityIdentifier("profile.age")
                                 .chimeOnChange(of: patient.residentAgeYears)
                                 ResidentNationalityMenuField(
@@ -1036,11 +1104,18 @@ struct CarePatientDetailView: View {
                         .padding(.horizontal, 4)
 
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Previous sessions")
-                                .font(DetailTypography.section)
-                                .orbOverlayText()
-                                .padding(.horizontal, 4)
-                                .accessibilityAddTraits(.isHeader)
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(BrandTheme.logoCyan)
+                                    .orbOverlayTextStyle()
+                                    .accessibilityHidden(true)
+                                Text("Previous sessions")
+                                    .font(DetailTypography.section)
+                                    .orbOverlayText()
+                                    .accessibilityAddTraits(.isHeader)
+                            }
+                            .padding(.horizontal, 4)
 
                             let rows = state.recordsForPatient(patient.id)
                             if rows.isEmpty {
@@ -1135,7 +1210,7 @@ struct CarePatientDetailView: View {
                     )
                     .accessibilityIdentifier("profile.groupComfort")
                     .chimeOnChange(of: patient.groupComfort)
-                    Text("Shapes the group planner's suggestions. Residents set to one-to-one are never invited automatically; small groups and gentle flags are shown to staff, not enforced.")
+                    Text("Shapes the group planner’s suggestions. Residents set to one-to-one are never invited automatically; small groups and gentle flags are shown to staff, not enforced.")
                         .font(DetailTypography.secondary)
                         .foregroundStyle(BrandTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1206,7 +1281,7 @@ struct CarePatientDetailView: View {
                                         .font(.caption2.weight(.bold))
                                         .opacity(0.75)
                                 }
-                                .foregroundStyle(BrandTheme.textOnOrb)
+                                .foregroundStyle(BrandTheme.onPrimaryAction)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
@@ -1214,14 +1289,15 @@ struct CarePatientDetailView: View {
                                         .fill(
                                             LinearGradient(
                                                 colors: [
-                                                    BrandTheme.nebulaPink.opacity(0.88),
-                                                    BrandTheme.nebulaPurple.opacity(0.82),
+                                                    BrandTheme.nebulaPink,
+                                                    BrandTheme.nebulaMagenta,
                                                 ],
                                                 startPoint: .topLeading,
                                                 endPoint: .bottomTrailing
                                             )
                                         )
                                 )
+                                .expandedHitArea(vertical: 5)   // 34 pt chip, 44 pt target
                             }
                             .accessibilityIdentifier("profile.song.remove.\(title)")
                             .buttonStyle(ChimingPlainButtonStyle())
@@ -1475,6 +1551,23 @@ enum CareAtEaseTone {
     }
 }
 
+/// A 44 × 44 pt round "−" / "+" button for the profile's age.
+private func ageStepButton(systemImage: String, label: String, identifier: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Image(systemName: systemImage)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(BrandTheme.textPrimary)
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(BrandTheme.surfaceInset))
+            .overlay(Circle().stroke(BrandTheme.insetBorder, lineWidth: 1))
+    }
+    .buttonStyle(ChimingPlainButtonStyle())
+    .disabled(!enabled)
+    .opacity(enabled ? 1 : 0.4)
+    .accessibilityLabel(label)
+    .accessibilityIdentifier(identifier)
+}
+
 /// Label above a sentence of care guidance (light, scent, touch), with a hairline beneath.
 struct CareSenseNoteRow: View {
     let label: String
@@ -1504,6 +1597,7 @@ struct CareSenseNoteRow: View {
 struct SentimentAverageTiles: View {
     let summary: CareSessionSentimentSummary
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private struct Item: Identifiable {
         let label: String
@@ -1523,7 +1617,7 @@ struct SentimentAverageTiles: View {
     var body: some View {
         let columns = Array(
             repeating: GridItem(.flexible(), spacing: 10),
-            count: BrandLayout.isRegularWidth(horizontalSizeClass) ? 4 : 2
+            count: BrandLayout.statTileColumns(regularWidth: BrandLayout.isRegularWidth(horizontalSizeClass), dynamicTypeSize: dynamicTypeSize)
         )
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(items) { item in
@@ -1576,6 +1670,7 @@ struct CareSessionSentimentFeedbackView: View {
                 backAccessibilityLabel: backLabel,
                 onBack: handleBack,
                 onLogout: { state.signOutSupervisor() },
+                logoutWarning: "This observation hasn’t been saved yet.",
                 topAligned: true
             ) {
                 VStack(spacing: 24) {
@@ -1775,11 +1870,11 @@ struct SentimentScalePicker: View {
 
             HStack {
                 Text(lowCaption)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
                 Spacer(minLength: 8)
                 Text(highCaption)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
                     .multilineTextAlignment(.trailing)
             }
@@ -1808,7 +1903,8 @@ struct CareSessionFeedbackView: View {
             CenteredScrollScreen(
                 backAccessibilityLabel: "Back to ‘How that felt’",
                 onBack: { state.phase = .insight },
-                onLogout: { state.signOutSupervisor() }
+                onLogout: { state.signOutSupervisor() },
+                logoutWarning: "This feedback hasn’t been saved yet."
             ) {
                 VStack(spacing: 22) {
                     if let patient = targetPatient {
@@ -1926,7 +2022,7 @@ struct CareSessionFeedbackView: View {
                     .foregroundStyle(BrandTheme.textSecondary)
             }
             Text(caption)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(BrandTheme.textSecondary)
             Slider(value: value, in: 0 ... 1)
                 .accessibilityIdentifier("feedback.outcome.\(title)")
@@ -1984,6 +2080,7 @@ private struct SessionContextCaptureCard: View {
                     Text("Resident chose the music")
                         .font(.subheadline)
                         .foregroundStyle(BrandTheme.textPrimary)
+                        .frame(minHeight: 44, alignment: .leading)
                 }
                 .accessibilityIdentifier("observation.residentLed")
                 .tint(BrandTheme.goldDeep)
@@ -1993,6 +2090,7 @@ private struct SessionContextCaptureCard: View {
                     Text("Acute distress or PRN (as-required) medication nearby")
                         .font(.subheadline)
                         .foregroundStyle(BrandTheme.textPrimary)
+                        .frame(minHeight: 44, alignment: .leading)
                 }
                 .accessibilityIdentifier("observation.distress")
                 .tint(BrandTheme.goldDeep)
@@ -2345,13 +2443,16 @@ struct CareSessionInsightView: View {
                             .lineLimit(isNarrative && !narrativeExpanded ? 3 : nil)
                             .fixedSize(horizontal: false, vertical: true)
                         if isNarrative {
-                            Button(narrativeExpanded ? "Show less" : "Read full narrative") {
+                            Button {
                                 withAnimation(CalmMotion.subtle) { narrativeExpanded.toggle() }
+                            } label: {
+                                Text(narrativeExpanded ? "Show less" : "Read full narrative")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(BrandTheme.logoCyan)
+                                    .frame(minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(ChimingPlainButtonStyle())
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(BrandTheme.logoCyan)
-                            .padding(.top, 2)
                         }
                     }
                 }

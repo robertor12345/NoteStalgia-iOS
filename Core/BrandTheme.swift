@@ -51,13 +51,17 @@ enum BrandTheme {
     /// Primary copy on the gradient and dark cards.
     static let textPrimary = introTitle
     /// Secondary labels, hints, and metadata.
-    static let textSecondary = introSubtitle
+    /// Slightly lighter than the intro text: cards are half transparent, so the brightest part of the orb can sit behind them.
+    static let textSecondary = Color(red: 0.90, green: 0.87, blue: 0.99)
     /// Captions and de-emphasized copy.
-    static let textTertiary = introBody
+    static let textTertiary = Color(red: 0.82, green: 0.78, blue: 0.94)
     /// Short labels on the nebula orb — near-white for maximum contrast on colour.
     static let textOnOrb = Color(red: 0.99, green: 0.98, blue: 1.0)
     /// De-emphasised orb copy — still light, not grey.
     static let textOnOrbMuted = Color(red: 0.93, green: 0.95, blue: 1.0)
+    /// Label colour on the pink primary-action fills. White on that pink was 2.1:1 at the light end; deep
+    /// ink is 8.9:1 there and 5.2:1 at the magenta end, on any background (the fills are opaque).
+    static let onPrimaryAction = Color(red: 0.10, green: 0.09, blue: 0.17)
 
     /// Placeholder for text fields on the dark cream fields. The system placeholder colour is
     /// tuned for light backgrounds and nearly vanishes here (or picks up the tint colour).
@@ -148,8 +152,18 @@ enum BrandTheme {
 
     /// Card edge — a touch stronger than before so cards separate from the orb behind them.
     static let cardBorder = gold.opacity(0.34)
+    /// Cards and rows are half transparent so the persistent orb and its sparkles stay visible behind every
+    /// page. The ink is deeper than `cream` to keep text contrast over the darker two-thirds of the orb;
+    /// `BrandCardSurface` falls back to the opaque `cream` card when Reduce Transparency is on.
+    static let cardInk = Color(red: 0.07, green: 0.06, blue: 0.14)
+    static let cardOpacity: Double = 0.5
+    /// Stand-alone rows (home picker, entry options, activity rows) hold only small text and often sit over the
+    /// orb's brightest glow, so they are a little firmer than the large cards.
+    static let rowOpacity: Double = 0.6
     /// Inset tile inside a card (grouped numbers, quoted notes).
-    static let surfaceInset = Color.white.opacity(0.06)
+    /// A tile sunk into the card: a second layer of ink, so the small labels on it hold their contrast even
+    /// where the orb's glow shows through a half-transparent card.
+    static let surfaceInset = cardInk.opacity(0.46)
     /// Edge of an inset tile or an unselected chip.
     static let insetBorder = Color.white.opacity(0.16)
     /// Separator between rows inside a card.

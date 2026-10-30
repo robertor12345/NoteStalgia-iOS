@@ -89,8 +89,8 @@ struct BrandStatTile: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(BrandTheme.textTertiary)
+                    .font(.caption)
+                    .foregroundStyle(BrandTheme.textSecondary)
                     .multilineTextAlignment(centered ? .center : .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -120,12 +120,28 @@ struct BrandStatTile: View {
 struct BrandStatTileRow<Content: View>: View {
     var spacing: CGFloat = 10
     @ViewBuilder var content: () -> Content
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .top, spacing: spacing) {
-            content()
+        // At accessibility text sizes four tiles across would break every label mid-word, so they stack.
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: spacing) {
+                content()
+            }
+        } else {
+            HStack(alignment: .top, spacing: spacing) {
+                content()
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension BrandLayout {
+    /// Columns for a grid of stat tiles: four on a wide screen, two on a phone, one at accessibility text sizes.
+    static func statTileColumns(regularWidth: Bool, dynamicTypeSize: DynamicTypeSize) -> Int {
+        if dynamicTypeSize.isAccessibilitySize { return 1 }
+        return regularWidth ? 4 : 2
     }
 }
 
@@ -212,6 +228,8 @@ struct BrandStatusChip: View {
         .foregroundStyle(filled ? BrandTheme.creamDeep : tint)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
+        // A base of ink under the tint: on a half-transparent card the pale tint alone gave the small text 2.6–4:1.
+        .background(Capsule().fill(BrandTheme.cardInk.opacity(filled ? 0 : 0.6)))
         .background(Capsule().fill(filled ? tint : tint.opacity(0.16)))
         .overlay(Capsule().stroke(tint.opacity(filled ? 0 : 0.55), lineWidth: 1))
         .accessibilityElement(children: .combine)
@@ -342,12 +360,52 @@ struct BrandSegmentedChoice<Value: Hashable>: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(title)
         } else {
-            Picker(title, selection: $selection) {
+            // The system segmented control is 32 pt tall; these segments are 44 pt, drawn like the selectable chips
+            // (selected = cyan tint + tick), and each one is a button named by its label.
+            HStack(spacing: 4) {
                 ForEach(options) { option in
-                    Text(option.label).tag(option.value)
+                    let selected = option.value == selection
+                    Button {
+                        selection = option.value
+                    } label: {
+                        HStack(spacing: 5) {
+                            // The tick takes room a narrow phone does not have with four segments ("Mana…"); there the
+                            // fill, border and weight carry the selection, and VoiceOver hears "selected".
+                            if selected, options.count <= 3 {
+                                Image(systemName: "checkmark")
+                                    .font(.caption2.weight(.bold))
+                                    .accessibilityHidden(true)
+                            }
+                            Text(option.label)
+                                .font(.subheadline.weight(selected ? .semibold : .regular))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(selected ? BrandTheme.cardInk.opacity(0.55) : Color.clear)
+                        )
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(selected ? BrandTheme.logoCyan.opacity(0.26) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(selected ? BrandTheme.logoCyan.opacity(0.7) : Color.clear, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(ChimingPlainButtonStyle())
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
-            .pickerStyle(.segmented)
+            .padding(3)
+            .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(BrandTheme.surfaceInset))
+            .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(BrandTheme.insetBorder, lineWidth: 1))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(title)
         }
     }
 }
@@ -382,5 +440,98 @@ struct BrandSelectableChip: View {
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - Card surface
+
+/// The fill and edge of every card, row tile and picker row. Half transparent (`BrandTheme.cardOpacity`) so
+/// the orb and sparkles behind the page stay visible; opaque again when the person has Reduce Transparency
+/// on, which is what that setting is for.
+struct BrandCardSurface: ViewModifier {
+    var cornerRadius: CGFloat = 20
+    var edge: Color = BrandTheme.cardBorder
+    var opacity: Double = BrandTheme.cardOpacity
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content.background {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(reduceTransparency ? BrandTheme.cream.opacity(0.94) : BrandTheme.cardInk.opacity(opacity))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(edge, lineWidth: 1)
+                }
+        }
+    }
+}
+
+extension View {
+    func brandCardSurface(cornerRadius: CGFloat = 20, edge: Color = BrandTheme.cardBorder, opacity: Double = BrandTheme.cardOpacity) -> some View {
+        modifier(BrandCardSurface(cornerRadius: cornerRadius, edge: edge, opacity: opacity))
+    }
+}
+
+// MARK: - Page message
+
+/// An error, notice or confirmation under a form: an icon and words on a firm tile, so it reads on the orb and never
+/// relies on colour alone (it used to be a line of salmon text straight on the orb).
+struct BrandMessageTile: View {
+    enum Kind { case error, notice, success }
+    let text: String
+    var kind: Kind = .error
+
+    private var tint: Color {
+        switch kind {
+        case .error: return BrandTheme.statusAttention
+        case .notice: return BrandTheme.statusNeutral
+        case .success: return BrandTheme.statusPositive
+        }
+    }
+
+    private var icon: String {
+        switch kind {
+        case .error: return "exclamationmark.triangle.fill"
+        case .notice: return "info.circle.fill"
+        case .success: return "checkmark.circle.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(BrandTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .brandCardSurface(cornerRadius: 14, edge: tint.opacity(0.65), opacity: 0.75)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Rows tile
+
+/// A run of list rows sunk into a card on one tile. The card above is half transparent, so a long stretch of small
+/// text needs a firmer base than the card alone gives it over the orb's glow (the stat tiles already have one).
+struct BrandRowsTile<Content: View>: View {
+    var spacing: CGFloat = 12
+    var verticalPadding: CGFloat = 12
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, verticalPadding)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(BrandTheme.surfaceInset))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(BrandTheme.insetBorder, lineWidth: 1))
     }
 }

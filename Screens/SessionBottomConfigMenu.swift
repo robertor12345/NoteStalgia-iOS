@@ -43,7 +43,7 @@ struct SessionBottomConfigMenu: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(BrandTheme.textPrimary)
                             Text("Let your lights follow the calm — Hue, HomeKit, or anything on the same bridge.")
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundStyle(BrandTheme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -64,20 +64,13 @@ struct SessionBottomConfigMenu: View {
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(BrandTheme.textPrimary)
                                 Text("Send a line about this session through the usual share sheet.")
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(BrandTheme.textSecondary)
                             }
                             Spacer(minLength: 0)
                         }
                         .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(BrandTheme.cream.opacity(0.92))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(BrandTheme.gold.opacity(0.3), lineWidth: 1)
-                        )
+                        .brandCardSurface(cornerRadius: 14, opacity: BrandTheme.rowOpacity)
                     }
                     .accessibilityIdentifier("immersive.share")
                     .buttonStyle(ChimingPlainButtonStyle())

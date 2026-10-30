@@ -215,8 +215,10 @@ enum CareRosterEngine {
         let recentIds = scopedResidents
             .filter { isRecent(for: $0.id, records: records, now: now) }
             .sorted {
-                (lastSessionDate(for: $0.id, records: records) ?? .distantPast) >
-                (lastSessionDate(for: $1.id, records: records) ?? .distantPast)
+                let a = lastSessionDate(for: $0.id, records: records) ?? .distantPast
+                let b = lastSessionDate(for: $1.id, records: records) ?? .distantPast
+                if a != b { return a > b }
+                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
             .prefix(todaySectionLimit)
             .map(\.id)
@@ -231,8 +233,11 @@ enum CareRosterEngine {
         let dueIds = scopedResidents
             .filter { isDue(for: $0.id, records: records, now: now) }
             .sorted {
-                (daysSinceLastSession(for: $0.id, records: records, now: now) ?? 999) >
-                (daysSinceLastSession(for: $1.id, records: records, now: now) ?? 999)
+                let a = daysSinceLastSession(for: $0.id, records: records, now: now) ?? 999
+                let b = daysSinceLastSession(for: $1.id, records: records, now: now) ?? 999
+                if a != b { return a > b }
+                // Residents with the same wait: A–Z, so every iPad shows the same order.
+                return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
             .prefix(todaySectionLimit)
             .map(\.id)

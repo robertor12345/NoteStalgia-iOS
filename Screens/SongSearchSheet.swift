@@ -38,23 +38,25 @@ struct SongSearchSheet: View {
                             query = ""
                             results = []
                         } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(BrandTheme.textSecondary)
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(BrandTheme.textSecondary)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .accessibilityLabel("Clear search")
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.vertical, 2)
+                .frame(minHeight: 48)
                 .background(BrandTheme.creamMid.opacity(0.95))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1))
                 .padding(.horizontal, 20)
 
                 if let errorLine {
-                    Text(errorLine)
-                        .font(.footnote)
-                        .foregroundStyle(BrandTheme.nebulaSalmon)
-                        .padding(.horizontal, 24)
+                    BrandMessageTile(text: errorLine)
+                        .padding(.horizontal, 20)
                 }
 
                 if isSearching && results.isEmpty {
@@ -90,8 +92,12 @@ struct SongSearchSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("search.done")
+                    Button { dismiss() } label: {
+                        Text("Done")
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityIdentifier("search.done")
                 }
             }
         }
@@ -143,9 +149,9 @@ struct SongSearchSheet: View {
                 if let link = ref.trackViewURL {
                     Link(destination: link) {
                         Label("Preview · Apple Music", systemImage: "arrow.up.right.square")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(BrandTheme.goldDeep.opacity(0.9))
-                            .expandedHitArea(vertical: 6)
+                            .expandedHitArea(vertical: 9)   // a 26 pt line with a 44 pt target
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open \(ref.title) in Apple Music")

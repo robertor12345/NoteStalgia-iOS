@@ -35,20 +35,6 @@
                ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "82E75E63E280399CD58285B6"
-               BuildableName = "NoteStalgiaTests.xctest"
-               BlueprintName = "NoteStalgiaTests"
-               ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -67,17 +53,6 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "82E75E63E280399CD58285B6"
-               BuildableName = "NoteStalgiaTests.xctest"
-               BlueprintName = "NoteStalgiaTests"
-               ReferencedContainer = "container:NoteStalgia-iOS.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
          <TestableReference
             skipped = "NO"
             parallelizable = "NO">

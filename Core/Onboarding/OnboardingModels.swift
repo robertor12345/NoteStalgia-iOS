@@ -384,6 +384,14 @@ enum OnboardingFormat {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    /// "14 Willow Lane, Stockport, SK1 1AA", or a dash when nothing was given.
+    static func address(_ address: OrgAddress?) -> String {
+        let parts = [address?.line1, address?.line2, address?.town, address?.postcode]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? "—" : parts.joined(separator: ", ")
+    }
+
     static func isoDay(_ date: Date) -> String {
         ISO8601DateFormatter.withFractional.string(from: date)
     }

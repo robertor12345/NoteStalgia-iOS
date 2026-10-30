@@ -123,4 +123,50 @@ final class InputRulesTests: XCTestCase {
     func testTidyCollapsesWhitespace() {
         XCTAssertEqual(InputRules.tidy("  Sam   \n Jones "), "Sam Jones")
     }
+
+    // MARK: Set-up forms
+
+    @MainActor
+    func testAddHomeProblemsAreReportedPageByPage() {
+        let store = OnboardingStore()
+        store.homeName = "Willow Lodge"
+        let first = store.homeProblems()
+        XCTAssertEqual(first.map(\.field), ["onboarding.home.address", "onboarding.home.town", "onboarding.home.postcode"])
+        XCTAssertEqual(Set(first.compactMap(\.page)), [.homeAddress])
+        store.homeAddressLine1 = "14 Willow Lane"
+        store.homeAddressTown = "Stockport"
+        store.homeAddressPostcode = "sk11aa"
+        XCTAssertTrue(store.homeProblems().isEmpty)
+        store.homeAddressPostcode = "nonsense"
+        XCTAssertEqual(store.homeProblems().first?.message, "A UK postcode looks like SK1 1AA.")
+    }
+
+    @MainActor
+    func testAddHomeJourneyHasFourPages() {
+        XCTAssertEqual(OnboardingStore.SetupDetour.addHome.pages, [.homeDetails, .homeAddress, .homeWings, .homeLead])
+        let store = OnboardingStore()
+        store.page = .homeAddress
+        XCTAssertEqual(store.pageEyebrow, "Add a home · 2 of 4")
+        XCTAssertEqual(store.previousPage(of: .homeAddress), .homeDetails)
+        XCTAssertEqual(store.nextPage(of: .homeAddress), .homeWings)
+    }
+
+    func testAddressFormatting() {
+        XCTAssertEqual(OnboardingFormat.address(OrgAddress(line1: "14 Willow Lane", line2: nil, town: "Stockport", postcode: "SK1 1AA", country: "United Kingdom")), "14 Willow Lane, Stockport, SK1 1AA")
+        XCTAssertEqual(OnboardingFormat.address(nil), "—")
+    }
+
+    @MainActor
+    func testLeavingAPageChecksThatPageOnly() {
+        let store = OnboardingStore()
+        XCTAssertEqual(store.problems(onPage: .inviteWho).map(\.field), ["onboarding.invite.email"])
+        store.inviteEmail = "sam@willowbank"
+        XCTAssertEqual(store.problems(onPage: .inviteWho).first?.message, "That doesn’t look like an email address. Use name@company.co.uk.")
+        XCTAssertTrue(store.problems(onPage: .inviteAccess).isEmpty, "the access page is checked when the invite is sent")
+        store.inviteEmail = "sam@willowbank-care.co.uk"
+        XCTAssertTrue(store.problems(onPage: .inviteWho).isEmpty)
+        // A home: the details page does not complain about the address that lives on the next one.
+        XCTAssertEqual(store.problems(onPage: .homeDetails).map(\.field), ["onboarding.home.name"])
+        XCTAssertEqual(store.problems(onPage: .homeAddress).count, 3)
+    }
 }

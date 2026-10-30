@@ -8,6 +8,7 @@ struct FadeInLine: View {
     var muted: Bool = false
     var delay: Double = 0
     @State private var visible = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var resolvedFont: Font {
         magnification > 1 ? SignInPageLayout.subheadFont : font
@@ -19,9 +20,9 @@ struct FadeInLine: View {
             .orbOverlayText(muted: muted)
             .multilineTextAlignment(.center)
             .opacity(visible ? 1 : 0)
-            .offset(y: visible ? 0 : 10)
+            .offset(y: visible || reduceMotion ? 0 : 10)
             .onAppear {
-                withAnimation(.easeOut(duration: 0.65).delay(delay)) {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .easeOut(duration: 0.65).delay(delay)) {
                     visible = true
                 }
             }
@@ -36,6 +37,7 @@ struct FadeInTitle: View {
     var magnification: CGFloat = 1
     var delay: Double = 0
     @State private var visible = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var resolvedFont: Font {
         magnification > 1
@@ -50,9 +52,9 @@ struct FadeInTitle: View {
             .orbOverlayText()
             .multilineTextAlignment(.center)
             .opacity(visible ? 1 : 0)
-            .offset(y: visible ? 0 : 12)
+            .offset(y: visible || reduceMotion ? 0 : 12)
             .onAppear {
-                withAnimation(.easeOut(duration: 0.7).delay(delay)) {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .easeOut(duration: 0.7).delay(delay)) {
                     visible = true
                 }
             }
@@ -65,6 +67,7 @@ struct FadeInNoteStalgiaWordmark: View {
     var magnification: CGFloat = 1
     var delay: Double = 0
     @State private var visible = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var resolvedFont: Font {
         magnification > 1 ? SignInPageLayout.titleFont : BrandTheme.orbTitleFont(.title)
@@ -82,9 +85,9 @@ struct FadeInNoteStalgiaWordmark: View {
         )
         .multilineTextAlignment(.center)
         .opacity(visible ? 1 : 0)
-        .offset(y: visible ? 0 : 12)
+        .offset(y: visible || reduceMotion ? 0 : 12)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.7).delay(delay)) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .easeOut(duration: 0.7).delay(delay)) {
                 visible = true
             }
         }
@@ -97,15 +100,17 @@ struct ScreenFadeIn<Content: View>: View {
     @ViewBuilder var content: () -> Content
     @State private var visible = false
     @State private var onScreen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content()
             .opacity(visible ? 1 : 0)
-            .scaleEffect(visible ? 1 : 0.992)
-            .offset(y: visible ? 0 : 6)
+            // With Reduce Motion on, a screen only fades — it does not drift or scale into place.
+            .scaleEffect(visible || reduceMotion ? 1 : 0.992)
+            .offset(y: visible || reduceMotion ? 0 : 6)
             .onAppear {
                 onScreen = true
-                withAnimation(CalmMotion.softFade) {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : CalmMotion.softFade) {
                     visible = true
                 }
                 // A state write inside onAppear can be dropped when the screen is inserted while the

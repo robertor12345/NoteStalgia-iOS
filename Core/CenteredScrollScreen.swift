@@ -7,12 +7,15 @@ struct CenteredScrollScreen<Content: View>: View {
     var backAccessibilityLabel: String?
     var onBack: (() -> Void)?
     var onLogout: (() -> Void)?
+    /// Set on a form with unsent work: Log out then asks first instead of throwing the work away.
+    var logoutWarning: String?
     /// Pin content to the top instead of centring it when it is shorter than the viewport — for
     /// screens whose height changes as the user types (e.g. roster search), so the field never jumps.
     var topAligned: Bool = false
     @ViewBuilder var content: () -> Content
 
     private let scrollSpace = "centeredScroll"
+    @State private var confirmingLogout = false
 
     private var showsStaffChrome: Bool {
         onBack != nil || onLogout != nil
@@ -48,10 +51,18 @@ struct CenteredScrollScreen<Content: View>: View {
                         backTitle: backTitle,
                         backAccessibilityLabel: backAccessibilityLabel,
                         onBack: onBack,
-                        onLogout: onLogout
+                        onLogout: onLogout.map { logout in
+                            logoutWarning == nil ? logout : { confirmingLogout = true }
+                        }
                     )
                 }
             }
+        }
+        .confirmationDialog("Log out now?", isPresented: $confirmingLogout, titleVisibility: .visible) {
+            Button("Log out and discard", role: .destructive) { onLogout?() }
+            Button("Keep working", role: .cancel) {}
+        } message: {
+            Text(logoutWarning ?? "")
         }
     }
 }

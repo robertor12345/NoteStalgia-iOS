@@ -139,7 +139,7 @@ final class OnboardingStore: ObservableObject {
 
         var pages: [SetupPage] {
             switch self {
-            case .addHome: return [.homeDetails, .homeWings, .homeLead]
+            case .addHome: return [.homeDetails, .homeAddress, .homeWings, .homeLead]
             case .inviteOne: return [.inviteWho, .inviteAccess]
             case .inviteMany: return [.inviteBulk]
             case .reviewImport: return [.residentsReview]
@@ -167,7 +167,7 @@ final class OnboardingStore: ObservableObject {
 
     enum SetupPage: String, CaseIterable, Identifiable {
         case orgDetails, orgAddress, orgDomains, orgDefaults
-        case homesOverview, homeDetails, homeWings, homeLead
+        case homesOverview, homeDetails, homeAddress, homeWings, homeLead
         case teamOverview, inviteWho, inviteAccess, inviteBulk
         case residentsImport, residentsReview
         case ipadGuidance, ipadRegister
@@ -186,7 +186,7 @@ final class OnboardingStore: ObservableObject {
         var section: SetupSection {
             switch self {
             case .orgDetails, .orgAddress, .orgDomains, .orgDefaults: return .organisation
-            case .homesOverview, .homeDetails, .homeWings, .homeLead: return .homes
+            case .homesOverview, .homeDetails, .homeAddress, .homeWings, .homeLead: return .homes
             case .teamOverview, .inviteWho, .inviteAccess, .inviteBulk: return .team
             case .residentsImport, .residentsReview: return .residents
             case .ipadGuidance, .ipadRegister: return .devices
@@ -196,7 +196,7 @@ final class OnboardingStore: ObservableObject {
 
         var detour: SetupDetour? {
             switch self {
-            case .homeDetails, .homeWings, .homeLead: return .addHome
+            case .homeDetails, .homeAddress, .homeWings, .homeLead: return .addHome
             case .inviteWho, .inviteAccess: return .inviteOne
             case .inviteBulk: return .inviteMany
             case .residentsReview: return .reviewImport
@@ -212,6 +212,7 @@ final class OnboardingStore: ObservableObject {
             case .orgDefaults: return "Defaults for every home"
             case .homesOverview: return "Your homes"
             case .homeDetails: return "Add a home"
+            case .homeAddress: return "Where is it?"
             case .homeWings: return "Name its wings"
             case .homeLead: return "Who leads it?"
             case .teamOverview: return "Your team"
@@ -236,6 +237,7 @@ final class OnboardingStore: ObservableObject {
             case .orgDefaults: return "Defaults"
             case .homesOverview: return "Homes"
             case .homeDetails: return "Home"
+            case .homeAddress: return "Address"
             case .homeWings: return "Wings"
             case .homeLead: return "Lead"
             case .teamOverview: return "Team"
@@ -259,6 +261,7 @@ final class OnboardingStore: ObservableObject {
             case .orgDefaults: return "Saved with the organisation; every home starts from these."
             case .homesOverview: return "Each home has wings that group its roster."
             case .homeDetails: return "Its name, registration number and size."
+            case .homeAddress: return "The home’s own address. It can be the head office."
             case .homeWings: return "Wings group the roster; every resident sits in one of them."
             case .homeLead: return "A home lead invites their own staff and sees the home’s dashboard."
             case .teamOverview: return "Invite supervisors and home leads. Everyone chooses their own PIN."
@@ -278,7 +281,7 @@ final class OnboardingStore: ObservableObject {
         var draftScope: String? {
             switch self {
             case .orgDetails, .orgAddress, .orgDomains, .orgDefaults: return "organisation"
-            case .homeDetails, .homeWings, .homeLead: return "home"
+            case .homeDetails, .homeAddress, .homeWings, .homeLead: return "home"
             case .inviteWho, .inviteAccess: return "invite"
             case .inviteBulk: return "bulk"
             case .residentsReview: return "import"
@@ -427,6 +430,9 @@ final class OnboardingStore: ObservableObject {
     @Published var homeName = "" { didSet { clearErrorOnEdit() } }
     @Published var homeCqc = "" { didSet { clearErrorOnEdit() } }
     @Published var homeCapacity = "" { didSet { clearErrorOnEdit() } }
+    @Published var homeAddressLine1 = "" { didSet { clearErrorOnEdit() } }
+    @Published var homeAddressTown = "" { didSet { clearErrorOnEdit() } }
+    @Published var homeAddressPostcode = "" { didSet { clearErrorOnEdit() } }
     @Published var homeWings: [String] = ["Residential", "Memory care", "Day programme"]
     @Published var newWing = "" { didSet { clearErrorOnEdit() } }
     @Published var homeLeadIsMe = true
@@ -503,6 +509,9 @@ final class OnboardingStore: ObservableObject {
         homeName = ""
         homeCqc = ""
         homeCapacity = ""
+        homeAddressLine1 = ""
+        homeAddressTown = ""
+        homeAddressPostcode = ""
         homeWings = ["Residential", "Memory care", "Day programme"]
         newWing = ""
         homeLeadIsMe = true
@@ -596,7 +605,7 @@ final class OnboardingStore: ObservableObject {
         switch page {
         case .orgDetails, .orgAddress, .orgDomains, .orgDefaults:
             return organisationIsDirty ? .organisation : nil
-        case .homeDetails, .homeWings, .homeLead:
+        case .homeDetails, .homeAddress, .homeWings, .homeLead:
             let name = trimmed(homeName)
             return name.isEmpty ? nil : .home(name: name)
         case .inviteWho, .inviteAccess:
@@ -644,6 +653,15 @@ final class OnboardingStore: ObservableObject {
         case .devices: return checklist.devices > 0
         case .ready: return checklist.complete
         }
+    }
+
+    /// Fills the home's address from the organisation's saved one (a single-home organisation, or a home
+    /// on the head-office site). Does nothing when the organisation has no complete address yet.
+    func useOrganisationAddressForHome() {
+        guard storedAddressIsComplete, let address = organisation?.organisation.address else { return }
+        homeAddressLine1 = address.line1 ?? ""
+        homeAddressTown = address.town ?? ""
+        homeAddressPostcode = address.postcode ?? ""
     }
 
     /// The saved profile has what an export needs: a first line, a town and a valid postcode.

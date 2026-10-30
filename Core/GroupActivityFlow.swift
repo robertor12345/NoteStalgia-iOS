@@ -92,7 +92,26 @@ enum GroupActivityReadModels {
     }
 }
 
+/// The four 1–10 ratings from the most recent group check-in (shown on the roster's Group sessions card).
+struct GroupSessionRatings: Equatable {
+    let morale: Int
+    let alertness: Int
+    let orientation: Int
+    let engagement: Int
+}
+
 extension SessionPOCState {
+    /// `nil` until a group session has been rated on all four scales.
+    func latestGroupSessionRatings() -> GroupSessionRatings? {
+        guard let last = groupSessionRecords.first,
+              let morale = last.moraleRating,
+              let alertness = last.alertnessRating,
+              let lucidity = last.lucidityRating,
+              let engagement = last.engagementRating
+        else { return nil }
+        return GroupSessionRatings(morale: morale, alertness: alertness, orientation: lucidity, engagement: engagement)
+    }
+
     /// Staff-set comfort in company; drives the planner's recommendations.
     func setResidentGroupComfort(for patientId: UUID, comfort: GroupComfort?) {
         guard let index = carePatients.firstIndex(where: { $0.id == patientId }),

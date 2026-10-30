@@ -92,7 +92,6 @@ schemes:
       targets:
         NoteStalgia-iOS: all
         NoteStalgiaDemoUITests: [test]
-        NoteStalgiaTests: [test]
     run:
       config: Debug
       commandLineArguments:
@@ -101,5 +100,16 @@ schemes:
     test:
       config: Debug
       targets:
-        - NoteStalgiaTests
         - NoteStalgiaDemoUITests
+
+  # Unit tests only (input rules, set-up wizard model). Kept out of the main scheme: `@testable import` needs a
+  # Debug build, and the demo recordings build that scheme in Release.
+  NoteStalgia-Unit:
+    build:
+      targets:
+        NoteStalgia-iOS: all
+        NoteStalgiaTests: [test]
+    test:
+      config: Debug
+      targets:
+        - NoteStalgiaTests

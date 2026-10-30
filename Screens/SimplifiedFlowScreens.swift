@@ -5,16 +5,20 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var state: SessionPOCState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Only the signed-in flag is observed here, so Log out takes its place in the top bar the moment
+    /// someone signs in, while typing in the sign-in fields still re-renders just the panel below.
+    @State private var signedIn = false
 
     var body: some View {
         ScreenFadeIn {
-            CenteredScrollScreen {
+            CenteredScrollScreen(onLogout: signedIn ? { state.signOutSupervisor() } : nil) {
                 GeometryReader { geo in
                     homeScrollContent(viewportHeight: max(geo.size.height, 400))
                         .frame(maxWidth: .infinity, minHeight: max(geo.size.height, 400))
                 }
             }
         }
+        .onReceive(state.auth.$isSignedIn.removeDuplicates()) { signedIn = $0 }
     }
 
     @ViewBuilder
@@ -70,25 +74,60 @@ private struct SupervisorAuthPanel: View {
 
     private var signedInContent: some View {
         VStack(spacing: SignInPageLayout.stackSpacing) {
-            FadeInLine(
-                text: state.isHouseholdAccount ? "Signed in — open their home screen or log out." : "Signed in — open the resident roster or log out.",
-                delay: 0.06
-            )
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
+            signedInCard
+                .padding(.horizontal, 24)
 
-            PrimaryButton(title: "One-to-one calm") {
+            PrimaryButton(title: state.isHouseholdAccount ? "Open Care at home" : "Open the resident roster") {
                 state.enterOneToOneCalmFlow()
             }
             .accessibilityIdentifier("home.oneToOne")
             .padding(.horizontal, 24)
-
-            SecondaryButton(title: "Log out") {
-                state.signOutSupervisor()
-            }
-            .accessibilityIdentifier("home.logout")
-            .padding(.horizontal, 24)
         }
+    }
+
+    /// Who is signed in, on the same card grammar as every other page. Log out lives in the top bar.
+    private var signedInCard: some View {
+        let household = state.currentHouseholdAccount()
+        let staff = state.currentSupervisorAccount()
+        let name = household?.displayName ?? staff?.displayName
+        let email = household?.email ?? staff?.email
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 8) {
+                BrandSectionHeader(title: "Signed in", systemImage: "person.crop.circle.badge.checkmark")
+                VStack(spacing: 0) {
+                    if let name {
+                        BrandKeyValueRow(label: "Name", value: name, isLast: email == nil && roleLabel == nil && homeName == nil)
+                    }
+                    if let email {
+                        BrandKeyValueRow(label: "Email", value: email, isLast: roleLabel == nil && homeName == nil)
+                    }
+                    if let roleLabel {
+                        BrandKeyValueRow(label: "Role", value: roleLabel, isLast: homeName == nil)
+                    }
+                    if let homeName {
+                        BrandKeyValueRow(label: state.isHouseholdAccount ? "Care at home" : "Care home", value: homeName, isLast: true)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("home.signedIn")
+    }
+
+    private var roleLabel: String? {
+        if state.isHouseholdAccount {
+            return state.currentHouseholdAccount()?.relationship.label
+        }
+        switch state.currentSupervisorAccount()?.role {
+        case .supervisor: return "Care staff"
+        case .homeLead: return "Home lead"
+        case .orgAdmin: return "Organisation admin"
+        case .household: return "Care at home"
+        case nil: return nil
+        }
+    }
+
+    private var homeName: String? {
+        state.currentHome()?.name
     }
 
     private var supervisorSignInContent: some View {
@@ -128,10 +167,7 @@ private struct SupervisorAuthPanel: View {
             .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
 
             if let error = auth.supervisorSignInError, !error.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(BrandTheme.nebulaSalmon)
-                    .multilineTextAlignment(.center)
+                BrandMessageTile(text: error)
                     .padding(.horizontal, 20)
                     .accessibilityLabel("Sign-in error")
                     .accessibilityValue(error)
@@ -270,10 +306,7 @@ private struct SupervisorPinResetView: View {
             .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
 
             if let error = auth.pinResetError, !error.isEmpty {
-                Text(error)
-                    .font(SignInPageLayout.captionFont)
-                    .foregroundStyle(BrandTheme.nebulaSalmon)
-                    .multilineTextAlignment(.center)
+                BrandMessageTile(text: error)
                     .padding(.horizontal, 20)
                     .accessibilityLabel("Reset error")
                     .accessibilityValue(error)
@@ -303,9 +336,10 @@ private struct SupervisorPinResetView: View {
                     Text("Cancel")
                         .font(SignInPageLayout.captionFont.weight(.medium))
                         .foregroundStyle(BrandTheme.textSecondary)
+                        .frame(minWidth: 88, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(ChimingPlainButtonStyle())
-                .padding(.top, 4)
             }
         }
         .onAppear {
@@ -521,14 +555,7 @@ struct CareHomePickerView: View {
                             }
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background {
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(BrandTheme.cream.opacity(0.94))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                            .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
-                                    }
-                            }
+                            .brandCardSurface(cornerRadius: 20, opacity: BrandTheme.rowOpacity)
                         }
                         .accessibilityIdentifier("homePicker.\(home.name)")
                         .buttonStyle(ChimingPlainButtonStyle())
@@ -665,22 +692,16 @@ struct EntryModeView: View {
 
                     if state.isCareStaffSession, let patient = state.carePatient(id: state.activeCarePatientId) {
                         BrandCard {
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: "cross.case.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(BrandTheme.goldDeep)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Together for a little while")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(BrandTheme.textPrimary)
-                                    Text("\(patient.displayName) — \(patient.careContextLabel)")
-                                        .font(.caption)
-                                        .foregroundStyle(BrandTheme.textSecondary)
-                                    Text("Their notes cover light, scent, touch, and sound — keep things soft. Mood tags are just for today.")
-                                        .font(.caption2)
-                                        .foregroundStyle(BrandTheme.textSecondary.opacity(0.95))
-                                }
-                                Spacer(minLength: 0)
+                            VStack(alignment: .leading, spacing: 8) {
+                                BrandSectionHeader(
+                                    title: "Together for a little while",
+                                    systemImage: "cross.case.fill",
+                                    subtitle: "\(patient.displayName) — \(patient.careContextLabel)"
+                                )
+                                Text("Their notes cover light, scent, touch, and sound — keep things soft. Mood tags are just for today.")
+                                    .font(.caption)
+                                    .foregroundStyle(BrandTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .padding(.horizontal, 20)

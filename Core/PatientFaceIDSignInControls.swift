@@ -13,7 +13,7 @@ struct ResidentFaceIDHomeSignInButton: View {
                 HStack(spacing: SignInPageLayout.points(12)) {
                     Image(systemName: "faceid")
                         .font(SignInPageLayout.iconFont)
-                        .foregroundStyle(BrandTheme.textOnOrb.opacity(0.98))
+                        .foregroundStyle(BrandTheme.onPrimaryAction)
                         .accessibilityHidden(true)
 
                     Group {

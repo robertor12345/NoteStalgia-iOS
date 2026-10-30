@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Care home admin — session impact dashboard
 
 struct CareHomeAdminDashboardView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var state: SessionPOCState
 
     private var dashboard: CareHomeDashboardPresentation {
@@ -98,7 +99,7 @@ struct CareHomeAdminDashboardView: View {
     }
 
     private var kpiGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
             ForEach(Array(dashboard.kpis.enumerated()), id: \.element.id) { index, kpi in
                 DashboardKPICardView(card: kpi, delay: 0.05 + Double(index) * 0.04)
             }
@@ -117,7 +118,7 @@ struct CareHomeAdminDashboardView: View {
                     subtitle: "Group activities over the same \(GroupActivityPlanner.windowDays) days, alongside the one-to-ones above.",
                     identifier: "admin.groupProgramme"
                 )
-                let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
+                let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
                 LazyVGrid(columns: columns, spacing: 10) {
                     BrandStatTile(value: "\(g.sessions14d)", label: "Sessions")
                     BrandStatTile(value: "\(g.residentsReached) of \(g.activeResidents)", label: "Residents reached")
@@ -152,15 +153,21 @@ struct CareHomeAdminDashboardView: View {
                 if g.noGroupCount > 0 {
                     let names = g.noGroupNames.joined(separator: ", ")
                     let more = g.noGroupCount - g.noGroupNames.count
-                    let tail = names.isEmpty ? "." : " — \(names)\(more > 0 ? " and \(more) more." : ".")"
-                    Label {
-                        Text("\(g.noGroupCount) resident\(g.noGroupCount == 1 ? "" : "s") who would welcome a group \(g.noGroupCount == 1 ? "has" : "have") had none in \(GroupActivityPlanner.windowDays) days\(tail)")
-                            .fixedSize(horizontal: false, vertical: true)
-                    } icon: {
-                        Image(systemName: "exclamationmark.circle.fill")
+                    // "Muriel S." already ends in a full stop; do not add a second one.
+                    let stop = names.hasSuffix(".") && more <= 0 ? "" : "."
+                    let tail = names.isEmpty ? "." : " — \(names)\(more > 0 ? " and \(more) more." : stop)"
+                    // A warning sits on a tile, not loose on the card: coral text alone faded over the orb's glow.
+                    BrandInsetTile(accent: BrandTheme.statusAttention) {
+                        Label {
+                            Text("\(g.noGroupCount) resident\(g.noGroupCount == 1 ? "" : "s") who would welcome a group \(g.noGroupCount == 1 ? "has" : "have") had none in \(GroupActivityPlanner.windowDays) days\(tail)")
+                                .foregroundStyle(BrandTheme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(BrandTheme.statusAttention)
+                        }
+                        .font(.caption.weight(.medium))
                     }
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(BrandTheme.statusAttention)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,9 +183,11 @@ struct CareHomeAdminDashboardView: View {
                     systemImage: "building.2",
                     subtitle: "Where calm sessions are landing across the home."
                 )
-                ForEach(Array(dashboard.wingBreakdown.enumerated()), id: \.element.id) { index, wing in
-                    if index > 0 { BrandHairline() }
-                    DashboardWingImpactRow(wing: wing)
+                BrandRowsTile(spacing: 14) {
+                    ForEach(Array(dashboard.wingBreakdown.enumerated()), id: \.element.id) { index, wing in
+                        if index > 0 { BrandHairline() }
+                        DashboardWingImpactRow(wing: wing)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,9 +209,11 @@ struct CareHomeAdminDashboardView: View {
                     tint: accent,
                     subtitle: subtitle
                 )
-                ForEach(Array(residents.enumerated()), id: \.element.id) { index, resident in
-                    if index > 0 { BrandHairline() }
-                    DashboardResidentImpactRow(resident: resident)
+                BrandRowsTile(spacing: 14) {
+                    ForEach(Array(residents.enumerated()), id: \.element.id) { index, resident in
+                        if index > 0 { BrandHairline() }
+                        DashboardResidentImpactRow(resident: resident)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,9 +227,11 @@ struct CareHomeAdminDashboardView: View {
                 BrandCard {
                     VStack(alignment: .leading, spacing: 14) {
                         BrandSectionHeader(title: "Recent sessions", systemImage: "clock")
-                        ForEach(Array(dashboard.recentSessions.enumerated()), id: \.element.id) { index, session in
-                            if index > 0 { BrandHairline() }
-                            DashboardRecentSessionRow(session: session)
+                        BrandRowsTile(spacing: 14) {
+                            ForEach(Array(dashboard.recentSessions.enumerated()), id: \.element.id) { index, session in
+                                if index > 0 { BrandHairline() }
+                                DashboardRecentSessionRow(session: session)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -365,7 +378,7 @@ private struct DashboardTrendGraphCard: View {
                         .fill(accent)
                         .frame(width: 8, height: 8)
                     Text(series.legendDescription)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -386,11 +399,11 @@ private struct DashboardTrendGraphCard: View {
                             .foregroundStyle(BrandTheme.textSecondary)
                     }
                     Text(series.unitLabel)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary.opacity(0.85))
                 } else if compact, let summary = series.latestSummary {
                     Text(summary)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary)
                         .lineLimit(2)
                 }
@@ -456,8 +469,10 @@ private struct DashboardTrendChart: View {
             ZStack(alignment: .topLeading) {
                 ForEach(ticks, id: \.self) { tick in
                     Text(formatAxisValue(tick))
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(BrandTheme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(width: yAxisWidth, alignment: .trailing)
                         .position(
                             x: yAxisWidth / 2,
@@ -544,7 +559,7 @@ private struct DashboardTrendChart: View {
         HStack(spacing: 0) {
             ForEach(series.points) { point in
                 Text(point.dayLabel)
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundStyle(BrandTheme.textSecondary)
                     .frame(maxWidth: .infinity)
                     .lineLimit(1)
@@ -604,18 +619,13 @@ struct DashboardKPICardView: View {
                 .font(.title2.weight(.semibold).monospacedDigit())
                 .foregroundStyle(BrandTheme.textPrimary)
             Text(card.detail)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(BrandTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(BrandTheme.cream.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(BrandTheme.cardBorder, lineWidth: 1)
-        )
+        .brandCardSurface(cornerRadius: 16)
         .overlay(alignment: .top) {
             Capsule()
                 .fill(BrandTheme.logoLavenderBlue.opacity(0.85))
@@ -671,7 +681,8 @@ private struct DashboardWingImpactRow: View {
                     .foregroundStyle(BrandTheme.textSecondary)
             }
             BrandMeterBar(fraction: wing.intensity, tint: BrandTheme.nebulaCyan)
-            HStack(spacing: 8) {
+            // Wraps instead of truncating: three chips do not fit one line at phone width.
+            InsightChipFlow(spacing: 8) {
                 BrandStatusChip(text: "\(wing.residentsReached) residents", systemImage: "person.2")
                 if let calm = wing.averageCalmPercent {
                     BrandStatusChip(text: "\(calm)% at ease", systemImage: "leaf.fill", tint: CareAtEaseTone.tint(percent: calm))
@@ -701,7 +712,7 @@ private struct DashboardResidentImpactRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(BrandTheme.textPrimary)
                     Text("\(resident.roomLabel.isEmpty ? resident.wingLabel : "\(resident.roomLabel) · \(resident.wingLabel)")")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary)
                 }
                 Spacer(minLength: 8)
@@ -746,7 +757,7 @@ struct DashboardRecentSessionRow: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let impact = session.impactLine {
                 Text(impact)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }

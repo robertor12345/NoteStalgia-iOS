@@ -90,7 +90,7 @@ struct GroupActivityPlannerView: View {
         VStack(spacing: 8) {
             FadeInTitle(text: "Group activities", delay: 0)
             FadeInLine(
-                text: "Choose who joins. Suggestions come from each resident's music, their recent one-to-ones and the groups they've already had — you decide.",
+                text: "Choose who joins. Suggestions come from each resident’s music, their recent one-to-ones and the groups they’ve already had — you decide.",
                 font: BrandTheme.orbHintFont(),
                 muted: true,
                 delay: 0.04
@@ -168,14 +168,8 @@ struct GroupActivityPlannerView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isChosen ? BrandTheme.logoCyan.opacity(0.14) : BrandTheme.creamMid.opacity(0.9))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(isChosen ? BrandTheme.logoCyan.opacity(0.55) : BrandTheme.gold.opacity(0.22), lineWidth: 1)
-                    }
-            }
+            .brandCardSurface(cornerRadius: 16, edge: isChosen ? BrandTheme.logoCyan.opacity(0.7) : BrandTheme.cardBorder, opacity: BrandTheme.rowOpacity)
+            .background(isChosen ? BrandTheme.logoCyan.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .accessibilityIdentifier("planner.activity.\(activity.id)")
         .accessibilityAddTraits(isChosen ? .isSelected : [])
@@ -216,7 +210,7 @@ struct GroupActivityPlannerView: View {
                             .expandedHitArea(vertical: 8, horizontal: 4)
                             .disabled(allIn)
                             .accessibilityIdentifier("planner.suggestion.\(suggestion.id)")
-                            .accessibilityLabel(allIn ? "Added" : "Add these residents")
+                            .accessibilityLabel("\(allIn ? "Added" : "Add") \(suggestion.residentIds.count) resident\(suggestion.residentIds.count == 1 ? "" : "s")")
                             .buttonStyle(ChimingPlainButtonStyle())
                         }
                     }
@@ -244,7 +238,9 @@ struct GroupActivityPlannerView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(selectedIds.isEmpty ? BrandTheme.textTertiary : BrandTheme.gold)
-                    .expandedHitArea(vertical: 12, horizontal: 12)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .expandedHitArea(horizontal: 12)
                     .accessibilityIdentifier("planner.clear")
                     .accessibilityLabel("Clear selection")
                     .buttonStyle(ChimingPlainButtonStyle())
@@ -345,14 +341,8 @@ struct GroupActivityPlannerView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isSelected ? BrandTheme.logoCyan.opacity(0.12) : BrandTheme.creamMid.opacity(0.85))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(isSelected ? BrandTheme.logoCyan.opacity(0.5) : BrandTheme.gold.opacity(0.18), lineWidth: 1)
-                    }
-            }
+            .brandCardSurface(cornerRadius: 14, edge: isSelected ? BrandTheme.logoCyan.opacity(0.7) : BrandTheme.cardBorder, opacity: BrandTheme.rowOpacity)
+            .background(isSelected ? BrandTheme.logoCyan.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .accessibilityIdentifier("planner.resident.\(resident.displayName)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -360,27 +350,32 @@ struct GroupActivityPlannerView: View {
         .buttonStyle(ChimingPlainButtonStyle())
     }
 
+    /// The flags under a resident: the same icon-and-word chips as everywhere else, wrapping rather than overflowing.
     private func flagRow(_ flags: [GroupResidentInsight.Flag]) -> some View {
-        HStack(spacing: 6) {
+        InsightChipFlow(spacing: 6) {
             ForEach(flags) { flag in
-                Text(flag.label)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(BrandTheme.textPrimary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(flagTint(flag).opacity(0.22)))
-                    .overlay(Capsule().stroke(flagTint(flag).opacity(0.45), lineWidth: 1))
+                BrandStatusChip(text: flag.label, systemImage: flagIcon(flag), tint: flagTint(flag))
             }
         }
     }
 
     private func flagTint(_ flag: GroupResidentInsight.Flag) -> Color {
         switch flag {
-        case .overdue: return BrandTheme.nebulaSalmon
-        case .dueGroup: return BrandTheme.gold
-        case .regular: return BrandTheme.nebulaTeal
-        case .smallGroups, .prefersOneToOne: return BrandTheme.nebulaLavender
-        case .gentle: return BrandTheme.nebulaPeach
+        case .overdue: return BrandTheme.statusAttention
+        case .dueGroup, .gentle: return BrandTheme.statusCaution
+        case .regular: return BrandTheme.statusPositive
+        case .smallGroups, .prefersOneToOne: return BrandTheme.statusNeutral
+        }
+    }
+
+    private func flagIcon(_ flag: GroupResidentInsight.Flag) -> String {
+        switch flag {
+        case .overdue: return "exclamationmark.circle"
+        case .dueGroup: return "clock"
+        case .regular: return "checkmark.circle"
+        case .smallGroups: return "person.2"
+        case .prefersOneToOne: return "person"
+        case .gentle: return "heart"
         }
     }
 
@@ -464,7 +459,9 @@ struct GroupActivityPlannerView: View {
                 Text("Whole-home playlist instead")
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(BrandTheme.gold)
-                    .expandedHitArea(vertical: 10, horizontal: 16)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .expandedHitArea(horizontal: 16)
             }
             .accessibilityIdentifier("planner.startAll")
             .buttonStyle(ChimingPlainButtonStyle())

@@ -28,8 +28,8 @@ struct OrbPeachCapsuleFill: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        BrandTheme.nebulaPink.opacity(0.88),
-                        BrandTheme.nebulaMagenta.opacity(0.72),
+                        BrandTheme.nebulaPink,
+                        BrandTheme.nebulaMagenta,
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -49,9 +49,8 @@ struct SignInPeachCapsuleFill: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        BrandTheme.nebulaPink.opacity(0.92),
-                        BrandTheme.nebulaMagenta.opacity(0.78),
-                        BrandTheme.nebulaPurple.opacity(0.65),
+                        BrandTheme.nebulaPink,
+                        BrandTheme.nebulaMagenta,
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -95,9 +94,7 @@ struct PrimaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(BrandTheme.buttonLabel(.headline))
-                .foregroundStyle(BrandTheme.textOnOrb)
-                .shadow(color: Color(red: 0.42, green: 0.58, blue: 0.72).opacity(0.38), radius: 1.5, y: 1)
-                .flattenedShadows(bleed: 6)
+                .foregroundStyle(BrandTheme.onPrimaryAction)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -124,7 +121,7 @@ struct SecondaryButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 12)
-                .frame(minHeight: minContentHeight > 0 ? minContentHeight + 24 : nil)
+                .frame(minHeight: minContentHeight > 0 ? max(44, minContentHeight + 24) : 44)
                 .background { OrbSkyCapsuleFill() }
                 .clipShape(Capsule(style: .continuous))
         }
@@ -193,7 +190,7 @@ struct FlowSmallLogoutButton: View {
     var action: () -> Void
 
     private var logoutRed: Color {
-        Color(red: 0.94, green: 0.36, blue: 0.34)
+        Color(red: 1.0, green: 0.56, blue: 0.54)
     }
 
     var body: some View {
@@ -279,7 +276,7 @@ struct SignInPrimaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(SignInPageLayout.subheadFont)
-                .foregroundStyle(BrandTheme.textOnOrb.opacity(0.98))
+                .foregroundStyle(BrandTheme.onPrimaryAction)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, SignInPageLayout.buttonVerticalPadding)
@@ -381,14 +378,7 @@ struct OrbNavTile: View {
                     .foregroundStyle(BrandTheme.gold.opacity(0.75))
             }
             .padding(16)
-            .background {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.88))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color(red: 0.62, green: 0.84, blue: 0.98).opacity(0.35), lineWidth: 1)
-                    }
-            }
+            .brandCardSurface(cornerRadius: 22, opacity: BrandTheme.rowOpacity)
         }
         .accessibilityIdentifier("entry.\(title)")
         .buttonStyle(ChimingPlainButtonStyle())
@@ -421,12 +411,22 @@ struct OrbIconNavButton: View {
     }
 }
 
+/// A status under a row's subtitle: icon + word, tinted by `BrandTheme.status*` (never colour alone).
+struct OrbPortraitNavChip {
+    let text: String
+    let systemImage: String
+    let tint: Color
+}
+
 struct OrbPortraitNavButton: View {
     let portraitAssetName: String?
     var customPortraitImage: UIImage?
     let title: String
     let subtitle: String
     var portraitSize: CGFloat?
+    var chip: OrbPortraitNavChip?
+    /// Inside a section card: no box of its own, the card and its hairlines do the separating.
+    var embedded: Bool = false
     var action: () -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -459,21 +459,20 @@ struct OrbPortraitNavButton: View {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(BrandTheme.textSecondary)
+                    if let chip {
+                        BrandStatusChip(text: chip.text, systemImage: chip.systemImage, tint: chip.tint)
+                            .padding(.top, 2)
+                    }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .foregroundStyle(BrandTheme.gold.opacity(0.8))
+                    .accessibilityHidden(true)
             }
-            .padding(14)
+            .padding(embedded ? EdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 0) : EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.94))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(Color(red: 0.62, green: 0.84, blue: 0.98).opacity(0.32), lineWidth: 1)
-                    }
-            }
+            .modifier(OptionalCardSurface(enabled: !embedded, cornerRadius: 20))
+            .contentShape(Rectangle())
         }
         .buttonStyle(ChimingPlainButtonStyle())
     }
@@ -519,14 +518,7 @@ struct OrbFaceLinkedTile: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity)
-            .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.90))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color(red: 0.62, green: 0.84, blue: 0.98).opacity(0.30), lineWidth: 1)
-                    }
-            }
+            .brandCardSurface(cornerRadius: 24, opacity: BrandTheme.rowOpacity)
         }
         .buttonStyle(ChimingPlainButtonStyle())
     }
@@ -564,8 +556,9 @@ struct OrbMoodNavOrb: View {
                     .font(.system(size: isSelected ? 17 : 15, weight: isSelected ? .semibold : .regular, design: .rounded))
                     .foregroundStyle(isSelected ? BrandTheme.textOnOrb : BrandTheme.textOnOrb.opacity(0.92))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+                    // Every mood is one word: shrink it rather than break "Overwhelmed" mid-word.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
                     .frame(width: diameter * 0.72)
                     .shadow(color: Color(red: 0.38, green: 0.58, blue: 0.78).opacity(0.35), radius: 4, y: 1)
             }
@@ -643,5 +636,19 @@ struct OrbSessionSettingsChip: View {
         .padding(.horizontal, 12)
         .background { OrbSkyCapsuleFill().opacity(0.92) }
         .clipShape(Capsule(style: .continuous))
+    }
+}
+
+/// Applies the card surface only when `enabled` (a row inside a section card has no box of its own).
+private struct OptionalCardSurface: ViewModifier {
+    let enabled: Bool
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.brandCardSurface(cornerRadius: cornerRadius, opacity: BrandTheme.rowOpacity)
+        } else {
+            content
+        }
     }
 }

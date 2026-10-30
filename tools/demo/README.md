@@ -50,6 +50,24 @@ done
 python3 tools/demo/pipeline/build_story.py         # → NoteStalgia-Walkthrough-v6.mp4 + .srt (~16 min, nine flows)
 ```
 
+### Pacing follows the voice
+
+The long narration lines would drift out of step with fixed `hold(...)` pauses, so the tests are paced by the voice
+instead. `python3 tools/demo/pipeline/narration.py --durations .demo-work/narration-durations.json` renders every
+v7 and mobile line (cached under `.demo-work/voice/`, voice `en-GB-RyanNeural` at −8 %) and writes how long each
+takes; with `TEST_RUNNER_DEMO_NARRATION_FILE` pointing at that file, a `hold` of four seconds or more lasts until the
+line spoken at the last `mark` has finished plus a beat, and a `mark` never starts while the previous line is still
+being spoken (waits are logged to `…markers.autopace.log`). Short holds (typing, a tap and its glow) keep their
+fixed length, scaled by `DEMO_PACE`. `tools/demo/record-v7.sh ipad|mobile|all` runs the whole sequence, including
+the backend reset between the iPad and phone sets. **Do not touch the simulator while a take runs**: the test loses
+the app and fails. Other things that break a take: Simulator.app running (or the Claude simulator panel attached) — an iPad then
+shows a number-pad popover over the form and the typing goes wrong, so run the takes headless; a nearly full disk
+(the app's demo log write raises and the app aborts; the simulator re-downloads 1–3 GB of Siri / dictation assets
+whenever the keyboard is used, and every `xcodebuild test` leaves a result bundle of a few hundred MB —
+`walkthrough.sh` clears both, check `df -h /` before a long run); and the numeric fields on a phone, which do not
+take focus from a field whose letter keyboard is up when the tap comes from XCUITest (the test closes the keyboard
+with "Done" first). Headless, the on-screen keyboard is visible while typing.
+
 ### v7 — what's new since v6 (live backend)
 
 ```bash
@@ -65,6 +83,19 @@ python3 tools/demo/pipeline/build_v7.py       # → NoteStalgia-Walkthrough-v7.m
 (an organisation created through onboarding). `testOnboardingJoinSmoke` is a one-minute check of Part I's tail
 (sign in as the org admin → roster → log out → "I have an invite or activation code") for when the long take is
 not needed.
+
+### v7 on the phone — onboarding and admin screens (`build_v7_mobile.py`)
+
+Recorded on the iPhone 17 Pro simulator (the screens are phone-first), six takes in order, each starting from what
+the one before left on the server: `testMobileA_Request` (`m_request`: the request with a typo the form catches,
+code, approval, activation), `testMobileB_SetupOrganisationHomesTeam` (`m_setup1`: organisation pages incl. the
+DNS-record route, a home over four pages with export, invites one and several with a partial failure),
+`testMobileC_SetupResidentsIpadsReady` (`m_setup2`: resume from the dashboard card, residents, iPads, ready, finish),
+`testMobileD_ColleagueJoins` (`m_join`: Sam accepts; reads the code B wrote to `/tmp/notestalgia-mobile-invite.txt`),
+`testMobileE_HomeAdminDashboard` (`m_admin`: Alex's dashboard section by section) and
+`testMobileF_ManageTheTeam` (`m_team`: pending invites, staff, suspend / restore / reset PIN). Narration keys `m_*`
+(`pipeline/narration_mobile.py`); the picture is a phone-width device column (`B.SCREEN` in the build script).
+`python3 tools/demo/pipeline/build_v7_mobile.py` → `NoteStalgia-Walkthrough-v7-mobile.mp4` + `.srt`.
 
 Part I (`i_onboarding`, flow 10 "A new organisation") walks the organisation onboarding end to end: request a
 workspace → verification code → activation → the paged set-up (organisation: details, address with its
@@ -142,6 +173,20 @@ xcrun simctl launch --terminate-running-process booted com.notestalgia.ios \
   -NoteStalgiaDemoSignIn max@sunrise-care.co.uk -NoteStalgiaDemoJump surface:Irene
 ```
 
+## Screen audit (every screen, every control)
+
+The scripted walkthroughs double as a screen sweep. Set `TEST_RUNNER_DEMO_AUDIT_DIR=<dir>` and every `mark(...)` also saves
+`<test>-<n>-<label>.jpg` and `.controls.json` (every control with its label, identifier and frame, plus every piece of text with its
+frame); add `TEST_RUNNER_DEMO_AUDIT_SCROLL=1` to scroll each page to its end and save every stop (`…-s1.jpg`). Run it fast
+(`TEST_RUNNER_DEMO_PACE=0.3`) on the iPad and iPhone simulators; nothing is recorded and no audio is involved. What to measure
+from the output (touch targets under 44 pt, missing or repeated labels, overlapping controls, text contrast from the pixels,
+possible truncation) is in `docs/UX_SWEEP_2026-10-30.md`. The capture never swipes while a sheet or the keyboard is showing (a swipe
+dismissed the song search and failed the story once), and a story that changes page position at a marker can still behave
+differently with scrolling on — if a story fails only with `DEMO_AUDIT_SCROLL=1`, run it again without.
+
+The pickers are rows of 44 pt buttons now, not system segmented controls: the tests tap a segment with
+`selectSegment("<identifier>", "<title>")`, which finds the group by identifier and then the button by its title.
+
 ## Accessibility identifiers (for XCUITest or manual `simctl`-free driving)
 
 Every interactive control carries one. `<…>` parts are the on-screen text (e.g. `roster.resident.Irene K.`).
@@ -149,7 +194,7 @@ Every interactive control carries one. `<…>` parts are the on-screen text (e.g
 | Screen | Identifiers |
 |---|---|
 | Sign-in | `signin.email`, `signin.pin`, `signin.continue`, `signin.forgotPin`; reset flow `pinReset.email`, `pinReset.code`, `pinReset.primary`, `pinReset.backToSignIn` |
-| Signed-in start | `home.oneToOne`, `home.logout`; home picker `homePicker.<Home name>` |
+| Signed-in start | `home.signedIn` (account card), `home.oneToOne` ("Open the resident roster" / "Open Care at home"); Log out is the top-bar `chrome.logout`; home picker `homePicker.<Home name>` |
 | Chrome | `chrome.back` (also "Skip" / "Discard" variants), `chrome.logout` |
 | Roster | `roster.search`, `roster.wing.<Wing>` / `roster.wing.All wings`, `roster.displayMode`, `roster.startDiscovery`, `roster.groupMode`, `roster.browseAll`, `roster.backToToday`, `roster.switchHome`, `roster.resident.<Display Name>`, `roster.pin.<Display Name>` |
 | Profile | `profile.openSurface`, `profile.age` (stepper), `nationality.menu`, `profile.groupActivities` (participation line), `profile.groupComfort` (In company segmented: Not set / Enjoys groups / Small groups / One-to-one), `profile.addSong`, `profile.song.remove.<Title>`, `profile.startDiscovery`, `profile.prepSession` |

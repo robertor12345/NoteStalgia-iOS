@@ -104,10 +104,7 @@ private struct HouseholdSignUpForm: View {
             .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
 
             if let error = household.signUpError, !error.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(BrandTheme.nebulaSalmon)
-                    .multilineTextAlignment(.center)
+                BrandMessageTile(text: error)
                     .padding(.horizontal, 20)
                     .accessibilityLabel("Sign-up error")
                     .accessibilityValue(error)
@@ -231,10 +228,7 @@ private struct HouseholdResidentSetupForm: View {
             .padding(.horizontal, 4)
 
             if let error = household.residentSetupError, !error.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(BrandTheme.nebulaSalmon)
-                    .multilineTextAlignment(.center)
+                BrandMessageTile(text: error)
                     .padding(.horizontal, 12)
                     .accessibilityLabel("Setup error")
                     .accessibilityValue(error)
@@ -262,6 +256,7 @@ private struct HouseholdResidentSetupForm: View {
                 .font(.footnote)
                 .foregroundStyle(BrandTheme.textSecondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)   // was cut off after one line ("… and their…")
                 .padding(.horizontal, 24)
         }
         .sheet(isPresented: $showCamera) {
@@ -466,7 +461,7 @@ struct HouseholdHomeView: View {
                             label: "At ease",
                             tint: CareAtEaseTone.tint(percent: last.calmPercent)
                         )
-                        BrandStatTile(value: last.moodSummary, label: "Mood tags")
+                        BrandStatTile(value: last.moodSummary == "—" ? "None noted" : last.moodSummary, label: "Mood tags")
                     }
                     if let step = last.insightSuggestedNextStep {
                         BrandInsetTile(accent: BrandTheme.statusCaution) {
@@ -535,14 +530,7 @@ struct HouseholdHomeView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(BrandTheme.cream.opacity(0.94))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(BrandTheme.gold.opacity(0.28), lineWidth: 1)
-                    }
-            }
+            .brandCardSurface(cornerRadius: 20, opacity: BrandTheme.rowOpacity)
         }
         .accessibilityIdentifier(identifier)
         .buttonStyle(ChimingPlainButtonStyle())
@@ -756,9 +744,11 @@ struct HouseholdInsightsView: View {
         BrandCard {
             VStack(alignment: .leading, spacing: 10) {
                 BrandSectionHeader(title: "Recent sessions", systemImage: "clock")
-                ForEach(Array(p.recentSessions.enumerated()), id: \.element.id) { index, session in
-                    if index > 0 { BrandHairline() }
-                    DashboardRecentSessionRow(session: session)
+                BrandRowsTile(spacing: 10) {
+                    ForEach(Array(p.recentSessions.enumerated()), id: \.element.id) { index, session in
+                        if index > 0 { BrandHairline() }
+                        DashboardRecentSessionRow(session: session)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

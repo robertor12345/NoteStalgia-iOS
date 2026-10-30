@@ -34,6 +34,7 @@ import build_story as S      # noqa: E402
 import build_v3 as V3        # noqa: E402
 import mix_v2 as M           # noqa: E402
 import narration as N        # noqa: E402
+import narration_v7          # noqa: E402,F401  (replaces the v7 lines with the detailed ones)
 
 FLOWS = [
     "A live backend",
@@ -62,8 +63,11 @@ FLOW_SUBTITLES = [
 B.FLOWS[:] = FLOWS
 B.FLOW_SUBTITLES[:] = FLOW_SUBTITLES
 S.TAKE_NAMES[:] = ["e_live", "f_discovery", "h_group", "g_admin", "i_onboarding"]
-S.INTRO_DUR = 25.0
+# The cards stay up for as long as their (long) narration plus a beat.
+S.INTRO_DUR = round((N.speak("intro7") or (None, 25.0))[1] + 4.5, 1)
 B.INTRO_DUR = S.INTRO_DUR
+S.OUTRO_DUR = round((N.speak("outro7") or (None, 12.0))[1] + 4.0, 1)
+B.OUTRO_DUR = S.OUTRO_DUR
 B.INDEX_Y = 672          # ten flows → five rows per column (same as build_story)
 N.SCRIPT["intro"] = N.SCRIPT["intro7"]
 N.SCRIPT["outro"] = N.SCRIPT["outro7"]

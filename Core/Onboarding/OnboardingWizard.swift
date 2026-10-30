@@ -43,14 +43,12 @@ extension SessionPOCState {
     func advanceSetup() async {
         let ob = onboarding
         guard let next = ob.nextPage(of: ob.page) else { return }
-        if ob.page.section == .organisation {
-            // Check what is on this page first, so a missing address is flagged on the address page
-            // rather than as a banner with nothing to point at.
-            let problems = ob.organisationProblems(onPage: ob.page)
-            if !problems.isEmpty { ob.report(problems); return }
-            if ob.organisationIsDirty {
-                guard await saveOrganisationProfile() else { return }
-            }
+        // Check what is on this page first, so a missing address or a half-typed email is flagged on the
+        // page that has it rather than as a banner with nothing to point at.
+        let problems = ob.problems(onPage: ob.page)
+        if !problems.isEmpty { ob.report(problems); return }
+        if ob.page.section == .organisation, ob.organisationIsDirty {
+            guard await saveOrganisationProfile() else { return }
         }
         requestSetupNavigation(.page(next))
     }

@@ -561,7 +561,8 @@ struct OnboardingToggleRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.vertical, 2)
-            .expandedHitArea(vertical: 8)   // a 44pt target without 44pt of empty space in the card
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityIdentifier(identifier)
@@ -576,20 +577,14 @@ struct OnboardingMessages: View {
 
     var body: some View {
         if let error = onboarding.error, !error.isEmpty {
-            Text(error)
-                .font(.footnote)
-                .foregroundStyle(BrandTheme.nebulaSalmon)
-                .multilineTextAlignment(.center)
+            BrandMessageTile(text: error)
                 .padding(.horizontal, 20)
                 .accessibilityLabel(errorLabel)
                 .accessibilityValue(error)
                 .accessibilityIdentifier("onboarding.error")
         }
         if let notice = onboarding.notice, !notice.isEmpty {
-            Label(notice, systemImage: "checkmark.circle")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(BrandTheme.statusPositive)
-                .multilineTextAlignment(.center)
+            BrandMessageTile(text: notice, kind: .success)
                 .padding(.horizontal, 20)
                 .accessibilityIdentifier("onboarding.notice")
         }
@@ -629,7 +624,9 @@ struct OnboardingActionLink: View {
             Text(title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(tint)
-                .expandedHitArea(vertical: 12, horizontal: 10)
+                .frame(minHeight: 44)   // a real 44 pt row, not a hidden hit area that overlaps the link below
+                .contentShape(Rectangle())
+                .expandedHitArea(horizontal: 10)
         }
         .buttonStyle(ChimingPlainButtonStyle())
     }

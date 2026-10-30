@@ -464,7 +464,7 @@ enum GroupActivityPlanner {
                 GroupPlannerSuggestion(
                     id: "pair.\(genre.rawValue)",
                     kind: .pairing,
-                    text: "\(a.displayName) and \(b.displayName) both respond to \(genre.rawValue) and haven't shared a session in the last 14 days.",
+                    text: "\(a.displayName) and \(b.displayName) both respond to \(genre.rawValue) and haven’t shared a session in the last 14 days.",
                     residentIds: [a.id, b.id],
                     canAdd: true
                 )

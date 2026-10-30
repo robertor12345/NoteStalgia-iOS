@@ -7,6 +7,7 @@ struct GroupSessionView: View {
     @StateObject private var audio = AmbientAudioSession()
     @State private var isPlaying = true
     @State private var playingTrackID: UUID?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var tracks: [GroupSessionTrack] { state.groupSessionTracks }
     private var currentIndex: Int { state.groupSessionTrackIndex }
@@ -47,6 +48,10 @@ struct GroupSessionView: View {
                     }
                     .padding(.vertical, 20)
                     .padding(.bottom, BrandLayout.scrollEdgeFadeComfortPadding)
+                    // The same centred column and side margin as every other staff page; it used to run edge to edge.
+                    .frame(maxWidth: BrandLayout.menuColumnMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
                     .animation(CalmMotion.gentle, value: currentIndex)
                     .animation(CalmMotion.subtle, value: isPlaying)
                 }
@@ -110,7 +115,7 @@ struct GroupSessionView: View {
                 state.signOutSupervisor()
             }
         }
-        .padding(.horizontal, BrandTheme.contentGutter)
+        .padding(.horizontal, BrandLayout.contentGutter(for: horizontalSizeClass))
         .padding(.top, 0)
         .padding(.bottom, 8)
     }
@@ -170,7 +175,7 @@ struct GroupSessionView: View {
                 }
 
                 Text("Track \(currentIndex + 1) of \(tracks.count) · ranked for everyone in the room: their ages, where they are from, the genres they respond to, and songs like the ones they love.")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(BrandTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -180,7 +185,7 @@ struct GroupSessionView: View {
     }
 
     private var transportControls: some View {
-        HStack(spacing: 28) {
+        HStack(spacing: 16) {
             GroupTransportButton(systemImage: "backward.fill", label: "Previous") {
                 state.groupSessionPreviousTrack()
             }
@@ -227,7 +232,7 @@ struct GroupSessionView: View {
                                     .foregroundStyle(BrandTheme.textPrimary)
                                     .multilineTextAlignment(.leading)
                                 Text(track.sourceResidentName)
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(BrandTheme.textSecondary)
                             }
                             Spacer(minLength: 0)
@@ -238,6 +243,8 @@ struct GroupSessionView: View {
                             }
                         }
                         .padding(.vertical, 8)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .accessibilityIdentifier("group.track.\(track.title)")
                     .accessibilityLabel("\(track.title), \(track.sourceResidentName)\(index == currentIndex ? ", now playing" : "")")
@@ -306,10 +313,13 @@ private struct GroupTransportButton: View {
                         .font(prominent ? .title2.weight(.semibold) : .body.weight(.semibold))
                         .foregroundStyle(BrandTheme.textPrimary)
                 }
+                // One slot height for all three buttons, so "Previous", "Pause" and "Next" share a baseline.
+                .frame(height: 80)
                 Text(label)
                     .font(.caption.weight(.medium))
                     .orbOverlayText(muted: true)
             }
+            .frame(width: 88)
         }
         .buttonStyle(ChimingPlainButtonStyle())
         .accessibilityLabel(label)
@@ -350,6 +360,7 @@ struct GroupSessionFeedbackView: View {
                 backAccessibilityLabel: backLabel,
                 onBack: handleBack,
                 onLogout: { state.signOutSupervisor() },
+                logoutWarning: "This check-in hasn’t been saved yet.",
                 topAligned: true
             ) {
                 VStack(spacing: 24) {

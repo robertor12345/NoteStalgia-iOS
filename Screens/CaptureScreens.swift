@@ -21,11 +21,15 @@ struct PhotoLoadStatusLine: View {
                 .transition(.opacity)
                 .accessibilityElement(children: .combine)
             } else if let error, !error.isEmpty {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(BrandTheme.nebulaSalmon)
-                    .multilineTextAlignment(.center)
-                    .transition(.opacity)
+                // Icon + words on a firm tile: salmon text alone on the orb was faint and colour-only.
+                BrandInsetTile(accent: BrandTheme.statusAttention) {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(BrandTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .transition(.opacity)
+                .accessibilityElement(children: .combine)
             }
         }
         .animation(CalmMotion.subtle, value: isLoading)

@@ -90,7 +90,7 @@ aside correctly.
 ### Done — Paged set-up wizard and input validation (28 Oct 2026)
 
 Two requests from the admin review. **Less scrolling, more pages:** the six long steps became six sections of
-18 short pages with four side journeys (add a home, invite one, invite several, check the spreadsheet); see the
+19 short pages with four side journeys (add a home, invite one, invite several, check the spreadsheet); see the
 README rows "Set-up wizard is paged" and "Set-up wizard navigation". Phone-first fixes that came with it: captions
 can no longer truncate (`fixedSize`), a field and its button stack on a phone and sit side by side on the iPad
 (`OnboardingFieldWithAction`), buttons beside fields match the field's height, the Organisation set-up button on
@@ -102,8 +102,21 @@ expanded instead). **Input validation:** one rule set in the app (`Core/Onboardi
 deployed; 107 Worker tests and 16 Swift tests (`NoteStalgiaTests`, a new unit-test target) pass. Walkthrough Part
 I (`testStoryPartI_Onboarding`) and its narration were rewritten for the paged flow and the new required fields
 (address page, iPad label).
-Open: weak PINs are accepted (`111111`, `123456`); the home address isn't collected when a home is added;
-validation messages are English only; Android has none of this (see the parity checklist in `AGENTS.md`).
+A home now has its own address (page 2 of the four-page add-a-home journey, required, with a "Use the head-office
+address" shortcut; shown on the home's card). A partly failed bulk invite keeps only the faulty lines in the box.
+The v7 walkthrough was re-recorded for all of this (`NoteStalgia-Walkthrough-v7.mp4`, ten flows, about 32 minutes,
+narration in `tools/demo/pipeline/narration_v7.py`, paced by the voice). A second film of every onboarding and admin
+screen on the iPhone is scripted but **not recorded yet** (`build_v7_mobile.py`, six `testMobile*` takes, narration in
+`narration_mobile.py`; the takes were checked individually at fast pace). `tools/demo/record-v7.sh ipad|mobile|all`
+redoes either; see the demo README for what breaks a take (never touch the simulator during one; disk space; run
+headless — with Simulator.app open the iPad shows a number-pad popover, which is still visible in the sign-in and
+onboarding PIN entry of the current iPad film).
+UX/UI pass (30 Oct, round 10, section H of the same review: contrast fixes on the pink primary action and Log out, Reduce Motion, 12 pt minimum, accessibility-size tile stacking, search empty state, cards at 50 % opacity with Reduce Transparency fallback — the v7 films are stale again and need re-recording). UI consistency pass (28 Oct, round 9, `docs/UX_REVIEW_2026-10-28.md` section G): the roster, the signed-in start
+screen, session prep, entry mode and the profile's history heading now use the card grammar (icon headers, status chips,
+Log out only in the top bar). The v7 films must be re-recorded to show it — see the demo README.
+Open: weak PINs are accepted (`111111`, `123456`); a home's address can't be edited after creation (the Worker's
+`PUT /homes/:id` takes it, the app has no edit screen); validation messages are English only; Android has none of
+this (see the parity checklist in `AGENTS.md`).
 
 ### Done — Organisation & home onboarding (28 Oct 2026; plan slice A + most of B)
 

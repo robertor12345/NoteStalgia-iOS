@@ -15,6 +15,21 @@ extension OnboardingStore {
         return problems
     }
 
+    /// What is wrong on this wizard page alone: leaving a page with a mistake on it is refused there, with
+    /// the message under the field, rather than at the end of the journey on a page the person has left.
+    func problems(onPage page: SetupPage) -> [FieldProblem] {
+        switch page {
+        case .orgDetails, .orgAddress:
+            return organisationProblems(onPage: page)
+        case .homeDetails, .homeAddress, .homeWings, .homeLead:
+            return homeProblems().filter { $0.page == page }
+        case .inviteWho:
+            return inviteProblems().filter { $0.page == page }
+        default:
+            return []
+        }
+    }
+
     // MARK: Request a workspace and use a code (before sign-in)
 
     func requestProblems() -> [FieldProblem] {
@@ -65,6 +80,9 @@ extension OnboardingStore {
             add(InputRules.businessName(homeName, label: "the home’s name", required: true, max: 80), "onboarding.home.name", .homeDetails)
             add(InputRules.cqcId(homeCqc, kind: "location"), "onboarding.home.cqc", .homeDetails)
             add(InputRules.beds(homeCapacity), "onboarding.home.capacity", .homeDetails)
+            add(InputRules.addressLine(homeAddressLine1, label: "The first address line", required: true), "onboarding.home.address", .homeAddress)
+            add(InputRules.town(homeAddressTown, required: true), "onboarding.home.town", .homeAddress)
+            add(InputRules.postcode(homeAddressPostcode, required: true), "onboarding.home.postcode", .homeAddress)
             if homeWings.allSatisfy({ InputRules.tidy($0).isEmpty }) {
                 add("A home needs at least one wing.", "onboarding.home.newWing", .homeWings)
             } else {

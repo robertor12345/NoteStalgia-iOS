@@ -1799,16 +1799,6 @@ final class SessionPOCState: ObservableObject {
         isGroupSessionActive = false
     }
 
-    func latestGroupSessionSummaryLine() -> String? {
-        guard let last = groupSessionRecords.first,
-              let morale = last.moraleRating,
-              let alertness = last.alertnessRating,
-              let lucidity = last.lucidityRating,
-              let engagement = last.engagementRating
-        else { return nil }
-        return String(format: "Last group: morale/affect %d · alertness %d · orientation %d · engagement %d", morale, alertness, lucidity, engagement)
-    }
-
     func saveCareFeedback(
         tempoBias: Double,
         natureVsAbstract: Double,

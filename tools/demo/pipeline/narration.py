@@ -24,7 +24,7 @@ VOICE_DIR = os.path.join(WORK, "voice")
 VOICE = os.environ.get("DEMO_VOICE", "en-GB-RyanNeural")   # "…Neural" → edge-tts, anything else → `say`
 EDGE = "Neural" in VOICE
 RATE = int(os.environ.get("DEMO_VOICE_RATE", "168"))        # `say` words per minute (Daniel's default ~180)
-EDGE_RATE = os.environ.get("DEMO_EDGE_RATE", "-3%")          # edge-tts rate offset
+EDGE_RATE = os.environ.get("DEMO_EDGE_RATE", "-8%")          # edge-tts rate offset (a little slower than natural, easier to follow)
 SUB_MAX_CHARS = 84                                            # longest subtitle cue (wraps to two lines)
 SR = 44100
 
@@ -470,9 +470,6 @@ SCRIPT.update({
         "Back on the roster, the last group's scores are already there.",
         "Back on the roster, the last group's scores are already there."),
 })
-EXTRA.update({
-    "v7_added": [(12.0, "v7_added2")],
-})
 
 
 # ---- v7 · Part I: a new organisation sets itself up (testStoryPartI_Onboarding, flow 9) ----
@@ -713,7 +710,29 @@ def line_cues(key):
     return [tuple(c) for c in json.load(open(r[1]))] if r else []
 
 
+def durations(path):
+    """Writes {marker: seconds of narration} for every scripted line, rendering (and caching) any that are
+    missing. The UI tests read this file (TEST_RUNNER_DEMO_NARRATION_FILE) to pace each screen to its voice."""
+    import narration_v7, narration_mobile   # noqa: F401  — each adds or replaces lines in SCRIPT
+    out = {}
+    wanted = lambda k: k.startswith(("v7_", "m_", "intro7", "outro7", "intro_mobile", "outro_mobile"))
+    for key in SCRIPT:
+        if not wanted(key):
+            continue
+        r = speak(key)
+        if r:
+            out[key] = round(r[1], 2)
+    json.dump(out, open(path, "w"), indent=1, sort_keys=True)
+    print(f"{len(out)} lines, {sum(out.values()) / 60:.1f} min of narration → {path}")
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--durations":
+        # The extension modules do `import narration`; run as a script this file is `__main__`, a different
+        # module object, so go through the importable copy or their lines would never reach SCRIPT.
+        import narration as _importable
+        _importable.durations(sys.argv[2])
+        raise SystemExit
     total = 0
     for key in SCRIPT:
         r = speak(key)
