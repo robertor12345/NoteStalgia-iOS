@@ -1023,6 +1023,7 @@ struct CarePatientDetailView: View {
 
                         if !state.isHouseholdAccount {   // households have no roster or group mode
                             groupActivitiesCard(patient)
+                            outsideActivitiesCard(patient)
                         }
 
                         genrePlaylistsCard(patient)
@@ -1237,6 +1238,31 @@ struct CarePatientDetailView: View {
                         .foregroundStyle(BrandTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    /// What was done with them alone, away from the app (a walk, a pet visit) — one-to-one visits — and the way to log one.
+    private func outsideActivitiesCard(_ patient: CarePatientProfile) -> some View {
+        let participation = state.groupParticipationSummary(for: patient.id)
+        return BrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                BrandSectionHeader(
+                    title: "One-to-one activities",
+                    systemImage: "figure.walk.circle",
+                    subtitle: "A walk, a visit, a game with just \(patient.displayName.split(separator: " ").first.map(String.init) ?? "them") — logged afterwards. Each counts as a one-to-one visit."
+                )
+                Text(participation.oneToOneLine ?? "None logged in the last \(GroupActivityPlanner.windowDays) days.")
+                    .font(DetailTypography.body)
+                    .foregroundStyle(BrandTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("profile.oneToOneActivities")
+                SecondaryButton(title: "Log an activity") {
+                    state.beginActivityLog(for: patient.id)
+                }
+                .accessibilityIdentifier("profile.logActivity")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

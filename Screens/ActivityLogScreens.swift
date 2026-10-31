@@ -10,6 +10,8 @@ struct ActivityLogView: View {
     @ObservedObject var state: SessionPOCState
     @State private var showRecent = false
     @State private var pendingRemoval: GroupSessionRecord?
+    /// The icon slot in a category chip grows with the text, so a larger icon never runs into its label.
+    @ScaledMetric(relativeTo: .subheadline) private var chipIconSlot: CGFloat = 18
 
     private var draft: ActivityLogDraft { state.groupSession.activityDraft }
     private var errors: [String: String] { state.groupSession.activityErrors }
@@ -17,7 +19,7 @@ struct ActivityLogView: View {
     var body: some View {
         ScreenFadeIn {
             CenteredScrollScreen(
-                backAccessibilityLabel: state.isHouseholdAccount ? "Back to home" : "Back to roster",
+                backAccessibilityLabel: state.isHouseholdAccount ? "Back to home" : state.groupSession.activityReturnPhase != nil ? "Back to profile" : "Back to roster",
                 onBack: { state.cancelActivityLog() },
                 onLogout: { state.signOutSupervisor() },
                 topAligned: true
@@ -71,7 +73,9 @@ struct ActivityLogView: View {
             FadeInTitle(text: "Log an activity", delay: 0)
             FadeInLine(
                 text: draft.solo
-                    ? "For anything that happened away from the app — a walk in the garden, a visit, a game. Say how they were, and it counts towards their insights."
+                    ? (state.isHouseholdAccount
+                        ? "For anything that happened away from the app — a walk in the garden, a visit, a game. Say how they were, and it counts towards their insights."
+                        : "For something you did with them on their own — a walk, a visit, a game. Say how they were, and it counts as a one-to-one visit.")
                     : "For anything that happened away from the app — bingo, a class, a visit. Say who came and how each of them was, and it counts towards the dashboards and the group planner.",
                 font: BrandTheme.orbHintFont(),
                 muted: true,
@@ -287,7 +291,7 @@ struct ActivityLogView: View {
                     Image(systemName: "checkmark").opacity(selected ? 1 : 0)
                 }
                 .font(.caption.weight(.bold))
-                .frame(width: 18)
+                .frame(width: chipIconSlot)
                 .accessibilityHidden(true)
                 Text(kind.label)
                     .font(.subheadline.weight(.medium))
@@ -473,7 +477,8 @@ struct ActivityLogView: View {
             .expandedHitArea(vertical: 4)
         }
         .buttonStyle(ChimingPlainButtonStyle())
-        .accessibilityLabel("\(resident.displayName), \(option.label)")
+        // The row above already reads "Name, Enjoyed it" once chosen; the chip says what pressing it does.
+        .accessibilityLabel("\(option.label) for \(resident.displayName)")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("activity.response.\(resident.displayName).\(option.rawValue)")
     }

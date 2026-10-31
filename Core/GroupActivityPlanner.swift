@@ -167,7 +167,8 @@ enum GroupActivityPlanner {
         let groupRecords = GroupSessionRecord.current(groupRecords).filter { record in
             record.participantIds.isEmpty || record.participantIds.contains { residentIds.contains($0) }
         }
-        let recentGroups = groupRecords.filter { $0.date >= windowStart }
+        // A one-resident activity is a one-to-one visit, not a group (see `insight`), so it is not a group here.
+        let recentGroups = groupRecords.filter { $0.date >= windowStart && !$0.isOneToOneActivity }
         let insights = residents
             .map { insight(for: $0, sessionRecords: sessionRecords, groupRecords: groupRecords, recentGroups: recentGroups, now: now) }
             .sorted { lhs, rhs in
@@ -232,10 +233,13 @@ enum GroupActivityPlanner {
     ) -> GroupResidentInsight {
         let own = sessionRecords.filter { $0.patientId == resident.id }.sorted { $0.date > $1.date }
         let windowStart = now.addingTimeInterval(-Double(windowDays) * 86_400)
-        let daysSince = own.first.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) }
-        let oneToOne14 = own.filter { $0.date >= windowStart }.count
+        // A visit is a one-to-one music session or a one-to-one activity logged outside the app (a walk, a pet visit).
+        let visitDates = (own.map(\.date) + groupRecords.filter { $0.isOneToOneActivity && $0.participantIds.contains(resident.id) }.map(\.date))
+            .sorted(by: >)
+        let daysSince = visitDates.first.map { max(0, Int(now.timeIntervalSince($0) / 86_400)) }
+        let oneToOne14 = visitDates.filter { $0 >= windowStart }.count
         let myGroups = groupRecords
-            .filter { $0.participantIds.contains(resident.id) }
+            .filter { !$0.isOneToOneActivity && $0.participantIds.contains(resident.id) }
             .sorted { $0.date > $1.date }
         let groups14 = myGroups.filter { $0.date >= windowStart }.count
         let daysSinceGroup = myGroups.first.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) }

@@ -130,6 +130,10 @@ struct GroupSessionRecord: Identifiable, Equatable, Codable {
 
     var isMusic: Bool { kind != .otherActivity }
 
+    /// An activity logged outside the app for exactly one resident: a one-to-one visit, not a group. It counts towards
+    /// "seen recently" and "overdue a visit", and not towards "no group this fortnight" or the group programme.
+    var isOneToOneActivity: Bool { !isMusic && participantIds.count == 1 }
+
     /// The records that count: those not replaced by a later correction or withdrawn.
     static func current(_ records: [GroupSessionRecord]) -> [GroupSessionRecord] {
         let replaced = Set(records.compactMap(\.supersedes))

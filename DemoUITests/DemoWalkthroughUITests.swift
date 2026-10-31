@@ -629,6 +629,41 @@ final class DemoWalkthroughUITests: XCTestCase {
         mark("end")
     }
 
+    // MARK: - Activity log from one resident's profile → a one-to-one visit
+
+    func testResidentActivityLogWalkthrough() throws {
+        launch(autoSignIn: true, skipLaunch: true)
+        openResident(named: "Irene K.")
+        let log = app.buttons["profile.logActivity"]
+        XCTAssertTrue(scrollTo(log, assert: false), "The profile has no Log an activity button")
+        let before = app.staticTexts["profile.oneToOneActivities"]
+        XCTAssertTrue(before.exists, "One-to-one activities line missing")
+        mark("rp_profile")
+        hold(1)
+        log.tap()
+        let save = app.buttons["activity.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 20), "Activity log did not appear")
+        // For her alone: no list of residents, just how she was.
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.resident.'")).firstMatch.exists, "A one-resident form should not list residents")
+        mark("rp_open")
+        hold(1.5)
+        scrollTo(app.buttons["activity.kind.petVisit"]).tap()
+        hold(0.6)
+        let enjoyed = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity.response.' AND identifier ENDSWITH '.enjoyed'")).firstMatch
+        scrollTo(enjoyed).tap()
+        hold(0.8)
+        mark("rp_noted")
+        scrollTo(save).tap()
+        // Back on her profile, with the visit counted as one-to-one, not as a group.
+        XCTAssertTrue(app.buttons["profile.openSurface"].waitForExistence(timeout: 20), "Did not return to the profile")
+        let line = app.staticTexts["profile.oneToOneActivities"]
+        XCTAssertTrue(scrollTo(line, assert: false), "One-to-one line missing after saving")
+        XCTAssertTrue(line.label.contains("1 one-to-one activity"), "The visit was not counted: \(line.label)")
+        mark("rp_saved")
+        hold(1.5)
+        mark("end")
+    }
+
     // MARK: - Care at home · log an activity for the one person → their insights
 
     func testHouseholdActivityLogWalkthrough() throws {
@@ -2164,6 +2199,14 @@ final class DemoWalkthroughUITests: XCTestCase {
             app.swipeUp()
             hold(0.6)
             attempts += 1
+        }
+        // A control that has only just come into view is still coasting with the page, and a tap on a moving page only
+        // stops it. Let it settle, and if it came to rest in the last few points of the screen (under the bottom fade,
+        // where a person would scroll a little further anyway) nudge it up into the clear before the caller taps.
+        hold(0.7)
+        if element.isHittable, element.frame.maxY > app.frame.height * 0.93 {
+            app.swipeUp(velocity: .slow)
+            hold(0.7)
         }
         return element.isHittable
     }

@@ -429,8 +429,15 @@ at `.demo-work/NoteStalgia-Walkthrough-v7-before-partI.mp4`.
       resident they look after, persisted in `HouseholdCareStore.Data.activities` (optional, so older files load) and
       shown as the **Outside the app** card on their insights (`ActivityInsights`, 30 days). The Worker accepts from a
       household only `otherActivity` records about at most one resident, plus withdrawals (`routes/sync.ts`; tested).
-      Not done: a Worker-side hard delete (by design none — a mistake is a correcting record), and the Care at home
-      insights narrative / handover text do not yet mention these activities.
+      **A one-resident activity is a one-to-one visit, not a group** (`isOneToOneActivity`; decided 30 Oct): a "One-to-one
+      activities" card on the resident profile (`profile.logActivity`) opens the one-person form for them; the entry clears
+      "overdue a visit" and counts as a one-to-one in the planner, has its own profile line, and is excluded from group
+      counts and the group programme's sessions / reach (still under Outside the app). The nursing handover record gets an
+      "Outside the app (7 days)" line. Not done: the roster's "Last visit" text and the admin dashboard's "needs attention"
+      days still read music sessions only; a Worker-side hard delete (by design none — a mistake is a correcting record).
+- [x] **UX/UI pass, round 3 (31 Oct 2026)** — the whole app again on the final build: 14 iPad walkthroughs, the six phone set-up /
+      admin stories, the three activity-log flows on both devices, and accessibility-extra-large text. Fixes and the flakes it
+      surfaced (first keystroke after a sim boot; a tap on a still-coasting page) are in `docs/UX_SWEEP_2026-10-30.md`, "Round 3".
 - [x] **Sounds and haptics (30 Oct 2026).** `CalmExperienceFeedback` gives every press a chime + selection tick,
       every save a soft impact + success chime, every error the lower "attention" chime + warning haptic + a VoiceOver
       announcement (`BrandMessageTile` and the set-up banner do it themselves). Two per-device switches on the roster

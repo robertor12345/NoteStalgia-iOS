@@ -116,7 +116,7 @@ private struct HouseholdSignUpForm: View {
 
             Text("In this prototype the account stays on this iPad — nothing is sent anywhere.")
                 .font(.footnote)
-                .foregroundStyle(BrandTheme.textSecondary)
+                .orbOverlayText(muted: true)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
         }
@@ -254,7 +254,7 @@ private struct HouseholdResidentSetupForm: View {
 
             Text("Discovery plays seven short clips, one per genre; they tap a face for each and their playlists take shape. You can run it any time from their home screen.")
                 .font(.footnote)
-                .foregroundStyle(BrandTheme.textSecondary)
+                .orbOverlayText(muted: true)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)   // was cut off after one line ("… and their…")
                 .padding(.horizontal, 24)

@@ -323,4 +323,75 @@ final class ActivityLogTests: XCTestCase {
         let round = try JSONDecoder().decode(HouseholdCareStore.Data.self, from: JSONEncoder().encode(withActivities))
         XCTAssertEqual(round.activities?.count, 2)
     }
+
+    func testTheHandoverMentionsWhatWasDoneOutsideTheApp() throws {
+        let patient = residents[0]
+        let session = try XCTUnwrap(CareStaffMockData.initialRecords.first { $0.patientId == patient.id } ?? CareStaffMockData.initialRecords.first)
+        var draft = ActivityLogDraft(now: session.date.addingTimeInterval(-2 * 86_400))
+        draft.kind = .petVisit
+        draft.attendeeIds = [patient.id]
+        draft.responses[patient.id] = .enjoyed
+        let activity = try XCTUnwrap(GroupSessionRecord(loggedActivity: draft, homeId: nil, authorAccountId: nil))
+        let with = CareSessionInsightBuilder.build(patient: patient, record: session, priorRecords: [], activities: [activity])
+        XCTAssertTrue(with.handoverText.contains("Outside the app (7 days): Pet visit — enjoyed it"), with.handoverText)
+        XCTAssertTrue(with.handoverSections.contains { $0.title == "Outside the app (7 days)" })
+        // Nothing logged, or logged outside the week, or removed: the handover is as it was.
+        let without = CareSessionInsightBuilder.build(patient: patient, record: session, priorRecords: [])
+        XCTAssertFalse(without.handoverText.contains("Outside the app"))
+        let withdrawn = GroupSessionRecord(withdrawing: activity, at: session.date, homeId: nil, authorAccountId: nil)
+        let removed = CareSessionInsightBuilder.build(patient: patient, record: session, priorRecords: [], activities: GroupSessionRecord.current([activity, withdrawn]))
+        XCTAssertFalse(removed.handoverText.contains("Outside the app"))
+    }
+
+    // MARK: One resident alone
+
+    private func aloneEntry(daysAgo: Int = 1, response: GroupParticipantState = .enjoyed) throws -> GroupSessionRecord {
+        var draft = ActivityLogDraft(now: now.addingTimeInterval(-Double(daysAgo) * 86_400))
+        draft.kind = .petVisit
+        draft.solo = true
+        draft.attendeeIds = [residents[0].id]
+        draft.responses[residents[0].id] = response
+        return try XCTUnwrap(GroupSessionRecord(loggedActivity: draft, homeId: nil, authorAccountId: nil))
+    }
+
+    func testAnActivityForOneResidentIsAOneToOneVisitNotAGroup() throws {
+        let alone = try aloneEntry()
+        XCTAssertTrue(alone.isOneToOneActivity)
+        XCTAssertFalse(try logged(1, responses: [.enjoyed, .engaged, .lookedOn]).isOneToOneActivity)
+
+        let before = GroupActivityPlanner.build(residents: residents, sessionRecords: [], groupRecords: [], now: now)
+        let after = GroupActivityPlanner.build(residents: residents, sessionRecords: [], groupRecords: [alone], now: now)
+        let was = try XCTUnwrap(before.residents.first { $0.id == residents[0].id })
+        let now_ = try XCTUnwrap(after.residents.first { $0.id == residents[0].id })
+        XCTAssertNil(was.daysSinceOneToOne)
+        XCTAssertTrue(was.flags.contains(.overdue))
+        XCTAssertEqual(now_.daysSinceOneToOne, 1, "a visit: it clears 'overdue a visit'")
+        XCTAssertEqual(now_.oneToOneCount14d, 1)
+        XCTAssertFalse(now_.flags.contains(.overdue))
+        XCTAssertEqual(now_.groupCount14d, 0, "…and is not a group")
+        XCTAssertTrue(now_.flags.contains(.dueGroup), "they are still due a group")
+    }
+
+    func testTheProfileKeepsGroupsAndOneToOneActivitiesApart() throws {
+        let alone = try aloneEntry(daysAgo: 2, response: .engaged)
+        let group = try logged(3, responses: [.enjoyed, .engaged, .lookedOn])
+        let summary = GroupActivityReadModels.participation(for: residents[0].id, groupRecords: [alone, group], now: now)
+        XCTAssertEqual(summary.count14d, 1, "only the group counts as a group")
+        XCTAssertEqual(summary.oneToOne14d, 1)
+        XCTAssertEqual(summary.oneToOneLine, "1 one-to-one activity in the last 14 days · last: Pet visit, 2 days ago · they were engaged")
+        XCTAssertNil(GroupActivityReadModels.participation(for: residents[0].id, groupRecords: [group], now: now).oneToOneLine)
+    }
+
+    func testTheGroupProgrammeLeavesOutOneToOneActivitiesButCountsThemOutsideTheApp() throws {
+        let alone = try aloneEntry()
+        let group = try logged(2, responses: [.enjoyed, .engaged, .lookedOn])
+        let programme = GroupActivityReadModels.programme(residents: residents, sessionRecords: [], groupRecords: [alone, group], now: now)
+        XCTAssertEqual(programme.sessions14d, 1, "one group, not two")
+        XCTAssertEqual(programme.activities14d, 2, "both are outside the app")
+        XCTAssertEqual(programme.activityAttendances14d, 1 + 3)
+        let onlyAlone = GroupActivityReadModels.programme(residents: residents, sessionRecords: [], groupRecords: [alone], now: now)
+        XCTAssertEqual(onlyAlone.sessions14d, 0)
+        XCTAssertEqual(onlyAlone.residentsReached, 0)
+        XCTAssertEqual(onlyAlone.activities14d, 1)
+    }
 }

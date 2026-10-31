@@ -270,10 +270,13 @@ enum CareSessionInsightBuilder {
         return f
     }()
 
+    /// `activities` are the group records on this device: anything logged outside the app for this resident in the week
+    /// before the session goes into the handover as one line, so the next shift reads it with the music.
     static func build(
         patient: CarePatientProfile,
         record: CareSessionRecord,
-        priorRecords: [CareSessionRecord]
+        priorRecords: [CareSessionRecord],
+        activities: [GroupSessionRecord] = []
     ) -> CareSessionInsightPack {
         let narrative = buildNarrative(patient: patient, record: record)
         let deltas = buildDeltas(record: record, priorRecords: priorRecords)
@@ -284,7 +287,8 @@ enum CareSessionInsightBuilder {
             record: record,
             narrative: narrative,
             deltas: deltas,
-            nextStep: nextStep
+            nextStep: nextStep,
+            outsideTheApp: outsideTheApp(patient: patient, activities: activities, at: record.date)
         )
         let family = buildFamilyText(patient: patient, record: record, narrative: narrative)
         return CareSessionInsightPack(
@@ -472,12 +476,24 @@ enum CareSessionInsightBuilder {
         return parts.joined(separator: " ")
     }
 
+    /// "Pet visit — enjoyed it (27 Oct); Bingo — looked on (28 Oct)", or nil when nothing was logged in the week.
+    static func outsideTheApp(patient: CarePatientProfile, activities: [GroupSessionRecord], at date: Date) -> String? {
+        let insights = ActivityInsights.build(records: activities, residentId: patient.id, now: date, windowDays: 7, rowLimit: 4)
+        guard !insights.rows.isEmpty else { return nil }
+        return insights.rows.map { row in
+            var line = row.title
+            if let response = row.response { line += " — \(response.label.lowercased())" }
+            return "\(line) (\(row.date.formatted(.dateTime.day().month(.abbreviated))))"
+        }.joined(separator: "; ")
+    }
+
     private static func buildHandover(
         patient: CarePatientProfile,
         record: CareSessionRecord,
         narrative: String,
         deltas: [String],
-        nextStep: String
+        nextStep: String,
+        outsideTheApp: String? = nil
     ) -> (text: String, sections: [CareInsightSection]) {
         var facts: [CareInsightSection] = []
         if let interaction = record.residentInteractionSummaryLine() {
@@ -488,6 +504,9 @@ enum CareSessionInsightBuilder {
         }
         if let observed = staffObservedPhrase(record) {
             facts.append(CareInsightSection(title: "Carer observations (1–10)", body: observed))
+        }
+        if let outsideTheApp {
+            facts.append(CareInsightSection(title: "Outside the app (7 days)", body: outsideTheApp))
         }
         if !deltas.isEmpty {
             facts.append(CareInsightSection(title: "Trend vs recent sessions", body: deltas.joined(separator: " ")))

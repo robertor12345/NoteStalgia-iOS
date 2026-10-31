@@ -28,4 +28,7 @@ final class GroupSessionStore: ObservableObject {
     // "Log an activity" (`ActivityLogDraft`): an activity held outside the app, written up afterwards.
     @Published var activityDraft = ActivityLogDraft()
     @Published var activityErrors: [String: String] = [:]
+    /// Set when the form was opened from one resident's profile: it is for that resident alone, and Back returns there.
+    var activitySoloResidentId: UUID?
+    var activityReturnPhase: FlowPhase?
 }

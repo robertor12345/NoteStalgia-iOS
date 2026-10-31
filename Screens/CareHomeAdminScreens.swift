@@ -449,6 +449,15 @@ private struct DashboardTrendChart: View {
     var showAxisTitles: Bool
 
     private let yAxisWidth: CGFloat = 34
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The ticks to draw. The small charts are about 54 pt tall; at accessibility text sizes five numbers no longer fit and
+    /// stacked on top of each other, so there they keep the lowest and highest only (the expanded chart keeps them all).
+    private var ticks: [Double] {
+        let all = series.axis.tickValues
+        guard dynamicTypeSize.isAccessibilitySize, !showFullXAxis, all.count > 2, let first = all.first, let last = all.last else { return all }
+        return [first, last]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -477,7 +486,6 @@ private struct DashboardTrendChart: View {
 
     private func yAxisLabels(chartHeight: CGFloat) -> some View {
         GeometryReader { geo in
-            let ticks = series.axis.tickValues
             ZStack(alignment: .topLeading) {
                 ForEach(ticks, id: \.self) { tick in
                     Text(formatAxisValue(tick))
@@ -500,7 +508,7 @@ private struct DashboardTrendChart: View {
         GeometryReader { geo in
             let plotted = plottedPoints(in: geo.size)
             ZStack {
-                ForEach(series.axis.tickValues, id: \.self) { tick in
+                ForEach(ticks, id: \.self) { tick in
                     let y = yPosition(for: tick, in: geo.size.height)
                     Path { path in
                         path.move(to: CGPoint(x: 0, y: y))

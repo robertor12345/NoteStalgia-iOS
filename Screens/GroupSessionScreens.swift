@@ -300,9 +300,6 @@ private struct GroupTransportButton: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 ZStack {
-                    if prominent {
-                        NoteStalgiaOrbBackdrop(diameter: diameter + 8, pulse: 0.5, glowPulse: 0.62)
-                    }
                     Circle()
                         .fill(prominent ? BrandTheme.goldSoft.opacity(0.55) : BrandTheme.cream.opacity(0.94))
                         .frame(width: diameter, height: diameter)
@@ -312,6 +309,14 @@ private struct GroupTransportButton: View {
                     Image(systemName: systemImage)
                         .font(prominent ? .title2.weight(.semibold) : .body.weight(.semibold))
                         .foregroundStyle(BrandTheme.textPrimary)
+                }
+                // The orb's glow sits behind the button as a background: it is drawn, but it takes no layout space, so
+                // Pause is as wide as Previous and Next and their tap areas no longer overlap (the glow used to widen it to ~128 pt).
+                .background {
+                    if prominent {
+                        NoteStalgiaOrbBackdrop(diameter: diameter + 8, pulse: 0.5, glowPulse: 0.62)
+                            .allowsHitTesting(false)
+                    }
                 }
                 // One slot height for all three buttons, so "Previous", "Pause" and "Next" share a baseline.
                 .frame(height: 80)

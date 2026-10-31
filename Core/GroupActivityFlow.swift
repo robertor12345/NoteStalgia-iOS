@@ -10,6 +10,28 @@ struct GroupParticipationSummary: Equatable {
     var lastEngagement: Int?
     /// What staff noted about this resident at the last group's check-in, if anything.
     var lastNote: GroupParticipantState? = nil
+    /// Activities logged outside the app for this resident alone (a walk, a pet visit): visits, not groups.
+    var oneToOne14d: Int = 0
+    var lastOneToOneTitle: String? = nil
+    var lastOneToOneDaysAgo: Int? = nil
+    var lastOneToOneNote: GroupParticipantState? = nil
+
+    /// "2 one-to-one activities in the last 14 days · last: Pet visit, 2 days ago · they enjoyed it", or nil when none.
+    var oneToOneLine: String? {
+        guard oneToOne14d > 0, let title = lastOneToOneTitle, let days = lastOneToOneDaysAgo else { return nil }
+        let when = days == 0 ? "today" : days == 1 ? "yesterday" : "\(days) days ago"
+        var line = "\(oneToOne14d) one-to-one activit\(oneToOne14d == 1 ? "y" : "ies") in the last \(GroupActivityPlanner.windowDays) days · last: \(title), \(when)"
+        if let note = lastOneToOneNote {
+            switch note {
+            case .enjoyed: line += " · they enjoyed it"
+            case .engaged: line += " · they were engaged"
+            case .lookedOn: line += " · they looked on"
+            case .unsettled: line += " · they were unsettled"
+            case .leftEarly: line += " · they left early"
+            }
+        }
+        return line
+    }
 
     var line: String {
         var parts: [String] = []
@@ -53,17 +75,24 @@ struct GroupProgrammeSummary: Equatable {
 
 enum GroupActivityReadModels {
     static func participation(for patientId: UUID, groupRecords: [GroupSessionRecord], now: Date = Date()) -> GroupParticipationSummary {
-        let mine = GroupSessionRecord.current(groupRecords)
+        let everything = GroupSessionRecord.current(groupRecords)
             .filter { $0.participantIds.contains(patientId) }
             .sorted { $0.date > $1.date }
+        let mine = everything.filter { !$0.isOneToOneActivity }
+        let alone = everything.filter(\.isOneToOneActivity)
         let windowStart = now.addingTimeInterval(-Double(GroupActivityPlanner.windowDays) * 86_400)
         let last = mine.first
+        let lastAlone = alone.first
         return GroupParticipationSummary(
             count14d: mine.filter { $0.date >= windowStart }.count,
             lastTitle: last?.displayTitle,
             lastDaysAgo: last.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) },
             lastEngagement: last?.engagementRating,
-            lastNote: last?.participantNote(for: patientId)
+            lastNote: last?.participantNote(for: patientId),
+            oneToOne14d: alone.filter { $0.date >= windowStart }.count,
+            lastOneToOneTitle: lastAlone?.displayTitle,
+            lastOneToOneDaysAgo: lastAlone.map { max(0, Int(now.timeIntervalSince($0.date) / 86_400)) },
+            lastOneToOneNote: lastAlone?.participantNote(for: patientId)
         )
     }
 
@@ -75,14 +104,17 @@ enum GroupActivityReadModels {
     ) -> GroupProgrammeSummary {
         let windowStart = now.addingTimeInterval(-Double(GroupActivityPlanner.windowDays) * 86_400)
         let residentIds = Set(residents.map(\.id))
-        let recent = GroupSessionRecord.current(groupRecords)
+        let inWindow = GroupSessionRecord.current(groupRecords)
             .filter { $0.date >= windowStart && ($0.participantIds.isEmpty || $0.participantIds.contains { residentIds.contains($0) }) }
+        // The group programme is groups: an activity logged for one resident is a one-to-one visit, so it is left out of
+        // sessions, reach, engagement and morale, but still counted under "Outside the app" below.
+        let recent = inWindow.filter { !$0.isOneToOneActivity }
         let reached = Set(recent.flatMap { record in
             record.participantIds.isEmpty ? Array(residentIds) : record.participantIds.filter { residentIds.contains($0) }
         }).count
         let engagement = recent.compactMap { $0.engagementRating.map(Double.init) }
         let morale = recent.compactMap { $0.moraleRating.map(Double.init) }
-        let outside = recent.filter { !$0.isMusic }
+        let outside = inWindow.filter { !$0.isMusic }
         let outsideEngagement = outside.compactMap { $0.engagementRating.map(Double.init) }
         let planner = GroupActivityPlanner.build(residents: residents, sessionRecords: sessionRecords, groupRecords: groupRecords, now: now)
         let byId = Dictionary(uniqueKeysWithValues: planner.residents.map { ($0.id, $0) })
@@ -189,8 +221,16 @@ extension SessionPOCState {
         if isHouseholdAccount, let resident = householdResident() {
             draft.solo = true
             draft.attendeeIds = [resident.id]
+        } else if let residentId = groupSession.activitySoloResidentId {
+            draft.solo = true
+            draft.attendeeIds = [residentId]
         }
         return draft
+    }
+
+    /// Whether the open form is for one person alone: a Care at home account, or staff who came from a resident's profile.
+    var activityFormIsSolo: Bool {
+        isHouseholdAccount || groupSession.activitySoloResidentId != nil
     }
 
     func beginActivityLog() {
@@ -198,21 +238,42 @@ extension SessionPOCState {
             phase = .home
             return
         }
+        groupSession.activitySoloResidentId = nil
+        groupSession.activityReturnPhase = nil
         groupSession.activityDraft = blankActivityDraft()
         groupSession.activityErrors = [:]
         transitionToPhase(.careActivityLog)
     }
 
-    /// Back to the roster for staff, to the person's home page for a Care at home account.
+    /// "Log an activity" on one resident's profile: the one-person form for them, a one-to-one visit.
+    func beginActivityLog(for residentId: UUID) {
+        guard isSignedIn else {
+            phase = .home
+            return
+        }
+        selectedCarePatientId = residentId
+        groupSession.activitySoloResidentId = residentId
+        groupSession.activityReturnPhase = .carePatientDetail
+        groupSession.activityDraft = blankActivityDraft()
+        groupSession.activityErrors = [:]
+        transitionToPhase(.careActivityLog)
+    }
+
+    /// Back to the roster for staff, to the resident's profile if that is where it was opened, to the person's home page for
+    /// a Care at home account.
     func cancelActivityLog() {
+        let target = groupSession.activityReturnPhase ?? staffHubPhase()
+        groupSession.activitySoloResidentId = nil
+        groupSession.activityReturnPhase = nil
         groupSession.activityDraft = ActivityLogDraft()
         groupSession.activityErrors = [:]
-        transitionToPhase(staffHubPhase())
+        transitionToPhase(target)
     }
 
     /// The residents staff can pick from, A–Z — or the one person a Care at home account looks after.
     func activityLogResidents() -> [CarePatientProfile] {
         if isHouseholdAccount { return householdResident().map { [$0] } ?? [] }
+        if let residentId = groupSession.activitySoloResidentId { return carePatient(id: residentId).map { [$0] } ?? [] }
         return residentsInCurrentHome().sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
@@ -249,7 +310,7 @@ extension SessionPOCState {
     /// Loads a logged activity into the form; saving writes a correction that replaces it.
     func beginEditingActivity(_ record: GroupSessionRecord) {
         var draft = ActivityLogDraft(editing: record)
-        draft.solo = isHouseholdAccount
+        draft.solo = activityFormIsSolo
         groupSession.activityDraft = draft
         groupSession.activityErrors = [:]
     }
@@ -257,7 +318,7 @@ extension SessionPOCState {
     /// Starts a new entry from an earlier one: same activity, length and people, now, with how they were left to say.
     func beginRepeatingActivity(_ record: GroupSessionRecord) {
         var draft = ActivityLogDraft(repeating: record)
-        draft.solo = isHouseholdAccount
+        draft.solo = activityFormIsSolo
         groupSession.activityDraft = draft
         groupSession.activityErrors = [:]
     }

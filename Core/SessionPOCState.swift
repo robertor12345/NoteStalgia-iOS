@@ -1341,7 +1341,7 @@ final class SessionPOCState: ObservableObject {
 
         if let patient = carePatient(id: patientId) {
             let prior = recordsForPatient(patientId)
-            let pack = CareSessionInsightBuilder.build(patient: patient, record: rec, priorRecords: prior)
+            let pack = CareSessionInsightBuilder.build(patient: patient, record: rec, priorRecords: prior, activities: GroupSessionRecord.current(groupSessionRecords))
             rec.insightNarrative = pack.narrative
             rec.insightSuggestedNextStep = pack.suggestedNextStep
             rec.insightHandoverText = pack.handoverText
